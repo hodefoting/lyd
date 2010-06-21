@@ -1,4 +1,4 @@
-#include "lyd.h"
+#include "core/lyd.h"
 
 #ifdef HAVE_ALSA
 #define MIDI_CHANNELS 16

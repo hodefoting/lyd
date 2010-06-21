@@ -6,11 +6,6 @@
 /* what we have is hard coded for now, simply comment one of these out to
  * disable that part
  */
-#define HAVE_OSC 
-#define HAVE_SDL
-//#define HAVE_AO
-#define HAVE_ALSA
-#define HAVE_JACK
 
 typedef struct _LydCommand LydCommand;
 
@@ -70,14 +65,16 @@ static inline float str2float (const char *str)
 
 /*** lyd uses glib conveniences but tries to be independent ***/
 #ifdef NIH
-/* XXX: the fake glib needs lock/unlock replacements */
-#include <glib.h>
 #undef g_new0
 #undef G_UNLIKELY
-#define LOCK()   g_static_mutex_lock (&mutex)
-#define UNLOCK() g_static_mutex_unlock (&mutex)
-GStaticMutex mutex;
+/* XXX: the fake glib needs lock/unlock replacements */
+//#include <glib.h>
+//#define LOCK()   g_static_mutex_lock (&mutex)
+//#define UNLOCK() g_static_mutex_unlock (&mutex)
+//GStaticMutex mutex;
 
+#define TRUE  1
+#define FALSE 0
 #define G_UNLIKELY(arg)  arg
 #define g_malloc0(size)  calloc (1, size)
 #define g_new0(type, n)  calloc (n, sizeof(type))
@@ -131,9 +128,8 @@ static inline SList *slist_find (SList *list, void *data)
   return list;
 }
 
-//#define LOCK()
-//#define UNLOCK()
-
+#define LOCK()
+#define UNLOCK()
 
 #else
 
@@ -143,10 +139,10 @@ static inline SList *slist_find (SList *list, void *data)
 GStaticMutex mutex;
 
 #define SList GSList
-#define slist_prepend(l, a) g_slist_prepend((l), (a))
-#define slist_remove(l, a) g_slist_remove((l), (a))
-#define slist_find(l, a) g_slist_find((l), (a))
-#define slist_free(l) g_slist_free((l))
+#define slist_prepend(l, a) g_slist_prepend ((l), (a))
+#define slist_remove(l, a)  g_slist_remove ((l), (a))
+#define slist_find(l, a)    g_slist_find ((l), (a))
+#define slist_free(l)       g_slist_free ((l))
 
 #endif
 

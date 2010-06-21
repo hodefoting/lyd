@@ -3,13 +3,15 @@
 
 /* what we have is hard coded for now, * simply comment one of these out to * disable that part
  */
+#if 0
 #define HAVE_OSC 
 #define HAVE_SDL
-//#define HAVE_AO
+#define HAVE_AO
 #define HAVE_ALSA
-//#define HAVE_JACK
+#define HAVE_JACK
+#endif
 
-#define NIH
+//#define NIH
 
 //#include <glib.h>
 

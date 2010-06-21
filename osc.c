@@ -1,4 +1,4 @@
-#include "lyd.h"
+#include "core/lyd.h"
 #ifdef HAVE_OSC
 #include <lo/lo.h>
 #include <stdlib.h>

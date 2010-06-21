@@ -2,7 +2,7 @@
 #include <string.h>
 #include <math.h>
 #include <glib.h>
-#include "lyd.h"
+#include "core/lyd.h"
 
 #ifdef HAVE_SDL
 #include <SDL.h>
