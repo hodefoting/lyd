@@ -5,15 +5,14 @@
 #include "lyd.h"
 #include "lyd-private.h"
 
-#define VOLUME  0.05
-
-#define MAX_REVERB_SIZE  44100
-
+#define DEBUG
+#define VOLUME                   0.05
+#define MAX_REVERB_SIZE          44100
+#define SILENCE_DETECT_DAMPENING 0.001
 
 typedef float LydSample; /* global define for what type lyd computes with,
                             can be set to float or double, some mor jiggling
                             would be needed to support 32bit int directly */
-
 struct _Lyd
 {
   int       sample_rate; /* sample rate    */
@@ -65,10 +64,9 @@ struct _LydVoice
                          */
 };
 
-static LydVoice    *lyd_voice_new     (LydProgram *program);
-static void         lyd_voice_free    (LydVoice  *voice);
+static LydVoice        *lyd_voice_new     (LydProgram *program);
+static void             lyd_voice_free    (LydVoice  *voice);
 static inline LydSample lyd_voice_compute (LydVoice  *voice);
-
 
 static LydSample lyd_reverb (Lyd *lyd, int channel, LydSample sample)
 {
@@ -89,7 +87,6 @@ static LydSample lyd_reverb (Lyd *lyd, int channel, LydSample sample)
   return sample;
 }
 
-
 static void bar (int width, float value)
 {
   char *eights[] = { " ", "▏", "▍", "▌", "▋", "▊", "▉", "█" };
@@ -103,7 +100,6 @@ static void bar (int width, float value)
     printf (" ");
   fflush (0);
 }
-
 
 static void lyd_stats (Lyd *lyd)
 {
@@ -156,7 +152,6 @@ lyd_synthesize (Lyd  *lyd,
               
               computed = lyd_voice_compute (voice);
 
-#define SILENCE_DETECT_DAMPENING 0.001
               if (voice->released)
                 {
                   voice->silence_max = (computed > voice->silence_max)
@@ -184,6 +179,7 @@ lyd_synthesize (Lyd  *lyd,
                 }
             }
         }
+
       if (lyd->reverb > 0.0001)
         {
           value[0] = lyd_reverb (lyd, 0, value[0]);
@@ -207,7 +203,7 @@ lyd_synthesize (Lyd  *lyd,
         case LYD_s16S:
           buf16[i*2]   = (value[0] * 32767 * VOLUME);
           buf16[i*2+1] = (value[1] * 32767 * VOLUME);
-#if 1
+#ifdef DEBUG
           if (value[0] * 32767 * VOLUME<-65535/2 ||
               value[0] * 32767 * VOLUME>65535/2)
             {

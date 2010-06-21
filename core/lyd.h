@@ -1,19 +1,5 @@
-#ifndef __SYNTH_H_
-#define __SYNTH_H_
-
-/* what we have is hard coded for now, * simply comment one of these out to * disable that part
- */
-#if 0
-#define HAVE_OSC 
-#define HAVE_SDL
-#define HAVE_AO
-#define HAVE_ALSA
-#define HAVE_JACK
-#endif
-
-//#define NIH
-
-//#include <glib.h>
+#ifndef __LYD_H_
+#define __LYD_H_
 
 typedef struct _LydVoice   LydVoice;
 typedef struct _Lyd        Lyd;
