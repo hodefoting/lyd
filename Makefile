@@ -1,24 +1,29 @@
-PKGS = glib-2.0 gthread-2.0 liblo sdl # ao jack alsa
+PKGS = glib-2.0 gthread-2.0 liblo sdl alsa # ao jack alsa
 
-CFLAGS +=  -DHAVE_SDL -DHAVE_OSC # -DHAVE_JACK -DHAVE_ALSA
+CFLAGS +=  -DHAVE_SDL -DHAVE_OSC -DHAVE_ALSA # -DHAVE_JACK -DHAVE_ALSA
 CFLAGS +=  -mmmx -msse -ffast-math 
-CFLAGS += -O2 -g -Wall
+CFLAGS += -O0 -g -Wall
 CFLAGS +=  -Icore 
 
 CORE_SOURCES=\
  core/lyd.[ch] \
  core/lyd-private.h \
- core/compiler.c
+ core/lyd-compiler.c
 
 BIN_SOURCES=\
  $(CORE_SOURCES) \
  audio.c \
  midi.c  \
  osc.c   \
- lyd.c   \
- music.c
+ lyd.c 
 
-all: lyd ui mini.gz
+TARGETS = lyd ui music mini.gz
+
+all: $(TARGETS)
+
+
+music: $(CORE_SOURCES) audio.c music.c
+	gcc $(CFLAGS) `pkg-config --libs --cflags $(PKGS)` -lm $+ -o $@
 
 lyd: $(BIN_SOURCES) 
 	gcc $(CFLAGS) `pkg-config --libs --cflags $(PKGS)` -lm $+ -o $@
@@ -36,4 +41,4 @@ mini.gz: mini
 	wc -c mini.gz
 	wc -l core/*.[ch]
 clean:
-	rm -f lyd game mini ui
+	rm -f $(TARGETS) mini

@@ -3,18 +3,21 @@
 
 #include <stdlib.h>
 #include <ctype.h>
-/* what we have is hard coded for now, simply comment one of these out to
- * disable that part
- */
+#include "lyd.h"
 
 typedef struct _LydCommand LydCommand;
+typedef float LydSample; /* global define for what type lyd computes with,
+                            can be set to float or double, some mor jiggling
+                            would be needed to support 32bit int directly */
 
-#define LYD_MAX_ELEMENTS 40
-#define LYD_MAX_ARGS     4
+#define LYD_MAX_ELEMENTS               40
+#define LYD_MAX_VARIABLES              8
+#define LYD_MAX_ARGS                   4
+#define LYD_VOICE_VOLUME               0.05
+#define LYD_MAX_REVERB_SIZE            44100
+#define LYD_RELEASED_SILENCE_DAMPENING 0.001
 
-/* constants for use in patch definitions */
-
-/* These are the commands of lyds virtual machine: */
+/* The opcodes of lyds virtual machine */
 typedef enum
 {
   LYD_NONE = 0,
@@ -27,20 +30,30 @@ typedef enum
   LYD_ADSR, LYD_REVERB,
 
   LYD_LOW_PASS, LYD_HIGH_PASS, LYD_BAND_PASS, LYD_NOTCH, LYD_PEAK_EQ, 
-  LYD_LOW_SHELF, LYD_HIGH_SELF  /* these must maintain internal order */
-} LydOp;
-
+  LYD_LOW_SHELF, LYD_HIGH_SELF  /* the filters must maintain internal order */
+} LydOpCode;
 
 struct _LydCommand
 {
-  LydOp   op;                /* The operation to execute */
-  float   arg[LYD_MAX_ARGS]; /* arguments to operation */
+  LydOpCode op;                /* The operation to execute */
+  float     arg[LYD_MAX_ARGS]; /* arguments to operation */
 };
 
 struct _LydProgram
 {
   LydCommand commands[LYD_MAX_ELEMENTS];
 };
+
+
+typedef struct _LydCommandState 
+{ LydOpCode  op;
+  LydSample  out; /* XXX: for buffer mode should be a pointer to a LydSample buf */
+  LydSample *arg[LYD_MAX_ARGS];
+  LydSample  literal[LYD_MAX_ARGS];
+  void      *data;
+} LydCommandState;
+
+
 
 /* cheapish "hashing to floating point number
  * of the first few chars in a string
@@ -51,17 +64,14 @@ static inline float str2float (const char *str)
   int i;
   if (!str)
     return 0.0;
-  for (i=0;i<10 && str[i];i++) /* we shouldnt be able to get much more than 6 unique chars out,..
-                                * but we gamble and hope collisions are few, should
-                                * perhaps add sanity checking to the compiler that warns on
-                                * actual collisions?
-                                */
+  for (i=0;i<10 && str[i];i++) 
     {
       ret += ((tolower(str[i])-'a')/30.0)*((1<<i)/100.0);
     }
   return ret;
 }
 
+#define STREQUAL(str1,str2) (fabs((str1)-(str2))<0.0000001)
 
 /*** lyd uses glib conveniences but tries to be independent ***/
 #ifdef NIH
@@ -90,10 +100,10 @@ typedef struct _SList SList;
 struct _SList {void *data;SList *next;};
 static inline SList *slist_prepend (SList *list, void *data)
 {
-  SList *new=g_new0(SList, 1);
-  new->next=list;
-  new->data=data;
-  return new;
+  SList *new_=g_new0(SList, 1);
+  new_->next=list;
+  new_->data=data;
+  return new_;
 }
 static SList *slist_remove (SList *list, void *data)
 {
@@ -145,5 +155,32 @@ GStaticMutex mutex;
 #define slist_free(l)       g_slist_free ((l))
 
 #endif
+
+struct _LydVoice
+{
+  Lyd      *lyd;      /* backpointer to the lyd instance */
+  LydSample position; /* 0.0 center -1.0 left 1.0 right */
+  LydSample duration; /* how long the sample should last */
+  int   released; /* the number of samples we have been released, calling
+                       voice_release increments this and starts the release
+                       process */
+  long  sample;   /* position, negative values means queued for playback,
+                       controlled by lyd */
+  int   sample_rate;
+
+  LydSample silence_min; /* Silence detection */
+  LydSample silence_max; /* (after release) */
+
+  void  (*complete_cb)(void *data); /* callback and data when voice is done*/
+  void   *complete_data;             /* data for complete callback */
+  
+  int    tag;
+
+  SList *params;        /* list of key-lists form params */
+  LydCommandState state[]; /* instruction and working data should
+                           stay close using this layout, note: variable
+                           sized array
+                         */
+};
 
 #endif

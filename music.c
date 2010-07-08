@@ -1,10 +1,10 @@
 #include <stdlib.h>
 #include <math.h>
 #include <glib.h>
+#include <string.h>
 #include "lyd.h"
 
 #if 1
-
 /* an experiment to create a score writing language using 
  * just the c pre processor
  */
@@ -160,7 +160,21 @@ void music (Lyd *lyd)
 //freq
 #endif
 
+gboolean lyd_audio_init (Lyd         *lyd,
+                         const gchar *driver);
 
-
-
-
+int main (int    argc,
+          char **argv)
+{
+  Lyd *lyd;
+  g_thread_init (NULL);
+  lyd = lyd_new ();
+  if (!lyd_audio_init (lyd, "auto"))
+    {
+      g_free (lyd);
+      g_error ("failed to initialize lyd (audio output)\n");
+    }
+  music (lyd);
+  g_main_loop_run (g_main_loop_new (NULL, FALSE));
+  return 0;
+}

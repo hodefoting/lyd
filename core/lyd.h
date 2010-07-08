@@ -4,11 +4,19 @@
 typedef struct _LydVoice   LydVoice;
 typedef struct _Lyd        Lyd;
 typedef struct _LydProgram LydProgram;
+
 typedef enum {
-  LYD_f32, /* 32bit floating point mono */
-  LYD_f32S,/* 32bit floating point stereo, stream2 is used */
-  LYD_s16S,/* 16bit signed integer stereo, interleaved on stream1*/
+  LYD_f32,  /* 32bit floating point mono */
+  LYD_f32S, /* 32bit floating point stereo, stream2 is used */
+  LYD_s16S  /* 16bit signed integer stereo, interleaved on stream1*/
 } LydFormat;
+
+typedef enum {
+  LYD_GAP,    /* all values in transition are 0.0 */
+  LYD_STEP,   /* all values before value have previous value */
+  LYD_LINEAR, /* slide linearly between values */
+  LYD_CUBIC,  /* slide smoothly between values */
+} LydInterpolation;
 
 Lyd        *lyd_new             (void);
 
@@ -27,9 +35,7 @@ LydVoice   *lyd_new_voice       (Lyd *lyd, LydProgram *program, int tag);
 
 void        lyd_kill            (Lyd *lyd, int tag);
 
-
 void        lyd_program_free    (LydProgram *program);
-
 
 void        lyd_voice_release   (Lyd *lyd, LydVoice *voice);
 
@@ -42,25 +48,19 @@ void        lyd_voice_set_delay (Lyd *lyd, LydVoice *voice, double seconds);
  */
 void        lyd_voice_set_duration (Lyd *lyd, LydVoice *voice, double seconds);
 
-void        lyd_program_set_param (LydProgram *program, 
-                                   const char *param, double    value);
-
 void        lyd_voice_set_param (Lyd        *lyd,   LydVoice *voice,
                                  const char *param, double    value);
 
-double      lyd_voice_get_param (Lyd        *lyd, LydVoice *voice,
-                                 const char *param);
-
-void        lyd_voice_set       (Lyd        *lyd,         LydVoice *voice,
-                                 const char *first_param, double    first_value,
-                                 ...);/* param, value, ..., NULL */
-
+void        lyd_voice_set_param_delayed (Lyd        *lyd,   LydVoice  *voice,
+                                         const char *param, float      time,
+                                         LydInterpolation interpolation, 
+                                         float       value); 
 /* NYI */
 void        lyd_wav_from_data   (Lyd *lyd,         const char *name,
                                  int  length,      LydFormat   format,
                                  int  sample_rate, void       *buf);
 
-void         lyd_voice_set_position (Lyd         *lyd,
-                                     LydVoice    *voice,
-                                     double       position);
+void        lyd_voice_set_position (Lyd         *lyd,
+                                    LydVoice    *voice,
+                                    double       position);
 #endif

@@ -10,9 +10,11 @@
 
 /* should use instruments defined as strings */
 
-#define NONE    "square(hz) * adsr(0.1,0.1,0.8,0.2) * volume"
-#define PIANO   "saw(hz) * adsr(0.1,0.1,0.8,0.2) * volume"
-#define STRINGS "saw(hz) * adsr(0.1,0.1,0.8,0.2) * volume"
+#define NONE    "sin(hz) * adsr(0.0,0.0,0.8,0.2) * volume"
+#define PIANO   "sin(hz) * adsr(0.0,0.0,0.8,0.2) * volume"
+#define STRINGS "sin(hz) * adsr(0.0,0.0,0.8,0.2) * volume"
+//#define PIANO   "saw(hz) * adsr(0.1,0.1,0.8,0.2) * volume"
+//#define STRINGS "saw(hz) * adsr(0.1,0.1,0.8,0.2) * volume"
 #define FOO STRINGS
 
 /* Mapping of General MIDI instruments to lyd patches */

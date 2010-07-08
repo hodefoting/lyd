@@ -3,23 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-//static int scale[]= {0,2,4,7,9};
-//static int scale[5]={0-10,2-10,4-10,7-10,9-10};
+#include "welcome.h"
 
-Lyd *lyd;
-gboolean hz_changer (gpointer voice)
-{
-  static float volume = 1.0;
-  lyd_voice_set_param (lyd, voice, "volume", volume-=0.01);
-
-  return TRUE;
-}
-
-void music (Lyd *lyd);
-void test_instruments (Lyd *lyd);
-
-gboolean lyd_audio_init   (Lyd       *lyd,
-                             const gchar *driver);
+gboolean lyd_audio_init   (Lyd         *lyd,
+                           const gchar *driver);
 
 #ifdef HAVE_OSC
 void lyd_osc_init   (Lyd *lyd);
@@ -29,15 +16,13 @@ void lyd_osc_init   (Lyd *lyd);
 void lyd_midi_init   (Lyd *lyd);
 #endif
 
-void test_parser (void);
-
 int main (int    argc,
           char **argv)
 {
+  Lyd *lyd;
   g_thread_init (NULL);
-  //test_parser ();
-  //return 0;
   lyd = lyd_new ();
+
   if (!lyd_audio_init (lyd, "auto"))
     {
       g_free (lyd);
@@ -51,31 +36,7 @@ int main (int    argc,
   lyd_midi_init (lyd);
 #endif
 
-  if (strstr (argv[0], "instruments"))
-    {
-      test_instruments (lyd);
-    }
-  else if (strstr (argv[0], "demo"))
-    {
-      music (lyd);
-    }
-  else if (strstr (argv[0], "random"))
-    {
-      //g_timeout_add (250, random_player, lyd);
-    }
-  else
-   { 
-     LydVoice   *voice;
-     LydProgram *program;
-    
-     program = lyd_compile (lyd, "sin(hz=440) * adsr(0.12, 0.12, 0.9, 0.30) * volume=1.0");
-     voice = lyd_new_voice (lyd, program, 0);
-     lyd_voice_set_param (lyd, voice, "volume", 0.4);
-     lyd_voice_set_param (lyd, voice, "hz",     1940.0);
-     //lyd_voice_release (lyd, voice);
-
-     g_timeout_add (50, hz_changer, voice);
-   }
+  welcome (lyd);
 
   g_main_loop_run (g_main_loop_new (NULL, FALSE));
   return 0;
