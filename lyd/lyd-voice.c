@@ -21,6 +21,7 @@ static LydVoice * lyd_voice_new (LydProgram *program)
           if (offset >= 0) /* direct pointer */
             {
               voice->state[i].arg[j] = &voice->state[i].literal[j];
+              voice->state[i].out = voice->state[i].literal[j];
             }
           else if (i + offset >= 0)
             voice->state[i].arg[j] = &voice->state[i + offset].out;

@@ -1,12 +1,17 @@
+
+#define HAVE_GLIB
+#ifdef HAVE_GLIB
 #include <glib.h>
-#include "core/lyd.h"
+#endif
+#include <lyd/lyd.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "welcome.h"
 
-gboolean lyd_audio_init   (Lyd         *lyd,
-                           const gchar *driver);
+int lyd_audio_init   (Lyd        *lyd,
+                      const char *driver);
 
 #ifdef HAVE_OSC
 void lyd_osc_init   (Lyd *lyd);
@@ -20,13 +25,16 @@ int main (int    argc,
           char **argv)
 {
   Lyd *lyd;
+#ifdef HAVE_GLIB
   g_thread_init (NULL);
+#endif
   lyd = lyd_new ();
 
   if (!lyd_audio_init (lyd, "auto"))
     {
-      g_free (lyd);
-      g_error ("failed to initialize lyd (audio output)\n");
+      lyd_free (lyd);
+      printf ("failed to initialize lyd (audio output)\n");
+      exit (1);
     }
 
 #ifdef HAVE_OSC
@@ -38,6 +46,10 @@ int main (int    argc,
 
   welcome (lyd);
 
+#ifdef HAVE_GLIB
   g_main_loop_run (g_main_loop_new (NULL, FALSE));
+#else
+  sleep(10);
+#endif
   return 0;
 }

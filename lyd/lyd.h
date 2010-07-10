@@ -44,9 +44,9 @@ void        lyd_voice_kill      (Lyd *lyd, LydVoice *voice);
 void        lyd_voice_set_delay (Lyd *lyd, LydVoice *voice, double seconds);
 
 /* the voice will be automatically released after it has been playing
- * for voice seconds
+ * for the specified duration (in seconds).
  */
-void        lyd_voice_set_duration (Lyd *lyd, LydVoice *voice, double seconds);
+void        lyd_voice_set_duration (Lyd *lyd, LydVoice *voice, double duration);
 
 void        lyd_voice_set_param (Lyd        *lyd,   LydVoice *voice,
                                  const char *param, double    value);

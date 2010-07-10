@@ -10,6 +10,8 @@ typedef float LydSample; /* global define for what type lyd computes with,
                             can be set to float or double, some mor jiggling
                             would be needed to support 32bit int directly */
 
+#define LYD_SAMPLES                    23
+
 #define LYD_MAX_ELEMENTS               40
 #define LYD_MAX_VARIABLES              8
 #define LYD_MAX_ARGS                   4
@@ -47,7 +49,7 @@ struct _LydProgram
 
 typedef struct _LydCommandState 
 { LydOpCode  op;
-  LydSample  out; /* XXX: for buffer mode should be a pointer to a LydSample buf */
+  LydSample  out; 
   LydSample *arg[LYD_MAX_ARGS];
   LydSample  literal[LYD_MAX_ARGS];
   void      *data;
