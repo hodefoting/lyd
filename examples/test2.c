@@ -17,6 +17,7 @@
 #include <glib.h>
 #include <lyd/lyd.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 
 
@@ -54,7 +55,6 @@ static void test_lyd (Lyd *lyd)
   voice = lyd_new_voice (lyd, instrument, 0);
   lyd_voice_set_param (lyd, voice, "volume", 1.2);
   lyd_voice_set_duration (lyd, voice, 10.0);
-  lyd_voice_set_delay (lyd, voice, 2.0);
 
   lyd_voice_set_param_delayed (lyd, voice, "volume", 5.0, LYD_CUBIC, 1.0);
   lyd_voice_set_param_delayed (lyd, voice, "volume", 6.0, LYD_LINEAR, 0.0);

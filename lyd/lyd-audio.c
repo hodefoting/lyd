@@ -38,7 +38,7 @@ sdl_generate_audio (void    *data,
 
 }
 
-gboolean
+int
 lyd_audio_init_sdl (Lyd *lyd)
 {
   /* Open the audio device */
@@ -55,7 +55,7 @@ lyd_audio_init_sdl (Lyd *lyd)
   desired->userdata=lyd;
   if ( SDL_OpenAudio(desired, obtained) < 0 ){
     g_warning ("Couldn't open audio: %s\n", SDL_GetError());
-    return FALSE;
+    return 0;
   }
   lyd_set_sample_rate (lyd, obtained->freq);
   lyd_set_format (lyd, LYD_s16S);
@@ -68,7 +68,7 @@ lyd_audio_init_sdl (Lyd *lyd)
   /* initialize kiss-fft */
   //cfg = kiss_fft_alloc (nfft, is_invertse_fft, 0, 0,);
 
-  return TRUE;
+  return 1;
 }
 #endif
 

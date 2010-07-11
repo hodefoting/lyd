@@ -17,6 +17,7 @@
 #include <glib.h>
 #include <lyd/lyd.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 
 
