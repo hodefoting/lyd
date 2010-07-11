@@ -20,6 +20,11 @@ aclocal.m4
 libtool
 config.status
 configure
+stamp-h1
+autom4te.cache
 missing
 lyd.pc
 lyd-0.0.pc
+bin/lyd
+examples/test
+examples/test2

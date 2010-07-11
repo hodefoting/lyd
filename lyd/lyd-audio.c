@@ -20,6 +20,10 @@
 #include <glib.h>
 #include <lyd/lyd.h>
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #ifdef HAVE_SDL
 #include <SDL.h>
 //#include "kiss_fft.h"
@@ -183,7 +187,7 @@ lyd_audio_init_jack (Lyd *lyd)
 }
 #endif
 
-gboolean
+int
 lyd_audio_init (Lyd       *lyd,
                 const char *driver)
 {

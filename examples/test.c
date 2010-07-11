@@ -14,29 +14,22 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <glib.h>
 #include <lyd/lyd.h>
-#include <stdlib.h>
+#include <stdio.h>
 #include <unistd.h>
-#include <string.h>
-
 
 static void test_lyd (Lyd *lyd);
-
-gboolean lyd_audio_init (Lyd         *lyd,
-                         const gchar *driver);
 
 int main (int    argc,
           char **argv)
 {
-  Lyd *lyd;
-  g_thread_init (NULL);
-  lyd = lyd_new ();
+  Lyd *lyd = lyd_new ();
 
   if (!lyd_audio_init (lyd, "auto"))
     {
-      g_free (lyd);
-      g_error ("failed to initialize lyd (audio output)\n");
+      lyd_free (lyd);
+      printf ("failed to initialize lyd (audio output)\n");
+      return -1;
     }
 
   test_lyd (lyd);

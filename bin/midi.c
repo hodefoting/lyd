@@ -13,11 +13,14 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-#include <lyd/lyd.h>
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 #ifdef HAVE_ALSA
 #define MIDI_CHANNELS 16
 
+#include <lyd/lyd.h>
 #include <stdlib.h>
 #include <glib.h>
 #include <math.h>

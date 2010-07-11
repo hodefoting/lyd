@@ -27,8 +27,6 @@ void welcome (Lyd *lyd)
   lyd_voice_set_param (lyd, voice, "hz",     frequency);\
   lyd_voice_set_duration (lyd, voice, duration);\
   lyd_voice_set_delay (lyd, voice, delay);
-  for (i=0; i<3; i++)
-    {
   Q(0.0, 0.3, 440.0);
   Q(0.1, 0.2, 660.0);
   Q(0.2, 0.1, 880.0);
@@ -40,7 +38,6 @@ void welcome (Lyd *lyd)
   Q(1.4, 0.15, 600.0);
   Q(1.6, 0.15, 700.0);
   Q(1.8, 0.15, 800.0);
-    }
 #undef Q
   lyd_program_free (program);
 }

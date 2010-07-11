@@ -79,4 +79,9 @@ void        lyd_wav_from_data   (Lyd *lyd,         const char *name,
 void        lyd_voice_set_position (Lyd         *lyd,
                                     LydVoice    *voice,
                                     double       position);
+
+/* available drivers depends on how lyd was compiled, pass in "auto" to make
+ * lyd auto select. Returns 0 if lyd failed to initialize audio output.
+ */
+int         lyd_audio_init (Lyd *lyd, const char *driver); 
 #endif

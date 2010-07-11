@@ -14,8 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <lyd/lyd.h>
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 #ifdef HAVE_OSC
+#include <lyd/lyd.h>
 #include <lo/lo.h>
 #include <stdlib.h>
 #include <glib.h>
