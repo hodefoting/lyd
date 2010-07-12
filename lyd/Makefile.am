@@ -17,7 +17,7 @@ lib_LTLIBRARIES = liblyd-@LYD_API_VERSION@.la
 liblyd_@LYD_API_VERSION@_la_SOURCES = \
         $(srcdir)/lyd.c \
         $(srcdir)/lyd-compiler.c \
-        $(srcdir)/lyd-audio.c \
+        $(srcdir)/lyd-audio-output.c \
         $(NULL)
 
 EXTRA_DIST = lyd-private.h lyd-voice.c biquad.c
