@@ -84,4 +84,11 @@ void        lyd_voice_set_position (Lyd         *lyd,
  * lyd auto select. Returns 0 if lyd failed to initialize audio output.
  */
 int         lyd_audio_init (Lyd *lyd, const char *driver); 
+
+void        lyd_midi_load  (Lyd *lyd, void *data, int length);
+void        lyd_midi_set_repeat (Lyd *lyd, float start, float end);
+void        lyd_midi_play  (Lyd *lyd);
+void        lyd_midi_pause (Lyd *lyd);
+
+
 #endif
