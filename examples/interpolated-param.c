@@ -23,7 +23,10 @@ static void test_lyd (Lyd *lyd);
 int main (int    argc,
           char **argv)
 {
-  Lyd *lyd;
+  Lyd        *lyd;
+  LydProgram *instrument;
+  LydVoice   *voice;
+
   lyd = lyd_new ();
 
   if (!lyd_audio_init (lyd, "auto"))
@@ -33,17 +36,6 @@ int main (int    argc,
       return -1;
     }
 
-  test_lyd (lyd);
-  sleep (6);
-
-  lyd_free (lyd);
-  return 0;
-}
-
-static void test_lyd (Lyd *lyd)
-{ 
-  LydVoice   *voice;
-  LydProgram *instrument;
   instrument = lyd_compile (lyd, "(sin(hz=440 + saw(20)*10)) * volume=1");
 
   voice = lyd_new_voice (lyd, instrument, 0);
@@ -65,9 +57,8 @@ static void test_lyd (Lyd *lyd)
   lyd_voice_set_param_delayed (lyd, voice, "hz", 6.0, LYD_CUBIC, 440.0);
 
   lyd_program_free (instrument);
-}
+  sleep (6);
 
-void welcome2 (Lyd *lyd)
-{ 
+  lyd_free (lyd);
+  return 0;
 }
-

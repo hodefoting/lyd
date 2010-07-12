@@ -26,5 +26,6 @@ missing
 lyd.pc
 lyd-0.0.pc
 bin/lyd
-examples/test
-examples/test2
+examples/lyd-hi
+examples/interpolated-param
+examples/scale

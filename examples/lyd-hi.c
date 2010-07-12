@@ -18,12 +18,15 @@
 #include <stdio.h>
 #include <unistd.h>
 
-static void test_lyd (Lyd *lyd);
-
 int main (int    argc,
           char **argv)
 {
-  Lyd *lyd = lyd_new ();
+  Lyd        *lyd;
+  LydVoice   *voice;
+  LydProgram *instrument;
+  const char *code = "reverb (0.2, 0.123, low_pass (1.3, hz=440.0, 0.03, pulse(200 + sin(190) * 1.4, sin(0.1)) * adsr(0.12, 0.12, 0.7, 0.30) * volume=1.0))";
+
+  lyd = lyd_new ();
 
   if (!lyd_audio_init (lyd, "auto"))
     {
@@ -32,18 +35,6 @@ int main (int    argc,
       return -1;
     }
 
-  test_lyd (lyd);
-  sleep (5);
-
-  lyd_free (lyd);
-  return 0;
-}
-
-static void test_lyd (Lyd *lyd)
-{ 
-  LydVoice   *voice;
-  LydProgram *instrument;
-  const char *code = "reverb (0.2, 0.123, low_pass (1.3, hz=440.0, 0.03, pulse(200 + sin(190) * 1.4, sin(0.1)) * adsr(0.12, 0.12, 0.7, 0.30) * volume=1.0))";
   instrument = lyd_compile (lyd, code);
 
 #define NOTE(time, duration, frequency) \
@@ -66,4 +57,8 @@ static void test_lyd (Lyd *lyd)
   NOTE(1.8, 0.15, 800.0);
 #undef NOTE
   lyd_program_free (instrument);
+  sleep (5);
+
+  lyd_free (lyd);
+  return 0;
 }
