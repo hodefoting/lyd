@@ -83,12 +83,31 @@ void        lyd_voice_set_position (Lyd         *lyd,
 /* available drivers depends on how lyd was compiled, pass in "auto" to make
  * lyd auto select. Returns 0 if lyd failed to initialize audio output.
  */
-int         lyd_audio_init (Lyd *lyd, const char *driver); 
+int          lyd_audio_init (Lyd *lyd, const char *driver); 
 
-void        lyd_midi_load  (Lyd *lyd, void *data, int length);
-void        lyd_midi_set_repeat (Lyd *lyd, float start, float end);
-void        lyd_midi_play  (Lyd *lyd);
-void        lyd_midi_pause (Lyd *lyd);
+const char * lyd_get_patch (Lyd *lyd, int no);
+void         lyd_set_patch (Lyd *lyd, int no, const char *patch);
+
+/* play a single midi note */
+LydVoice    *lyd_note (Lyd *lyd, int patch, float hz, float volume, float duration);
+
+/* MIDI support - complementary to the audio synthesis engine, lyd also provides
+ * a MIDI state tracker that allows playback of midi files or real-time midi events
+ * thorugh ALSA. If LYD was compiled with ALSA support it creates a virtual midi
+ * device that can be used to deliver midi events to it.
+ */
+
+/* load a .mid file from a memory */
+void         lyd_midi_load  (Lyd *lyd, unsigned char *data, int length);
+/* play loaded file */
+void         lyd_midi_set_playing (Lyd *lyd, int playing);
+/* send raw midi data to decoder, allows changing tempo on the fly */
+void         lyd_midi_out   (Lyd *lyd, unsigned char *data, int length);
+
+float        lyd_midi_get_duration (Lyd *lyd);
+void         lyd_midi_set_repeat (Lyd *lyd, float start, float end);
+void         lyd_midi_seek  (Lyd *lyd, float position);
+
 
 
 #endif

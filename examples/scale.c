@@ -38,7 +38,7 @@ int main (int    argc,
   Lyd        *lyd = lyd_new ();
   LydVoice   *voice;
   LydProgram *instrument;
-  const char *code = "sin(hz=440.0) * adsr(0.12, 0.12, 1.0, 0.30)";
+  const char *code = "sin(hz=440.0) * adsr(0.12, 0.12, 0.8, 0.30)";
   int         i;
 
   if (!lyd_audio_init (lyd, "auto"))

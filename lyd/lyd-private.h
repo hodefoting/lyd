@@ -31,7 +31,7 @@ typedef float LydSample; /* global define for what type lyd computes with,
 #define LYD_MAX_ELEMENTS               40
 #define LYD_MAX_VARIABLES              8
 #define LYD_MAX_ARGS                   4
-#define LYD_VOICE_VOLUME               0.05
+#define LYD_VOICE_VOLUME               0.15
 #define LYD_MAX_REVERB_SIZE            44100
 #define LYD_RELEASED_SILENCE_DAMPENING 0.001
 

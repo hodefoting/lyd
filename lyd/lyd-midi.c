@@ -14,9 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-/* Originally from the core MIDI player in allegro
- *
- * By Shawn Hargreaves, George Foot and Elias Pschernig.
+/* Originally based on the core MIDI player in allegro By Shawn Hargreaves,
+ * George Foot and Elias Pschernig.
  */
 
 #include <limits.h>
@@ -30,140 +29,137 @@
 
 /* The following are the callbacks issued during midi parsing playback */
 
-void lyd_midi_set_volume (Lyd *lyd, int voice, int volume)
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+#define MIDI_CHANNELS  16
+#define MIDI_NOTES     128
+#define MIDI_TRACKS    32
+
+#include <lyd/lyd.h>
+#include <stdlib.h>
+#include <glib.h>
+#include <math.h>
+
+#include "general-midi.inc"
+
+const char * lyd_get_patch (Lyd *lyd, int no)
 {
-  g_print ("set vol %i %i\n", voice, volume);
-}
-void lyd_midi_set_pitch (Lyd *lyd, int voice, int note, int bend)
-{
-  g_print ("set pitch %i %i %i\n", voice, note, bend);
-}
-void lyd_midi_note_on (Lyd *lyd, int inst, int note, int bend,
-                       int vol, int pan)
-{
-  g_print ("note_on %i %i %i %i %i\n", inst, note, bend, vol, pan);
-}
-void lyd_midi_note_off (Lyd *lyd, int inst, int note)
-{
-  g_print ("note_off %i %i\n", inst, note);
+  return midi_patches[no];
 }
 
-void lyd_midi_key_off (Lyd *lyd, int key)
+void lyd_set_patch (Lyd *lyd, int no, const char *patch)
 {
-  g_print ("key off %i \n", key);
+  midi_patches[no] = strdup (patch); /* XXX: leaking */
+}
+
+LydVoice *lyd_note_full (Lyd *lyd, int patch, float hz, float volume, float duration, float pan, int hashkey)
+{
+  LydProgram *program = lyd_compile (lyd, lyd_get_patch (lyd, patch));
+  LydVoice *voice;
+  voice = lyd_new_voice (lyd, program, hashkey);
+
+  lyd_voice_set_param (lyd, voice, "volume", volume);
+  lyd_voice_set_param (lyd, voice, "hz", hz);
+  lyd_voice_set_duration (lyd, voice, duration);
+  lyd_voice_set_position (lyd, voice, pan);
+  return voice;
+}
+
+LydVoice *lyd_note (Lyd *lyd, int patch, float hz, float volume, float duration)
+{
+  return lyd_note_full (lyd, patch, hz, volume, duration, 1.0, 0);
+}
+
+static GHashTable *voice_ht = NULL;
+
+static float midi2hz (int midinote)
+{
+  return (440.0 * pow (2,(midinote-69.0)/12.0));
 }
 
 /*******************/
 
-int _midi_volume = 127;
-
-#define TIMERS_PER_SECOND 500000000
-#define BPS_TO_TIMER(a)   (TIMERS_PER_SECOND/(a))
+#define TIMERS_PER_SECOND         1000
+#define BPS_TO_TIMER(a)          (TIMERS_PER_SECOND/(a))
+/* how often the midi callback gets called maximally / second */
+#define MIDI_TIMER_FREQUENCY      100
 
 /* hacks to make it compile (cruft portability macros from allegro) */
 #define install_int_ex(a,b)
 #define install_int(a,b)
 #define remove_int(a)
 
-/* maximum number of layers in a single voice */
-#define MIDI_LAYERS  4
-
-/* how often the midi callback gets called maximally / second */
-#define MIDI_TIMER_FREQUENCY 1000
-
-/***XXXX***/
-                                       /* Theoretical maximums: */
-#define MIDI_VOICES           64       /* actual drivers may not be */
-#define MIDI_TRACKS           32       /* able to handle this many */
-
-typedef struct LydMidi                 /* a midi file */
+typedef struct LydMidiTrack          /* a track in the MIDI file */
 {
-   int divisions;                      /* number of ticks per quarter note */
-   struct {
-      unsigned char *data;             /* MIDI message stream */
-      int len;                         /* length of the track data */
-   } track[MIDI_TRACKS];
-} LydMidi;
-
-void destroy_midi (LydMidi *midi);
-int play_midi (LydMidi *midi, int loop);
-int play_looped_midi (LydMidi *midi, int loop_start, int loop_end);
-void stop_midi (void);
-void midi_pause (void);
-void midi_resume (void);
-int midi_seek (int target);
-int get_midi_length (LydMidi *midi);
-void midi_out (unsigned char *data, int length);
-
-typedef struct LydMidiTrack                       /* a track in the MIDI file */
-{
-   unsigned char *pos;                          /* position in track data */
-   long timer;                                  /* time until next event */
-   unsigned char running_status;                /* last MIDI event */
+   unsigned char *pos;               /* position in track data */
+   long timer;                       /* time until next event */
+   unsigned char running_status;     /* last MIDI event */
 } LydMidiTrack;
 
-typedef struct LydMidiChannel                     /* a MIDI channel */
+typedef struct LydMidiChannel        /* a MIDI channel */
 {
-   int patch;                                   /* current sound */
-   int volume;                                  /* volume controller */
-   int pan;                                     /* pan position */
-   int pitch_bend;                              /* pitch bend position */
-   int new_volume;                              /* cached volume change */
-   int new_pitch_bend;                          /* cached pitch bend */
-   int note[128][MIDI_LAYERS];                  /* status of each note */
+   int patch;                        /* current sound */
+   int volume;                       /* volume controller */
+   int pan;                          /* pan position */
+   int pitch_bend;                   /* pitch bend position */
+   int new_volume;                   /* cached volume change */
+   int new_pitch_bend;               /* cached pitch bend */
+   int note_volume[MIDI_NOTES];      /* -1 == not playing */
 } LydMidiChannel;
 
-typedef struct LydMidiVoice                       /* a voice on the soundcard */
-{
-   int channel;                                 /* MIDI channel */
-   int note;                                    /* note (-1 = off) */
-   int volume;                                  /* note velocity */
-   long time;                                   /* when note was triggered */
-} LydMidiVoice;
+typedef struct {
+  Lyd *lyd;               /* pointer to lyd instance used by midi player */
+  int loaded;             /* whether a midi file has been loaded */
+  int volume;             /* global playback volume */
+  int length;             /* NYI: in seconds, computed and cached on load */
+  int divisions;          /* ticks per quarter note */
+  struct {
+     unsigned char *data; /* MIDI message stream */
+     int len;             /* length of the track data */
+  } file_track[MIDI_TRACKS];
 
-volatile long midi_pos = -1;                    /* current position in MIDI file */
-volatile long midi_time = 0;                    /* current position in seconds */
-static volatile long midi_timers;               /* current position in allegro-timer-ticks */
-static long midi_pos_counter;                   /* delta for midi_pos */
-
-volatile long _midi_tick = 0;                   /* counter for killing notes */
-
-//static void midi_player(void);                  /* core MIDI player routine */
-static void prepare_to_play(LydMidi *midi);
-
-static LydMidi *midifile = NULL;                   /* the file that is playing */
-
-static int midi_loop = 0;                       /* repeat at eof? */
-
-long midi_loop_start = -1;                      /* where to loop back to */
-long midi_loop_end = -1;                        /* loop at this position */
-
-static int midi_semaphore = 0;                  /* reentrancy flag */
-
-static long midi_timer_speed;                   /* midi_player's timer speed */
-static int midi_pos_speed;                      /* MIDI delta -> midi_pos */
-static int midi_speed;                          /* MIDI delta -> timer */
-static int midi_new_speed;                      /* for tempo change events */
-
-static int old_midi_volume = -1;                /* stored global volume */
-
-static int midi_alloc_channel;                  /* so _midi_allocate_voice */
-static int midi_alloc_note;                     /* knows which note the */
-static int midi_alloc_vol;                      /* sound is associated with */
-
-static LydMidiTrack midi_track[MIDI_TRACKS];      /* the active tracks */
-static LydMidiVoice midi_voice[MIDI_VOICES];      /* synth voice status */
-static LydMidiChannel midi_channel[16];           /* MIDI channel info */
-
-static int midi_seeking;                        /* set during seeks */
-static int midi_looping;                        /* set during loops */
+  long pos;                  /* current position in MIDI file */
+  long time;                 /* current position in seconds */
+  long timers;               /* current position in allegro-timer-ticks */
+  long pos_counter;          /* delta for pos */
+  int loop;                  /* repeat at eof? */
+  long loop_start;           /* where to loop back to */
+  long loop_end;             /* loop at this position */
+  int samaphore;             /* reentrancy flag */
+  long timer_speed;          /* midi_player's timer speed */
+  int pos_speed;             /* MIDI delta -> pos */
+  int speed;                 /* MIDI delta -> timer */
+  int new_speed;             /* for tempo change events */
+  int oldvolume;            /* stored global volume */
+  LydMidiTrack active_track[MIDI_TRACKS];  /* the active tracks */
+  LydMidiChannel channel[MIDI_CHANNELS]; /* MIDI channel info */
+  int seeking;               /* set during seeks */
+  int looping;               /* set during loops */
+  guint mplayer;             /* tag used for glib idling.. */
+} LydMidi;
 
 
+/* forward declarations for the lyd integrated midi callbacks */
+static void lyd_midi_program    (LydMidi *midi, int channel, int preset);
+static void lyd_midi_note_on    (LydMidi *midi, int channel, int note, int velocity);
+void        lyd_midi_note_off   (LydMidi *midi, gint channel, gint note);
+static void lyd_midi_control    (LydMidi *midi, int channel, int ctrl, int data);
+static void lyd_midi_set_volume (LydMidi *midi, int channel, int note, int volume);
+static void lyd_midi_set_pitch  (LydMidi *midi, int channel, int note, int bend);
 
+static void lyd_midi_unload(LydMidi *midi);
+static int  play_midi (LydMidi *midi, int loop);
+static int  midi_seek (LydMidi *midi, int target);
+static void stop_midi (LydMidi *midi);
+static void pause_midi (LydMidi *midi);
+static void lyd_midi_prepare_to_play(LydMidi *midi);
+
+/* XXX the following should be cleaned up */
 static int midlength = 0;
-static const char *middata = NULL;
-#define puck_feof() ((*mp)-middata >= length)
-long puck_fread (void *p, long n, const char **mp)
+static const unsigned char *middata = NULL;
+#define stream_eof() ((*mp)-middata >= length)
+static long stream_fread (void *p, long n, const unsigned char **mp)
 {
   if ((*mp) - middata + n >= midlength)
     n = midlength - ((*mp) - middata);
@@ -174,7 +170,7 @@ long puck_fread (void *p, long n, const char **mp)
 
 #define EOF (-1)
 
-int puck_getc (const char **mp)
+static int stream_getc (const unsigned char **mp)
 {
   int ret;
   if ((*mp) - middata >= midlength)
@@ -184,168 +180,113 @@ int puck_getc (const char **mp)
   return ret;
 }
 
-long puck_mgetl(const char **mp)
+static long stream_mgetw(const unsigned char **mp)
+{
+   int b1, b2;
+
+   if ((b1 = stream_getc(mp)) != EOF)
+    if ((b2 = stream_getc(mp)) != EOF)
+      return (b1 << 8 | b2);
+   return EOF;
+}
+
+static long stream_mgetl(const unsigned char **mp)
 {
    int b1, b2, b3, b4;
 
-   if ((b1 = puck_getc(mp)) != EOF)
-      if ((b2 = puck_getc(mp)) != EOF)
-         if ((b3 = puck_getc(mp)) != EOF)
-            if ((b4 = puck_getc(mp)) != EOF)
+   if ((b1 = stream_getc(mp)) != EOF)
+      if ((b2 = stream_getc(mp)) != EOF)
+         if ((b3 = stream_getc(mp)) != EOF)
+            if ((b4 = stream_getc(mp)) != EOF)
                return (((long)b1 << 24) | ((long)b2 << 16) |
                        ((long)b3 << 8) | (long)b4);
 
    return EOF;
 }
 
-long puck_igetl(const char **mp)
+#undef  stream_eof
+#define stream_eof() (mp-mididata >= length)
+#define stream_seek(pos) mp = mididata + pos
+
+static int load_midi (LydMidi *midi, const unsigned char *mididata, int length)
 {
-   int b1, b2, b3, b4;
-
-     if ((b1 = puck_getc(mp)) != EOF)
-      if ((b2 = puck_getc(mp)) != EOF)
-         if ((b3 = puck_getc(mp)) != EOF)
-            if ((b4 = puck_getc(mp)) != EOF)
-               return (((long)b4 << 24) | ((long)b3 << 16) |
-                       ((long)b2 << 8) | (long)b1);
-   return EOF;
-}
-
-long puck_mgetw(const char **mp)
-{
-   int b1, b2;
-
-   if ((b1 = puck_getc(mp)) != EOF)
-    if ((b2 = puck_getc(mp)) != EOF)
-      return (b1 << 8 | b2);
-   return EOF;
-}
-
-#undef puck_feof
-#define puck_feof() (mp-mididata >= length)
-#define puck_fseek(pos) mp = mididata + pos
-
-
-/* load_midi:
- *  Loads a standard MIDI file, returning a pointer to a MIDI structure,
- *  or NULL on error. 
- */
-LydMidi *load_midi(const char *mididata, int length)
-{
-   const char *mp = (void*)mididata;
+   const unsigned char *mp;
    int c;
    char buf[4];
    long data;
-   LydMidi *midi;
    int num_tracks;
    midlength = length;
-   middata = mididata;
+   mp = middata = mididata;
 
    if (!mididata || length == 0)
-     return NULL;
-
-   midi = malloc(sizeof(LydMidi));              /* get some memory */
-   if (!midi) {
-      return NULL;
-   }
+     return -1;
 
    for (c=0; c<MIDI_TRACKS; c++) {
-      midi->track[c].data = NULL;
-      midi->track[c].len = 0;
+      midi->file_track[c].data = NULL;
+      midi->file_track[c].len = 0;
    }
 
-   puck_fread(buf, 4, &mp); /* read midi header */
-
-   /* Is the midi inside a .rmi file? */
-   if (memcmp(buf, "RIFF", 4) == 0) { /* check for RIFF header */
-      puck_mgetl(&mp);
-
-      while (!puck_feof()) {
-         puck_fread(buf, 4, &mp); /* RMID chunk? */
-         if (memcmp(buf, "RMID", 4) == 0) break;
-
-         puck_fseek(puck_igetl(&mp)); /* skip to next chunk */
-      }
-
-      if (puck_feof()) goto err;
-
-      puck_mgetl(&mp);
-      puck_mgetl(&mp);
-      puck_fread(buf, 4, &mp); /* read midi header */
-   }
+   stream_fread(buf, 4, &mp); /* read midi header */
 
    if (memcmp(buf, "MThd", 4))
       goto err;
 
-   puck_mgetl(&mp);                           /* skip header chunk length */
+   stream_mgetl(&mp);                           /* skip header chunk length */
 
-   data = puck_mgetw(&mp);                    /* MIDI file type */
+   data = stream_mgetw(&mp);                    /* MIDI file type */
    if ((data != 0) && (data != 1))
       goto err;
 
-   num_tracks = puck_mgetw(&mp);              /* number of tracks */
+   num_tracks = stream_mgetw(&mp);              /* number of tracks */
    if ((num_tracks < 1) || (num_tracks > MIDI_TRACKS))
       goto err;
 
-   data = puck_mgetw(&mp);                    /* beat divisions */
+   data = stream_mgetw(&mp);                    /* beat divisions */
    midi->divisions = ABS(data);
 
    for (c=0; c<num_tracks; c++) {            /* read each track */
-      puck_fread(buf, 4, &mp);                /* read track header */
+      stream_fread(buf, 4, &mp);                /* read track header */
       if (memcmp(buf, "MTrk", 4))
-	 goto err;
+     goto err;
 
-      data = puck_mgetl(&mp);                 /* length of track chunk */
-      midi->track[c].len = data;
+      data = stream_mgetl(&mp);                 /* length of track chunk */
+      midi->file_track[c].len = data;
 
-      midi->track[c].data = malloc(data); /* allocate memory */
-      if (!midi->track[c].data)
-	 goto err;
-					     /* finally, read track data */
-      if (puck_fread(midi->track[c].data, data, &mp) != data)
-	 goto err;
+      midi->file_track[c].data = malloc(data); /* allocate memory */
+      if (!midi->file_track[c].data)
+     goto err;
+                         /* finally, read track data */
+      if (stream_fread(midi->file_track[c].data, data, &mp) != data)
+     goto err;
    }
 
-   return midi;
+   midi->loaded = 1;
+   return 0;
 
-   /* oh dear... */
-   err:
-   destroy_midi(midi);
-   return NULL;
+   err: /* oh dear... */
+   lyd_midi_unload (midi);
+   return -1;
 }
 
 
-/* destroy_midi:
- *  Frees the memory being used by a MIDI file.
- */
-void destroy_midi(LydMidi *midi)
+/* Free the memory being used by a MIDI file. */
+static void lyd_midi_unload (LydMidi *midi)
 {
    int c;
 
-   if (midi == midifile)
-      stop_midi();
+   stop_midi(midi);
+   if (!midi)
+     return;
 
-   if (midi) {
-      for (c=0; c<MIDI_TRACKS; c++) {
-	 if (midi->track[c].data) {
-	    free(midi->track[c].data);
-	 }
-      }
-
-      free(midi);
-   }
+   for (c=0; c<MIDI_TRACKS; c++)
+     {
+       if (midi->file_track[c].data)
+         free(midi->file_track[c].data);
+       midi->file_track[c].data=NULL;
+     }
 }
 
-
-
-/* parse_var_len:
- *  The MIDI file format is a strange thing. Time offsets are only 32 bits,
- *  yet they are compressed in a weird variable length format. This routine 
- *  reads a variable length integer from a MIDI data stream. It returns the 
- *  number read, and alters the data pointer according to the number of
- *  bytes it used.
- */
-static unsigned long parse_var_len(const unsigned char **data)
+static unsigned long parse_variable_length (const unsigned char **data)
 {
    unsigned long val = **data & 0x7F;
 
@@ -359,170 +300,35 @@ static unsigned long parse_var_len(const unsigned char **data)
    return val;
 }
 
-
-
-/* global_volume_fix:
- *  Converts a note volume, adjusting it according to the global 
- *  _midi_volume variable.
- */
-static inline int global_volume_fix(int vol)
+static inline int sort_out_volume(LydMidi *midi, int c, int vol)
 {
-   if (_midi_volume >= 0)
-      return (vol * _midi_volume) / 256;
-
-   return vol;
+   return (((vol * midi->channel[c].volume) / 128) * midi->volume) / 256;
 }
 
-/* sort_out_volume:
- *  Converts a note volume, adjusting it according to the channel volume
- *  and the global _midi_volume variable.
- */
-static inline int sort_out_volume(int c, int vol)
+static void all_notes_off(LydMidi *midi, int channel)
 {
-   return global_volume_fix((vol * midi_channel[c].volume) / 128);
+  int note;
+  for (note=0; note<MIDI_NOTES; note++)
+    lyd_midi_note_off (midi, channel, note);
 }
 
-
-static Lyd *lyd = NULL;
-
-
-/* midi_note_off:
- *  Processes a MIDI note-off event.
- */
-static void midi_note_off(int channel, int note)
+static void all_sound_off(LydMidi *midi, int channel)
 {
-   int done = FALSE;
-   int voice, layer;
-
-   /* oh well, have to do it the long way... */
-   for (layer=0; layer<MIDI_LAYERS; layer++) {
-      voice = midi_channel[channel].note[note][layer];
-      if (voice >= 0) {
-	 //midi_driver->key_off(voice + midi_driver->basevoice);
-         lyd_midi_key_off (lyd, voice);
-	 midi_voice[voice].note = -1;
-	 midi_voice[voice].time = _midi_tick;
-	 midi_channel[channel].note[note][layer] = -1; 
-	 done = TRUE;
-      }
-   }
-}
-
-/* sort_out_pitch_bend:
- *  MIDI pitch bend range is + or - two semitones. The low-level soundcard
- *  drivers can only handle bends up to +1 semitone. This routine converts
- *  pitch bends from MIDI format to our own format.
- */
-static inline void sort_out_pitch_bend(int *bend, int *note)
-{
-   if (*bend == 0x2000) {
-      *bend = 0;
-      return;
-   }
-
-   (*bend) -= 0x2000;
-
-   while (*bend < 0) {
-      (*note)--;
-      (*bend) += 0x1000;
-   }
-
-   while (*bend >= 0x1000) {
-      (*note)++;
-      (*bend) -= 0x1000;
-   }
-}
-
-/* midi_note_on:
- *  Processes a MIDI note-on event. Tries to find a free soundcard voice,
- *  and if it can't either cuts off an existing note, or if 'polite' is
- *  set, just stores the channel, note and volume in the waiting list.
- */
-static void midi_note_on(int channel, int note, int vol, int polite)
-{
-   int layer, inst, bend, corrected_note;
-
-   /* if the note is already on, turn it off */
-   for (layer=0; layer<MIDI_LAYERS; layer++) {
-      if (midi_channel[channel].note[note][layer] >= 0) {
-         printf ("get it off!\n");
-	 midi_note_off(channel, note);
-	 return;
-      }
-   }
-  
-   /* if zero volume and the note isn't playing, we can just ignore it */
-   if (vol == 0)
-     {
-        /* XXX: the above check should really have found the voice */
-        lyd_midi_note_off (lyd, midi_channel[channel].patch, note);
-        return;
-     }
-
-   if (channel != 9) {
-   }
-
-   /* drum sound? */
-   if (channel == 9) {
-      inst = 128+note;
-      corrected_note = 60;
-      bend = 0;
-   }
-   else {
-      inst = midi_channel[channel].patch;
-      corrected_note = note;
-      bend = midi_channel[channel].pitch_bend;
-      sort_out_pitch_bend(&bend, &corrected_note);
-   }
-
-   /* play the note */
-   midi_alloc_channel = channel;
-   midi_alloc_note = note;
-   midi_alloc_vol = vol;
-
-   /*midi_driver->key_on(inst, corrected_note, bend, 
-		       sort_out_volume(channel, vol), 
-		       midi_channel[channel].pan);
-    */
-   lyd_midi_note_on (lyd, inst, corrected_note, bend,
-                     sort_out_volume(channel, vol),
-                     midi_channel[channel].pan);
-}
-
-/* all_notes_off:
- *  Turns off all active notes.
- */
-static void all_notes_off(int channel)
-{
-   {
-      int note, layer;
-
-      for (note=0; note<128; note++)
-	 for (layer=0; layer<MIDI_LAYERS; layer++)
-	    if (midi_channel[channel].note[note][layer] >= 0)
-	       midi_note_off(channel, note);
-   }
-}
-
-/* all_sound_off:
- *  Turns off sound.
- */
-static void all_sound_off(int channel)
-{
+  /* should kill all possible note tags */
 }
 
 /* reset_controllers:
  *  Resets volume, pan, pitch bend, etc, to default positions.
  */
-static void reset_controllers(int channel)
+static void reset_controllers(LydMidi *midi, int channel)
 {
-   midi_channel[channel].new_volume = 128;
-   midi_channel[channel].new_pitch_bend = 0x2000;
+   midi->channel[channel].new_volume = 128;
+   midi->channel[channel].new_pitch_bend = 0x2000;
 
    switch (channel % 3) {
-      case 0:  midi_channel[channel].pan = ((channel/3) & 1) ? 60 : 68; break;
-      case 1:  midi_channel[channel].pan = 104; break;
-      case 2:  midi_channel[channel].pan = 24; break;
+      case 0:  midi->channel[channel].pan = ((channel/3) & 1) ? 60 : 68; break;
+      case 1:  midi->channel[channel].pan = 104; break;
+      case 2:  midi->channel[channel].pan = 24; break;
    }
 
 }
@@ -530,391 +336,313 @@ static void reset_controllers(int channel)
 /* update_controllers:
  *  Checks cached controller information and updates active voices.
  */
-static void update_controllers(void)
+static void update_controllers(LydMidi *midi)
 {
    int c, c2, vol, bend, note;
 
-   for (c=0; c<16; c++) {
+   for (c=0; c<MIDI_CHANNELS; c++) {
       /* check for volume controller change */
-      if ((midi_channel[c].volume != midi_channel[c].new_volume) || (old_midi_volume != _midi_volume)) {
-	 midi_channel[c].volume = midi_channel[c].new_volume;
-	 {
-	    for (c2=0; c2<MIDI_VOICES; c2++) {
-	       if ((midi_voice[c2].channel == c) && (midi_voice[c2].note >= 0)) {
-		  vol = sort_out_volume(c, midi_voice[c2].volume);
-		  //midi_driver->set_volume(c2 + midi_driver->basevoice, vol);
-                  lyd_midi_set_volume (lyd, c2, vol);
-	       }
-	    }
-	 }
+      if ((midi->channel[c].volume != midi->channel[c].new_volume) || (midi->oldvolume != midi->volume)) {
+     midi->channel[c].volume = midi->channel[c].new_volume;
+     {
+        for (c2=0; c2<MIDI_NOTES; c2++) {
+              if (midi->channel[c].note_volume[c2] >= 0) {
+        vol = sort_out_volume(midi, c, midi->channel[c].note_volume[c2]);
+                lyd_midi_set_volume (midi, c, c2, vol);
+          }
+        }
+     }
       }
 
       /* check for pitch bend change */
-      if (midi_channel[c].pitch_bend != midi_channel[c].new_pitch_bend) {
-	 midi_channel[c].pitch_bend = midi_channel[c].new_pitch_bend;
-	 {
-	    for (c2=0; c2<MIDI_VOICES; c2++) {
-	       if ((midi_voice[c2].channel == c) && (midi_voice[c2].note >= 0)) {
-		  bend = midi_channel[c].pitch_bend;
-		  note = midi_voice[c2].note;
-		  sort_out_pitch_bend(&bend, &note);
-                  lyd_midi_set_pitch (lyd, c2, note, bend);
-	       }
-	    }
-	 }
+      if (midi->channel[c].pitch_bend != midi->channel[c].new_pitch_bend) {
+     midi->channel[c].pitch_bend = midi->channel[c].new_pitch_bend;
+     {
+        for (c2=0; c2<MIDI_NOTES; c2++) {
+              if (midi->channel[c].note_volume[c2] >=1) {
+          bend = midi->channel[c].pitch_bend;
+          note = c2;
+                  lyd_midi_set_pitch (midi, c, note, bend);
+           }
+        }
+     }
       }
    }
 
-   old_midi_volume = _midi_volume;
+   midi->oldvolume = midi->volume;
 }
 
 /* process_controller:
  *  Deals with a MIDI controller message on the specified channel.
  */
-static void process_controller(int channel, int ctrl, int data)
+static void lyd_midi_control (LydMidi *midi, int channel, int ctrl, int data)
 {
    switch (ctrl) {
-      case 7:                                   /* main volume */
-	 midi_channel[channel].new_volume = data+1;
-	 break;
-      case 10:                                  /* pan */
-	 midi_channel[channel].pan = data;
-	 break;
-      case 120:                                 /* all sound off */
-	 all_sound_off(channel);
-	 break;
-      case 121:                                 /* reset all controllers */
-	 reset_controllers(channel);
-	 break;
-      case 123:                                 /* all notes off */
-      case 124:                                 /* omni mode off */
-      case 125:                                 /* omni mode on */
-      case 126:                                 /* poly mode off */
-      case 127:                                 /* poly mode on */
-	 all_notes_off(channel);
-	 break;
+      case 7: midi->channel[channel].new_volume = data+1; break;
+      case 10: midi->channel[channel].pan = data; break;
+      case 120: all_sound_off(midi, channel); break;
+      case 121: reset_controllers(midi, channel); break;
+      case 123: /* all notes off */    case 124: /* omni mode off */
+      case 125: /* omni mode on */     case 126: /* poly mode off */
+      case 127: /* poly mode on */     all_notes_off(midi, channel);
+     break;
       default:
-	 break;
+     break;
    }
 }
 
-/* process_meta_event:
- *  Processes the next meta-event on the specified track.
- */
-static void process_meta_event(const unsigned char **pos, long *timer)
+static void process_meta_event(LydMidi *midi, const unsigned char **pos, long *timer)
 {
    unsigned char metatype = *((*pos)++);
-   long length = parse_var_len(pos);
    long tempo;
 
-   if (metatype == 0x2F) {                      /* end of track */
+   if (metatype == 0x2F) { /* end of track */
       *pos = NULL;
       *timer = LONG_MAX;
       return;
    }
-
-   if (metatype == 0x51) {                      /* tempo change */
+   if (metatype == 0x51) { /* tempo change */
       tempo = (*pos)[0] * 0x10000L + (*pos)[1] * 0x100 + (*pos)[2];
-      midi_new_speed = (tempo/1000) * (TIMERS_PER_SECOND/1000);
-      midi_new_speed /= midifile->divisions;
+      midi->new_speed = (tempo/1000) * (TIMERS_PER_SECOND/1000);
+      midi->new_speed /= midi->divisions;
    }
-
-   (*pos) += length;
+   (*pos) += parse_variable_length(pos);
 }
 
-/* process_midi_event:
- *  Processes the next MIDI event on the specified track.
- */
-static void process_midi_event(const unsigned char **pos, unsigned char *running_status, long *timer)
+static void process_midi_event(LydMidi *midi,
+                               const unsigned char **pos,
+                               unsigned char *running_status,
+                               long *timer)
 {
-   unsigned char byte1, byte2; 
-   int channel;
-   unsigned char event;
-   long l;
+  unsigned char byte1, byte2; 
+  int channel;
+  unsigned char event;
+  long l;
 
-   event = *((*pos)++); 
+  event = *((*pos)++); 
 
-   if (event & 0x80) {                          /* regular message */
-      /* no running status for sysex and meta-events! */
-      if ((event != 0xF0) && (event != 0xF7) && (event != 0xFF))
-	 *running_status = event;
-      byte1 = (*pos)[0];
-      byte2 = (*pos)[1];
-   }
-   else {                                       /* use running status */
-      byte1 = event; 
-      byte2 = (*pos)[0];
-      event = *running_status; 
-      (*pos)--;
-   }
+  if (event & 0x80) { /* regular message */
+     /* no running status for sysex and meta-events! */
+     if ((event != 0xF0) && (event != 0xF7) && (event != 0xFF))
+       *running_status = event;
+     byte1 = (*pos)[0];
+     byte2 = (*pos)[1];
+  } else {            /* use running status */
+     byte1 = event; 
+     byte2 = (*pos)[0];
+     event = *running_status; 
+     (*pos)--;
+  }
 
-   channel = event & 0x0F;
-
-   switch (event>>4) {
-      case 0x08:                                /* note off */
-	 midi_note_off(channel, byte1);
-	 (*pos) += 2;
-	 break;
-
-      case 0x09:                                /* note on */
-	 midi_note_on(channel, byte1, byte2, 1);
-	 (*pos) += 2;
-	 break;
-
-      case 0x0A:                                /* note aftertouch */
-	 (*pos) += 2;
-	 break;
-
-      case 0x0B:                                /* control change */
-	 process_controller(channel, byte1, byte2);
-	 (*pos) += 2;
-	 break;
-
-      case 0x0C:                                /* program change */
-	 midi_channel[channel].patch = byte1;
-	 (*pos) += 1;
-	 break;
-
-      case 0x0D:                                /* channel aftertouch */
-	 (*pos) += 1;
-	 break;
-
-      case 0x0E:                                /* pitch bend */
-	 midi_channel[channel].new_pitch_bend = byte1 + (byte2<<7);
-	 (*pos) += 2;
-	 break;
-
-      case 0x0F:                                /* special event */
-	 switch (event) {
-	    case 0xF0:                          /* sysex */
-	    case 0xF7: 
-	       l = parse_var_len(pos);
-	       (*pos) += l;
-	       break;
-
-	    case 0xF2:                          /* song position */
-	       (*pos) += 2;
-	       break;
-
-	    case 0xF3:                          /* song select */
-	       (*pos)++;
-	       break;
-
-	    case 0xFF:                          /* meta-event */
-	       process_meta_event(pos, timer);
-	       break;
-
-	    default:
-	       /* the other special events don't have any data bytes,
-		  so we don't need to bother skipping past them */
-	       break;
-	 }
-	 break;
-
-      default:
-	 /* something has gone badly wrong if we ever get to here */
-	 break;
-   }
+  channel = event & 0x0F;
+  switch (event>>4) {
+    case 0x08: lyd_midi_note_off (midi, channel, byte1); (*pos) += 2;break;
+    case 0x09: lyd_midi_note_on (midi, channel, byte1, byte2); (*pos) += 2;break;
+    case 0x0A: /* lyd_midi_note_aftertouch () */ (*pos) += 2;break;
+    case 0x0B: lyd_midi_control (midi, channel, byte1, byte2); (*pos) += 2;break;
+    case 0x0C: lyd_midi_program (midi, channel, byte1); (*pos) += 1;break;
+    case 0x0D: /* lyd_midi->channel_aftertouch () */ (*pos) += 1;break;
+    case 0x0E: /* lyd_midi->channel_pitchbend */
+         midi->channel[channel].new_pitch_bend = byte1 + (byte2<<7);(*pos) +=2;
+         break;
+    case 0x0F:  /* special event */
+    switch (event) {
+      case 0xF0: case 0xF7:/* sysex */ l = parse_variable_length(pos);(*pos) += l;break;
+      case 0xF2: /* song position */(*pos) += 2; break;
+      case 0xF3: /* song select */  (*pos)++; break;
+      case 0xFF: /* meta-event */   process_meta_event(midi, pos, timer); break;
+      default: break;
+    }
+    break;
+    default: break;
+  }
 }
+
+/* insert a midi event into decoder in real time */
+static void midi_out (LydMidi *midi, unsigned char *data, int length)
+{
+   unsigned char *pos = data;
+   unsigned char running_status = 0;
+   long timer = 0;
+   if (!data)
+     return;
+   midi->samaphore = TRUE;
+   while (pos < data+length)
+     process_midi_event(midi, (const unsigned char**) &pos, &running_status, &timer);
+
+   update_controllers(midi);
+   midi->samaphore = FALSE;
+}
+
 
 static gboolean midi_player(gpointer data);
-static guint mplayer = 0;
+
 /* midi_player:
  *  The core MIDI player: to be used as a timer callback.
  */
 static gboolean midi_player(gpointer data)
 {
+   LydMidi *midi = data;
    int c;
    long l;
    int active;
 
-   if (!midifile)
+   if (!midi->loaded)
       return FALSE;
 
-   if (midi_semaphore) {
-      midi_timer_speed += BPS_TO_TIMER(MIDI_TIMER_FREQUENCY);
+   if (midi->samaphore) {
+      assert (0); /* XXX */
+      midi->timer_speed += BPS_TO_TIMER(MIDI_TIMER_FREQUENCY);
       install_int_ex(midi_player, BPS_TO_TIMER(MIDI_TIMER_FREQUENCY));
       return FALSE;
    }
 
-   midi_semaphore = TRUE;
-   _midi_tick++;
+   midi->samaphore = TRUE;
 
-   midi_timers += midi_timer_speed;
-   midi_time = midi_timers / TIMERS_PER_SECOND;
+   midi->timers += midi->timer_speed;
+   midi->time = midi->timers / TIMERS_PER_SECOND;
 
    do_it_all_again:
 
    /* deal with each track in turn... */
    for (c=0; c<MIDI_TRACKS; c++) { 
-      if (midi_track[c].pos) {
-	 midi_track[c].timer -= midi_timer_speed;
+      if (midi->active_track[c].pos) {
+     midi->active_track[c].timer -= midi->timer_speed;
 
-	 /* while events are waiting, process them */
-	 while (midi_track[c].timer <= 0) { 
-	    process_midi_event((const unsigned char**) &midi_track[c].pos, 
-			       &midi_track[c].running_status,
-			       &midi_track[c].timer); 
+     /* while events are waiting, process them */
+     while (midi->active_track[c].timer <= 0) { 
+        process_midi_event(midi, (const unsigned char**) &midi->active_track[c].pos, 
+                   &midi->active_track[c].running_status,
+                   &midi->active_track[c].timer); 
 
-	    /* read next time offset */
-	    if (midi_track[c].pos) { 
-	       l = parse_var_len((const unsigned char**) &midi_track[c].pos);
-	       l *= midi_speed;
-	       midi_track[c].timer += l;
-	    }
-	 }
+        /* read next time offset */
+        if (midi->active_track[c].pos) { 
+           l = parse_variable_length((const unsigned char**) &midi->active_track[c].pos);
+           l *= midi->speed;
+           midi->active_track[c].timer += l;
+        }
+     }
       }
    }
 
    /* update global position value */
-   midi_pos_counter -= midi_timer_speed;
-   while (midi_pos_counter <= 0) {
-      midi_pos_counter += midi_pos_speed;
-      midi_pos++;
+   midi->pos_counter -= midi->timer_speed;
+   while (midi->pos_counter <= 0) {
+      midi->pos_counter += midi->pos_speed;
+      midi->pos++;
    }
 
    /* tempo change? */
-   if (midi_new_speed > 0) {
-      for (c=0; c<MIDI_TRACKS; c++) {
-	 if (midi_track[c].pos) {
-	    midi_track[c].timer /= midi_speed;
-	    midi_track[c].timer *= midi_new_speed;
-	 }
-      }
-      midi_pos_counter /= midi_speed;
-      midi_pos_counter *= midi_new_speed;
+   if (midi->new_speed > 0) {
 
-      midi_speed = midi_new_speed;
-      midi_pos_speed = midi_new_speed * midifile->divisions;
-      midi_new_speed = -1;
+      for (c=0; c<MIDI_TRACKS; c++)
+         if (midi->active_track[c].pos)
+            midi->active_track[c].timer =
+            (midi->active_track[c].timer / midi->speed) * midi->new_speed;
+
+      midi->pos_counter = (midi->pos_counter / midi->speed) * midi->new_speed;
+
+      midi->speed = midi->new_speed;
+      midi->pos_speed = midi->new_speed * midi->divisions;
+      midi->new_speed = -1;
    }
 
    /* figure out how long until we need to be called again */
    active = 0;
-   midi_timer_speed = LONG_MAX;
+   midi->timer_speed = LONG_MAX;
    for (c=0; c<MIDI_TRACKS; c++) {
-      if (midi_track[c].pos) {
-	 active = 1;
-	 if (midi_track[c].timer < midi_timer_speed)
-	    midi_timer_speed = midi_track[c].timer;
+      if (midi->active_track[c].pos) {
+     active = 1;
+     if (midi->active_track[c].timer < midi->timer_speed)
+        midi->timer_speed = midi->active_track[c].timer;
       }
    }
 
    /* end of the music? */
-   if ((!active) || ((midi_loop_end > 0) && (midi_pos >= midi_loop_end))) {
-      if ((midi_loop) && (!midi_looping)) {
-	 if (midi_loop_start > 0) {
-	    remove_int(midi_player);
-	    midi_semaphore = FALSE;
-	    midi_looping = TRUE;
-	    if (midi_seek(midi_loop_start) != 0) {
-	       midi_looping = FALSE;
-	       stop_midi(); 
-	       return FALSE;
-	    }
-	    midi_looping = FALSE;
-	    midi_semaphore = TRUE;
-	    goto do_it_all_again;
-	 }
-	 else {
-	    for (c=0; c<16; c++) {
-	       all_notes_off(c);
-	       all_sound_off(c);
-	    }
-	    prepare_to_play(midifile);
-	    goto do_it_all_again;
-	 }
+   if ((!active) || ((midi->loop_end > 0) && (midi->pos >= midi->loop_end))) {
+      if ((midi->loop) && (!midi->looping)) {
+     if (midi->loop_start > 0) {
+        remove_int(midi->midi_player);
+        midi->samaphore = FALSE;
+        midi->looping = TRUE;
+        if (midi_seek(midi, midi->loop_start) != 0) {
+           midi->looping = FALSE;
+           stop_midi(midi); 
+           return FALSE;
+        }
+        midi->looping = FALSE;
+        midi->samaphore = TRUE;
+        goto do_it_all_again;
+     }
+     else {
+        for (c=0; c<MIDI_CHANNELS; c++) {
+           all_notes_off (midi, c);
+           all_sound_off (midi, c);
+        }
+        lyd_midi_prepare_to_play (midi);
+        goto do_it_all_again;
+     }
       }
       else {
-	 stop_midi(); 
-	 midi_semaphore = FALSE;
-	 return FALSE;
+     stop_midi (midi); 
+     midi->samaphore = FALSE;
+         midi->mplayer = 0;
+         g_print ("were done!");
+     return FALSE;
       }
    }
 
    /* reprogram the timer */
-   if (midi_timer_speed < BPS_TO_TIMER(MIDI_TIMER_FREQUENCY))
-      midi_timer_speed = BPS_TO_TIMER(MIDI_TIMER_FREQUENCY);
+   if (midi->timer_speed < BPS_TO_TIMER(MIDI_TIMER_FREQUENCY))
+      midi->timer_speed = BPS_TO_TIMER(MIDI_TIMER_FREQUENCY);
 
-   if (!midi_seeking) 
-      install_int_ex(midi_player, midi_timer_speed);
+   if (!midi->seeking) 
+     {
+       //install_int_ex(midi->midi_player, midi->timer_speed);
+       g_source_remove (midi->mplayer);
+       midi->mplayer = g_timeout_add (midi->timer_speed, midi_player, midi);
+     }
 
    /* controller changes are cached and only processed here, so we can 
       condense streams of controller data into just a few voice updates */ 
-   update_controllers();
+   update_controllers(midi);
 
-   midi_semaphore = FALSE;
+   midi->samaphore = FALSE;
    return TRUE;
 }
 
-/* midi_init:
- *  Sets up the MIDI player ready for use. Returns non-zero on failure.
- */
-static int midi_init(void)
-{
-   int c, c2, c3;
-   static int inited = FALSE;
-
-   if (inited)
-     return 0;
-   inited = TRUE;
-
-   for (c=0; c<16; c++) {
-      midi_channel[c].volume = midi_channel[c].new_volume = 128;
-      midi_channel[c].pitch_bend = midi_channel[c].new_pitch_bend = 0x2000;
-
-      for (c2=0; c2<128; c2++)
-	 for (c3=0; c3<MIDI_LAYERS; c3++)
-	    midi_channel[c].note[c2][c3] = -1;
-   }
-
-   for (c=0; c<MIDI_VOICES; c++) {
-      midi_voice[c].note = -1;
-      midi_voice[c].time = 0;
-   }
-   return 0;
-}
-
-/* prepare_to_play:
- *  Sets up all the global variables needed to play the specified file.
- */
-static void prepare_to_play(LydMidi *midi)
+static void lyd_midi_prepare_to_play (LydMidi *midi)
 {
    int c;
-   assert(midi);
+   for (c=0; c<MIDI_CHANNELS; c++)
+      reset_controllers(midi, c);
+   update_controllers(midi);
+   midi->pos = 0;
+   midi->timers = 0;
+   midi->time = 0;
+   midi->pos_counter = 0;
+   midi->speed = TIMERS_PER_SECOND / 2 / midi->divisions;   /* 120 bpm */
+   midi->new_speed = -1;
+   midi->pos_speed = midi->speed * midi->divisions;
+   midi->timer_speed = 0;
+   midi->seeking = 0;
+   midi->looping = 0;
 
-   for (c=0; c<16; c++)
-      reset_controllers(c);
-
-   update_controllers();
-
-   midifile = midi;
-   midi_pos = 0;
-   midi_timers = 0;
-   midi_time = 0;
-   midi_pos_counter = 0;
-   midi_speed = TIMERS_PER_SECOND / 2 / midifile->divisions;   /* 120 bpm */
-   midi_new_speed = -1;
-   midi_pos_speed = midi_speed * midifile->divisions;
-   midi_timer_speed = 0;
-   midi_seeking = 0;
-   midi_looping = 0;
-
-   for (c=0; c<16; c++) {
-      midi_channel[c].patch = 0;
+   for (c=0; c<MIDI_CHANNELS; c++) {
+      midi->channel[c].patch = 0;
    }
 
    for (c=0; c<MIDI_TRACKS; c++) {
-      if (midi->track[c].data) {
-	 midi_track[c].pos = midi->track[c].data;
-	 midi_track[c].timer = parse_var_len((const unsigned char**) &midi_track[c].pos);
-	 midi_track[c].timer *= midi_speed;
+      if (midi->file_track[c].data) {
+         midi->active_track[c].pos = midi->file_track[c].data;
+         midi->active_track[c].timer = parse_variable_length(
+                          (const unsigned char**) &midi->active_track[c].pos);
+         midi->active_track[c].timer *= midi->speed;
+      } else {
+         midi->active_track[c].pos = NULL;
+         midi->active_track[c].timer = LONG_MAX;
       }
-      else {
-	 midi_track[c].pos = NULL;
-	 midi_track[c].timer = LONG_MAX;
-      }
-      midi_track[c].running_status = 0;
+      midi->active_track[c].running_status = 0;
    }
 }
 
@@ -924,160 +652,239 @@ int play_midi(LydMidi *midi, int loop)
 
    remove_int(midi_player);
 
-   for (c=0; c<16; c++) {
-      all_notes_off(c);
-      all_sound_off(c);
+   for (c=0; c<MIDI_CHANNELS; c++) {
+      all_notes_off(midi, c);
+      all_sound_off(midi, c);
    }
 
-   if (midi) {
-      midi_loop = loop;
-      midi_loop_start = -1;
-      midi_loop_end = -1;
+   if (midi->loaded) {
+      midi->loop = loop;
+      midi->loop_start = -1;
+      midi->loop_end = -1;
 
-      prepare_to_play(midi);
+      lyd_midi_prepare_to_play(midi);
 
       /* arbitrary speed, midi_player() will adjust it */
-      install_int(midi_player, 20);
-      mplayer = g_timeout_add (10, midi_player, NULL);
+      //install_int(midi_player, 20);
+      midi->mplayer = g_timeout_add (5, midi_player, midi);
    }
    else {
-      midifile = NULL;
-
-      if (midi_pos > 0)
-	 midi_pos = -midi_pos;
-      else if (midi_pos == 0)
-	 midi_pos = -1;
+      midi->pos = -1;
    }
-
    return 0;
 }
 
-/* play_looped_midi:
- *  Like play_midi(), but the file loops from the specified end position
- *  back to the specified start position (the end position can be -1 to 
- *  indicate the end of the file).
- */
-int play_looped_midi(LydMidi *midi, int loop_start, int loop_end)
+
+static void stop_midi(LydMidi *midi)
 {
-   if (play_midi(midi, TRUE) != 0)
-      return -1;
-
-   midi_loop_start = loop_start;
-   midi_loop_end = loop_end;
-
-   return 0;
+   midi->loaded = FALSE;
+   play_midi(midi, FALSE);
 }
 
-void stop_midi(void)
-{
-   play_midi(NULL, FALSE);
-}
-
-void midi_pause(void)
+static void pause_midi (LydMidi *midi)
 {
    int c;
 
-   if (!midifile)
-      return;
+   if (!midi->loaded)
+     return;
 
    remove_int(midi_player);
 
-   for (c=0; c<16; c++) {
-      all_notes_off(c);
-      all_sound_off(c);
+   for (c=0; c<MIDI_CHANNELS; c++) {
+      all_notes_off(midi, c);
+      all_sound_off(midi, c);
    }
-}
-
-void midi_resume(void)
-{
-   if (!midifile)
-      return;
-
-   install_int_ex(midi_player, midi_timer_speed);
 }
 
 
 /* midi_seek:
- *  Seeks to the given midi_pos in the current MIDI file. If the target 
- *  is earlier in the file than the current midi_pos it seeks from the 
+ *  Seeks to the given pos in the current MIDI file. If the target 
+ *  is earlier in the file than the current pos it seeks from the 
  *  beginning; otherwise it seeks from the current position. Returns zero 
  *  if successful, non-zero if it hit the end of the file (1 means it 
  *  stopped playing, 2 means it looped back to the start).
  */
-int midi_seek(int target)
+static int midi_seek(LydMidi *midi, int target)
 {
-   int old_midi_loop;
-   LydMidi *old_midifile;
-   int old_patch[16];
-   int old_volume[16];
-   int old_pan[16];
-   int old_pitch_bend[16];
+   int old_loop;
+   int old_patch[MIDI_CHANNELS];
+   int old_volume[MIDI_CHANNELS];
+   int old_pan[MIDI_CHANNELS];
+   int old_pitch_bend[MIDI_CHANNELS];
    int c;
 
-   if (!midifile)
+   if (!midi->loaded)
       return -1;
 
    /* first stop the player */
-   midi_pause();
+   pause_midi (midi);
 
    /* store current settings */
-   for (c=0; c<16; c++) {
-      old_patch[c] = midi_channel[c].patch;
-      old_volume[c] = midi_channel[c].volume;
-      old_pan[c] = midi_channel[c].pan;
-      old_pitch_bend[c] = midi_channel[c].pitch_bend;
+   for (c=0; c<MIDI_CHANNELS; c++) {
+      old_patch[c] =      midi->channel[c].patch;
+      old_volume[c] =     midi->channel[c].volume;
+      old_pan[c] =        midi->channel[c].pan;
+      old_pitch_bend[c] = midi->channel[c].pitch_bend;
    }
 
    /* save some variables and give temporary values */
-   old_midi_loop = midi_loop;
-   midi_loop = 0;
-   old_midifile = midifile;
-
-   /* set flag to tell midi_player not to reinstall itself */
-   midi_seeking = 1;
-
+   old_loop = midi->loop;
+   midi->loop = 0;
+   /* set flag to tell midi->midi_player not to reinstall itself */
+   midi->seeking = 1;
    /* are we seeking backwards? If so, skip back to the start of the file */
-   if (target <= midi_pos)
-      prepare_to_play(midifile);
+   if (target <= midi->pos)
+      lyd_midi_prepare_to_play(midi);
+   /* now sit back and let midi->midi_player get to the position */
+   while ((midi->pos < target) && (midi->pos >= 0)) {
+      int mmpc = midi->pos_counter;
+      int mmp = midi->pos;
 
-   /* now sit back and let midi_player get to the position */
-   while ((midi_pos < target) && (midi_pos >= 0)) {
-      int mmpc = midi_pos_counter;
-      int mmp = midi_pos;
-
-      mmpc -= midi_timer_speed;
+      mmpc -= midi->timer_speed;
       while (mmpc <= 0) {
-	 mmpc += midi_pos_speed;
-	 mmp++;
+     mmpc += midi->pos_speed;
+     mmp++;
       }
 
       if (mmp >= target)
-	 break;
+     break;
 
-      midi_player(NULL);
+      midi_player(midi);
    }
-
    /* restore previously saved variables */
-   midi_loop = old_midi_loop;
-   midi_seeking = 0;
-
-   if (midi_pos >= 0) {
+   midi->loop = old_loop;
+   midi->seeking = 0;
+   if (midi->pos >= 0) {
       /* if we didn't hit the end of the file, continue playing */
-      if (!midi_looping)
-	 install_int(midi_player, 20);
+      if (!midi->looping)
+     install_int(midi->midi_player, 20);
 
       return 0;
    }
-
-   if ((midi_loop) && (!midi_looping)) {  /* was file looped? */
-      prepare_to_play(old_midifile);
-      install_int(midi_player, 20);
+   if ((midi->loop) && (!midi->looping)) {  /* was file looped? */
+      /* XXX */
+      lyd_midi_prepare_to_play(midi);
+      install_int(midi->midi_player, 20);
       return 2;                           /* seek past EOF => file restarted */
    }
-
    return 1;                              /* seek past EOF => file stopped */
 }
 
+
+static void lyd_midi_set_volume (LydMidi *midi, int channel, int note, int volume)
+{
+  g_print ("set vol %i %i %i\n", channel, note, volume);
+}
+static void lyd_midi_set_pitch (LydMidi *midi, int channel, int note, int bend)
+{
+  g_print ("set pitch %i %i %i\n", channel, note, bend);
+}
+
+void lyd_midi_program    (LydMidi *midi, int channel, int preset)
+{
+  midi->channel[channel].patch = preset;
+}
+
+/* Use negative values for all the midi hashes */
+#define gen_hash(channel, note) (channel * 256 + note - 32768)
+
+void lyd_midi_note_off (LydMidi *midi, gint channel, gint note)
+{
+  int hashkey = gen_hash (channel, note);
+  LydVoice *voice;
+  if (!voice_ht || midi->seeking)
+    return;
+
+  midi->channel[channel].note_volume[note] = -1; 
+
+  voice = g_hash_table_lookup (voice_ht, GINT_TO_POINTER (hashkey));
+  if (voice)
+    {
+      lyd_voice_release (midi->lyd, voice);
+      g_hash_table_remove (voice_ht, GINT_TO_POINTER (hashkey));
+    }
+}
+
+
+void lyd_midi_note_on (LydMidi *midi, int channel, int note, int vol)
+{
+  int hashkey = gen_hash (channel, note);
+  LydVoice *voice;
+  int inst, bend, corrected_note;
+
+  if (vol == 0 && midi->channel[channel].note_volume[note] >=0)
+    {
+      lyd_midi_note_off (midi, channel, note);
+      return;
+    }
+
+  if (midi->channel[channel].note_volume[note] >= 0)
+    lyd_midi_note_off (midi, channel, note);
+  midi->channel[channel].note_volume[note] = vol; 
+
+  if (channel != 9) {
+  }
+
+  /* drum sound? */
+  if (channel == 9) {
+     inst = 128+note;
+     corrected_note = 60;
+     bend = 0;
+  }
+  else {
+     inst = midi->channel[channel].patch;
+     corrected_note = note;
+     bend = midi->channel[channel].pitch_bend;
+  }
+
+  if (!midi->seeking){
+    lyd_kill (midi->lyd, hashkey);
+    voice = lyd_note_full (midi->lyd, midi->channel[channel].patch,
+                           midi2hz (corrected_note) /*XXX:bend*/,
+                           sort_out_volume (midi, channel, vol) / 127.0,
+                           8.0 /* max duration of 8s in case of no release.. */,
+                           (midi->channel[channel].pan-64)/127.0,
+                           hashkey);
+  }
+  g_assert (voice);
+
+  if (!voice_ht)
+    {
+      voice_ht = g_hash_table_new (g_direct_hash, g_direct_equal);
+    }
+  g_hash_table_insert (voice_ht, GINT_TO_POINTER(hashkey), voice);
+}
+
+/*****************************/
+
+static LydMidi *midi = NULL;
+static void midi_init (Lyd *lyd)
+{
+   int c, c2;
+
+   if (midi)
+     return;
+   midi = calloc (sizeof (LydMidi), 1);
+
+   for (c=0; c<MIDI_CHANNELS; c++) {
+      midi->channel[c].volume = midi->channel[c].new_volume = 128;
+      midi->channel[c].pitch_bend = midi->channel[c].new_pitch_bend = 0x2000;
+      for (c2=0; c2<MIDI_NOTES; c2++) {
+        midi->channel[c].note_volume[c2] = -1;
+      }
+   }
+
+  midi->volume = 128;
+  midi->pos = -1;
+  midi->loop_start = -1;
+  midi->loop_end = -1;
+  midi->oldvolume = -1;
+
+  midi->loaded = 0;
+  midi->loop = 0;
+  midi->samaphore = 0;
+  midi->seeking = 0;
+}
 
 /* get_midi_length:
  *  Returns the length, in seconds, of the specified midi. This will stop any
@@ -1088,60 +895,148 @@ int get_midi_length(LydMidi *midi)
 {
     play_midi(midi, 0);
     /* XXX: blocks expecting a thread to consume.. */
-    while (midi_pos < 0); /* Without this, midi_seek won't work. */
-    midi_seek(INT_MAX);
-    return midi_time;
+    //while (midi->pos < 0); /* Without this, midi_seek won't work. */
+    midi_seek(midi, INT_MAX);
+    return midi->time;
 }
 
-/* midi_out: Inserts MIDI command bytes into the output stream, in realtime. */
-void midi_out(unsigned char *data, int length)
+void lyd_midi_load  (Lyd *lyd, unsigned char *data, int length)
 {
-   unsigned char *pos = data;
-   unsigned char running_status = 0;
-   long timer = 0;
-   assert(data);
-
-   midi_semaphore = TRUE;
-   _midi_tick++;
-
-   while (pos < data+length)
-      process_midi_event((const unsigned char**) &pos, &running_status, &timer);
-
-   update_controllers();
-
-   midi_semaphore = FALSE;
-}
-
-/******************************/
-
-
-
-static LydMidi *midi = NULL;
-void lyd_midi_load  (Lyd *nlyd, void *data, int length)
-{
-  midi_init ();
+  midi_init (lyd);
+  midi->lyd = lyd;
   if (!data)
     {
-      midi = NULL;
+      /* XXX: free previously loaded */
+      midi->loaded = 0;
     }
   else
     {
-      midi = load_midi (data, length);
-      printf ("loaded %i\n", length);
+      load_midi (midi, data, length);
+      //midi->length = get_midi_length (midi);
+      //g_print ("length: %i\n", midi->length);
     }
-  lyd = nlyd;
 }
 
 void lyd_midi_play  (Lyd *lyd)
 {
-  printf ("%p\n", midi);
+  midi_init (lyd);
   play_midi (midi, 0);
 }
 
 void lyd_midi_pause (Lyd *lyd)
 {
+  midi_init (lyd);
+  pause_midi (midi);
 }
 
 void lyd_midi_set_repeat (Lyd *lyd, float start, float end)
 {
+  midi_init (lyd);
+  midi->loop_start = start;
+  midi->loop_end = end;
 }
+
+/* midi_out: Inserts MIDI command bytes into the output stream, in realtime. */
+void lyd_midi_out (Lyd *lyd, unsigned char *data, int length)
+{
+  midi_init (lyd);
+  midi_out (midi, data, length);
+}
+
+#ifdef HAVE_ALSA
+#include <alsa/asoundlib.h>
+
+static void
+lyd_handle_midi (LydMidi         *midi,
+                 snd_seq_event_t *ev)
+{
+  switch (ev->type)
+  {
+    case SND_SEQ_EVENT_NOTEON:
+      lyd_midi_note_on (midi, ev->data.note.channel, ev->data.note.note,
+                        ev->data.note.velocity);break;
+    case SND_SEQ_EVENT_NOTEOFF:
+      lyd_midi_note_off (midi, ev->data.note.channel,ev->data.note.note);break;
+    case SND_SEQ_EVENT_PGMCHANGE:
+      lyd_midi_program (midi, ev->data.control.channel,
+                              ev->data.control.value);break;
+    case SND_SEQ_EVENT_CONTROLLER:
+      lyd_midi_control (midi, ev->data.control.channel,
+                        ev->data.control.param, ev->data.control.value);break;
+    case SND_SEQ_EVENT_SYSEX:
+    case SND_SEQ_EVENT_PORT_SUBSCRIBED:
+    case SND_SEQ_EVENT_PORT_UNSUBSCRIBED: break;
+    default: g_print ("unhandled alsa midi event type %i\n", ev->type);break;
+  }
+}
+
+
+
+static snd_seq_t *handle;
+
+static gboolean midi_consume (GIOChannel  *source,
+                              GIOCondition condition,
+                              gpointer     lyd)
+{
+  do
+    {
+      snd_seq_event_t *ev;
+      if (snd_seq_event_input (handle, &ev) <= 0)
+        continue;
+      lyd_handle_midi (midi, ev);
+      snd_seq_free_event(ev);
+    } 
+  while (snd_seq_event_input_pending (handle, 0) > 0);
+  return TRUE;
+}
+
+void lyd_midi_init (Lyd *lyd)
+{
+  int porthandle;
+  int err;
+  struct pollfd pfd;
+  int npfd;
+
+  err = snd_seq_open(&handle, "default", SND_SEQ_OPEN_INPUT, 0);
+  if (err < 0)
+    return;
+  snd_seq_set_client_name(handle, "lyd");
+  porthandle = snd_seq_create_simple_port(handle, "in_1",
+                      SND_SEQ_PORT_CAP_WRITE|SND_SEQ_PORT_CAP_SUBS_WRITE,
+                      SND_SEQ_PORT_TYPE_MIDI_GENERIC);
+
+  npfd = snd_seq_poll_descriptors_count(handle, POLLIN);
+  if (npfd != 1) {
+      snd_seq_close(handle);
+      return;
+  }
+
+  snd_seq_poll_descriptors (handle, &pfd, 1, POLLIN);
+  g_io_add_watch (g_io_channel_unix_new (pfd.fd),
+                  G_IO_IN, midi_consume, lyd);
+}
+#endif
+#if 0   /******** UNUSED **************/
+/* play_looped_midi:
+ *  Like play_midi(), but the file loops from the specified end position
+ *  back to the specified start position (the end position can be -1 to 
+ *  indicate the end of the file).
+ */
+static int play_looped_midi(LydMidi *midi, int loop_start, int loop_end)
+{
+   if (play_midi(midi, TRUE) != 0)
+      return -1;
+
+   midi->loop_start = loop_start;
+   midi->loop_end = loop_end;
+
+   return 0;
+}
+void midi_resume(void)
+{
+   if (!midifile)
+      return;
+
+   install_int_ex(midi_player, timer_speed);
+}
+#endif

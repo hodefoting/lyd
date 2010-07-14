@@ -80,6 +80,15 @@ lyd_synthesize (Lyd  *lyd,
   LydSample *buf   = (void*)stream;
   LydSample *buf2  = (void*)stream2;
   short int *buf16 = (void*)stream;
+  static LydSample *accbuf = NULL; /*/* XXX: is being leaked */
+  static int accbuf_len  = 0;
+
+  if (!accbuf || accbuf_len < samples)
+    {
+      if (accbuf) free (accbuf);
+      accbuf = malloc (sizeof (LydSample) * samples * 2);
+      accbuf_len = samples;
+    }
 
   LOCK ();
   /* create a list of voices that are currently playing or will
@@ -94,13 +103,13 @@ lyd_synthesize (Lyd  *lyd,
         voice->sample += samples;
     }
 
-  for (i=0;i<samples;i++)
-    {
-      LydSample value[2] = {0.0, 0.0};
-      for (iter=active; iter; iter=iter->next)
-        {
-          LydVoice *voice = iter->data;
+  memset (accbuf, 0, sizeof (LydSample) * samples * 2);
 
+  for (iter=active; iter; iter=iter->next)
+    {
+      LydVoice *voice = iter->data;
+      for (i=0;i<samples;i++)
+        {
           voice->sample++;
           if (voice->sample > 0)
             {
@@ -122,31 +131,35 @@ lyd_synthesize (Lyd  *lyd,
                    :voice->silence_min * (1.0 - LYD_RELEASED_SILENCE_DAMPENING);
                 }
 
-              /* stereo distribution of mix */
+              /* simple stereo distribution of mix */
               if (voice->position == 0.0)
                 {
-                  value[0] += computed;
-                  value[1] += computed;
+                  accbuf[i*2+0] += computed;
+                  accbuf[i*2+1] += computed;
                 }
               else if (voice->position > 0.0)
                 {
-                  value[0] += computed * (1.0-voice->position);
-                  value[1] += computed;
+                  accbuf[i*2+0] += computed * (1.0-voice->position);
+                  accbuf[i*2+1] += computed;
                 }
               else 
                 {
-                  value[0] += computed;
-                  value[1] += computed * (1.0+voice->position);
+                  accbuf[i*2+0] += computed;
+                  accbuf[i*2+1] += computed * (1.0+voice->position);
                 }
             }
         }
+    }
+
+  for (i=0;i<samples;i++)
+    {
+      LydSample value[2] = {accbuf[i*2+0], accbuf[i*2+1]};
 
       if (lyd->reverb > 0.0001)
         {
           value[0] = lyd_reverb (lyd, 0, value[0]);
           value[1] = lyd_reverb (lyd, 1, value[1]);
         }
-
       {
         LydSample nlevel = fabs(value[0]);
         if (nlevel > lyd->level)

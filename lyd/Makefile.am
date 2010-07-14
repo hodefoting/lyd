@@ -30,3 +30,10 @@ lydheadersdir = $(includedir)/lyd-@LYD_API_VERSION@/lyd
 
 lydheaders_HEADERS = $(top_srcdir)/lyd/lyd.h 
 
+general-midi.inc: general-midi.txt
+	echo "static char *midi_patches[256]={" > $@
+	cat $< |sed -e 's/^/"/' -e 's/$$/",/' >> $@
+	echo "};" >> $@
+
+clean:
+	rm general-midi.inc

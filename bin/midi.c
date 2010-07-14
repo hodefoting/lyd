@@ -318,8 +318,8 @@ midi_controller (Lyd  *lyd,
 }
 
 static void
-lyd_handle_midi (Lyd           *lyd,
-                   snd_seq_event_t *ev)
+lyd_handle_midi (Lyd             *lyd,
+                 snd_seq_event_t *ev)
 {
   switch (ev->type)
     {
