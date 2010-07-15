@@ -18,11 +18,10 @@ void welcome (Lyd *lyd)
 { 
   LydVoice   *voice;
   LydProgram *program;
-  int i;
   program = lyd_compile (lyd, "reverb (0.2, 0.123, low_pass (1.3, hz=440.0, 0.03, pulse(200 + sin(190) * 1.4, sin(0.1)) * adsr(0.12, 0.12, 0.7, 0.30) * volume=1.0))");
 
 #define Q(delay, duration, frequency) \
-  voice = lyd_new_voice (lyd, program, 0);\
+  voice = lyd_voice_new (lyd, program, 0);\
   lyd_voice_set_param (lyd, voice, "volume", 0.8);\
   lyd_voice_set_param (lyd, voice, "hz",     frequency);\
   lyd_voice_set_duration (lyd, voice, duration);\

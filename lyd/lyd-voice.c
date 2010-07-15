@@ -19,7 +19,7 @@
 #include "biquad.c"
 
 /* create a new voice from a program */
-static LydVoice * lyd_voice_new (LydProgram *program)
+static LydVoice * lyd_voice_create (LydProgram *program)
 {
   LydVoice *voice = g_malloc0 (sizeof (LydVoice)
                              + sizeof (LydCommandState) * LYD_MAX_ELEMENTS);

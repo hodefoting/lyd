@@ -80,7 +80,7 @@ static int osc_invoke (OSC_ARGS)
   if (!programs[codeslot])
     return 0;
   g_print ("invoke: %d %d\n", slot, codeslot);
-  voices[slot] = lyd_new_voice (lyd, programs[codeslot], 0);
+  voices[slot] = lyd_voice_new (lyd, programs[codeslot], 0);
   return 0;
 }
 
@@ -94,7 +94,7 @@ static int osc_run (OSC_ARGS)
   program = lyd_compile (lyd, code);
   if (!program)
     return 0;
-  voices[slot] = lyd_new_voice (lyd, program, 0);
+  voices[slot] = lyd_voice_new (lyd, program, 0);
 
   lyd_program_free (program);
   return 0;

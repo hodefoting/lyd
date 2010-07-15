@@ -19,6 +19,7 @@ liblyd_@LYD_API_VERSION@_la_SOURCES = \
         $(srcdir)/lyd-compiler.c \
         $(srcdir)/lyd-audio-output.c \
         $(srcdir)/lyd-midi.c \
+        $(srcdir)/lyd-patches.c \
         $(NULL)
 
 EXTRA_DIST = lyd-private.h lyd-voice.c biquad.c
@@ -36,4 +37,4 @@ general-midi.inc: general-midi.txt
 	echo "};" >> $@
 
 clean:
-	rm general-midi.inc
+	rm -f general-midi.inc

@@ -18,8 +18,6 @@
 #include <stdio.h>
 #include <unistd.h>
 
-static void test_lyd (Lyd *lyd);
-
 int main (int    argc,
           char **argv)
 {
@@ -38,7 +36,7 @@ int main (int    argc,
 
   instrument = lyd_compile (lyd, "(sin(hz=440 + saw(20)*10)) * volume=1");
 
-  voice = lyd_new_voice (lyd, instrument, 0);
+  voice = lyd_voice_new (lyd, instrument, 0);
   lyd_voice_set_param (lyd, voice, "volume", 1.2);
   lyd_voice_set_duration (lyd, voice, 10.0);
 

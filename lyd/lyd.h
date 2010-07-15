@@ -47,7 +47,7 @@ long        lyd_synthesize      (Lyd *lyd, int len, void *stream,void *stream2);
 LydProgram *lyd_compile         (Lyd *lyd, const char *source);
 
 /* should perhaps be lyd_voice_new */
-LydVoice   *lyd_new_voice       (Lyd *lyd, LydProgram *program, int tag);
+LydVoice   *lyd_voice_new       (Lyd *lyd, LydProgram *program, int tag);
 
 void        lyd_kill            (Lyd *lyd, int tag);
 
@@ -80,16 +80,24 @@ void        lyd_voice_set_position (Lyd         *lyd,
                                     LydVoice    *voice,
                                     double       position);
 
-/* available drivers depends on how lyd was compiled, pass in "auto" to make
- * lyd auto select. Returns 0 if lyd failed to initialize audio output.
- */
-int          lyd_audio_init (Lyd *lyd, const char *driver); 
-
+/* Lyd comes with a set of default patches/audio programs, */
 const char * lyd_get_patch (Lyd *lyd, int no);
 void         lyd_set_patch (Lyd *lyd, int no, const char *patch);
 
 /* play a single midi note */
 LydVoice    *lyd_note (Lyd *lyd, int patch, float hz, float volume, float duration);
+LydVoice    *lyd_note_full (Lyd *lyd, int patch, float hz, float volume,
+                            float duration, float pan, int hashkey);
+
+
+
+
+
+/* available drivers depends on how lyd was compiled, pass in "auto" to make
+ * lyd auto select. Returns 0 if lyd failed to initialize audio output.
+ */
+int          lyd_audio_init (Lyd *lyd, const char *driver); 
+
 
 /* MIDI support - complementary to the audio synthesis engine, lyd also provides
  * a MIDI state tracker that allows playback of midi files or real-time midi events
@@ -103,9 +111,11 @@ void         lyd_midi_load  (Lyd *lyd, unsigned char *data, int length);
 void         lyd_midi_set_playing (Lyd *lyd, int playing);
 /* send raw midi data to decoder, allows changing tempo on the fly */
 void         lyd_midi_out   (Lyd *lyd, unsigned char *data, int length);
-
+/* get duration of loaded midi file in seconds */
 float        lyd_midi_get_duration (Lyd *lyd);
+/* set loop positions (also enables looping)  */
 void         lyd_midi_set_repeat (Lyd *lyd, float start, float end);
+/* seek to a given position */
 void         lyd_midi_seek  (Lyd *lyd, float position);
 
 

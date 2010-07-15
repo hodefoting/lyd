@@ -38,7 +38,7 @@ int main (int    argc,
   instrument = lyd_compile (lyd, code);
 
 #define NOTE(time, duration, frequency) \
-  voice = lyd_new_voice (lyd, instrument, 0); \
+  voice = lyd_voice_new (lyd, instrument, 0); \
   lyd_voice_set_param (lyd, voice, "volume", 0.8);\
   lyd_voice_set_param (lyd, voice, "hz",     frequency);\
   lyd_voice_set_duration (lyd, voice, duration);\

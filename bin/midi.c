@@ -233,7 +233,7 @@ midi_note_on (Lyd *lyd,
   {
     /* could keep this cached per channel, to avoid recompiling */
     LydProgram *program = lyd_compile (lyd, midi_patches[channel]);
-    voice = lyd_new_voice (lyd, program, hashkey);
+    voice = lyd_voice_new (lyd, program, hashkey);
 
     lyd_voice_set_param (lyd, voice, "volume", (velocity / 127.0) * midi_volume[channel]);
     lyd_voice_set_param (lyd, voice, "hz", midi2hz (note));

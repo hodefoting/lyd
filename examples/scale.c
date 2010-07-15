@@ -25,7 +25,7 @@ static float midi2hz (int midinote)
 }
 
 #define NOTE(time, duration, halfnote) do{                         \
-  voice = lyd_new_voice (lyd, instrument, 0);                      \
+  voice = lyd_voice_new (lyd, instrument, 0);                      \
   lyd_voice_set_param (lyd, voice, "hz",     midi2hz(halfnote+69));\
   lyd_voice_set_duration (lyd, voice, duration);                   \
   lyd_voice_set_delay (lyd, voice, time);                }while(0);\

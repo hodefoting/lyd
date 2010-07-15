@@ -337,9 +337,9 @@ parser_advance (LydParser  *parser,
 
   if (expected && strcmp (parser->token->str, expected))
     {
-      char msg[256];
+      static char msg[256];
       snprintf (msg, 256, "expected %s got %s", expected, parser->token->str);
-      parser->error = strdup(msg);
+      parser->error = msg;
       return NULL;
     }
   if (!(t = parser_scanner_next (parser)))
@@ -521,10 +521,6 @@ static void tfree (LydToken *t)
 
 static void parser_free (LydParser *parser)
 {
-#if 0
-  if (parser->error)
-    g_free (parser->error);
-#endif
   if (parser->tree)
     tfree (parser->tree);
   g_free (parser);

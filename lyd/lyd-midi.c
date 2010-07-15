@@ -41,35 +41,6 @@
 #include <glib.h>
 #include <math.h>
 
-#include "general-midi.inc"
-
-const char * lyd_get_patch (Lyd *lyd, int no)
-{
-  return midi_patches[no];
-}
-
-void lyd_set_patch (Lyd *lyd, int no, const char *patch)
-{
-  midi_patches[no] = strdup (patch); /* XXX: leaking */
-}
-
-LydVoice *lyd_note_full (Lyd *lyd, int patch, float hz, float volume, float duration, float pan, int hashkey)
-{
-  LydProgram *program = lyd_compile (lyd, lyd_get_patch (lyd, patch));
-  LydVoice *voice;
-  voice = lyd_new_voice (lyd, program, hashkey);
-
-  lyd_voice_set_param (lyd, voice, "volume", volume);
-  lyd_voice_set_param (lyd, voice, "hz", hz);
-  lyd_voice_set_duration (lyd, voice, duration);
-  lyd_voice_set_position (lyd, voice, pan);
-  return voice;
-}
-
-LydVoice *lyd_note (Lyd *lyd, int patch, float hz, float volume, float duration)
-{
-  return lyd_note_full (lyd, patch, hz, volume, duration, 1.0, 0);
-}
 
 static GHashTable *voice_ht = NULL;
 
@@ -110,8 +81,10 @@ typedef struct LydMidiChannel        /* a MIDI channel */
 
 typedef struct {
   Lyd *lyd;               /* pointer to lyd instance used by midi player */
-  int loaded;             /* whether a midi file has been loaded */
   int volume;             /* global playback volume */
+
+  /* loaded midi file */
+  int loaded;             /* whether a midi file has been loaded */
   int length;             /* NYI: in seconds, computed and cached on load */
   int divisions;          /* ticks per quarter note */
   struct {
@@ -458,7 +431,7 @@ static void process_midi_event(LydMidi *midi,
   }
 }
 
-/* insert a midi event into decoder in real time */
+/* insert midi events into decoder in real time */
 static void midi_out (LydMidi *midi, unsigned char *data, int length)
 {
    unsigned char *pos = data;
@@ -475,7 +448,6 @@ static void midi_out (LydMidi *midi, unsigned char *data, int length)
 }
 
 
-static gboolean midi_player(gpointer data);
 
 /* midi_player:
  *  The core MIDI player: to be used as a timer callback.
@@ -507,21 +479,21 @@ static gboolean midi_player(gpointer data)
    /* deal with each track in turn... */
    for (c=0; c<MIDI_TRACKS; c++) { 
       if (midi->active_track[c].pos) {
-     midi->active_track[c].timer -= midi->timer_speed;
+        midi->active_track[c].timer -= midi->timer_speed;
 
-     /* while events are waiting, process them */
-     while (midi->active_track[c].timer <= 0) { 
-        process_midi_event(midi, (const unsigned char**) &midi->active_track[c].pos, 
-                   &midi->active_track[c].running_status,
-                   &midi->active_track[c].timer); 
+        /* while events are waiting, process them */
+        while (midi->active_track[c].timer <= 0) { 
+          process_midi_event(midi, (const unsigned char**) &midi->active_track[c].pos, 
+                      &midi->active_track[c].running_status,
+                      &midi->active_track[c].timer); 
 
-        /* read next time offset */
-        if (midi->active_track[c].pos) { 
-           l = parse_variable_length((const unsigned char**) &midi->active_track[c].pos);
-           l *= midi->speed;
-           midi->active_track[c].timer += l;
+          /* read next time offset */
+          if (midi->active_track[c].pos) { 
+             l = parse_variable_length((const unsigned char**) &midi->active_track[c].pos);
+             l *= midi->speed;
+             midi->active_track[c].timer += l;
+          }
         }
-     }
       }
    }
 
@@ -845,14 +817,14 @@ void lyd_midi_note_on (LydMidi *midi, int channel, int note, int vol)
                            8.0 /* max duration of 8s in case of no release.. */,
                            (midi->channel[channel].pan-64)/127.0,
                            hashkey);
-  }
-  g_assert (voice);
+    g_assert (voice);
 
-  if (!voice_ht)
-    {
-      voice_ht = g_hash_table_new (g_direct_hash, g_direct_equal);
-    }
-  g_hash_table_insert (voice_ht, GINT_TO_POINTER(hashkey), voice);
+    if (!voice_ht)
+      {
+        voice_ht = g_hash_table_new (g_direct_hash, g_direct_equal);
+      }
+    g_hash_table_insert (voice_ht, GINT_TO_POINTER(hashkey), voice);
+  }
 }
 
 /*****************************/
@@ -942,6 +914,14 @@ void lyd_midi_out (Lyd *lyd, unsigned char *data, int length)
   midi_init (lyd);
   midi_out (midi, data, length);
 }
+
+void lyd_midi_iterate (Lyd *lyd, float elapsed)
+{
+  if (!midi || ! midi->loaded)
+    return;
+  g_print ("Elapsed %f\n", elapsed);
+}
+
 
 #ifdef HAVE_ALSA
 #include <alsa/asoundlib.h>
