@@ -22,7 +22,6 @@
 
 #define DEBUG_CLIPPING
 
-
 static void lyd_voice_update_params (LydVoice *voice);
 
 /* we include the voice directly to make the mixing and the vm 
@@ -35,6 +34,7 @@ struct _Lyd
   int       sample_rate; /* sample rate */
   LydFormat format;      /* */
 
+  unsigned int previous_samples; /* number of samples previously computed */
   unsigned long sample_no; /* counter for global sample no */
   SList    *voices;        /* list of currently playing voices */
 
@@ -45,9 +45,12 @@ struct _Lyd
   int       active;
 
   int       reverb_pos;
+
+  LydSample *accbuf;
+  int accbuf_len;
+
   LydSample reverb_old[2][LYD_MAX_REVERB_SIZE];
 };
-
 
 static LydSample lyd_reverb (Lyd *lyd, int channel, LydSample sample)
 {
@@ -68,6 +71,8 @@ static LydSample lyd_reverb (Lyd *lyd, int channel, LydSample sample)
   return sample;
 }
 
+void lyd_midi_iterate (Lyd *lyd, float elapsed); 
+
 long
 lyd_synthesize (Lyd  *lyd,
                 int   samples,
@@ -80,14 +85,14 @@ lyd_synthesize (Lyd  *lyd,
   LydSample *buf   = (void*)stream;
   LydSample *buf2  = (void*)stream2;
   short int *buf16 = (void*)stream;
-  static LydSample *accbuf = NULL; /*/* XXX: is being leaked */
-  static int accbuf_len  = 0;
 
-  if (!accbuf || accbuf_len < samples)
+  lyd_midi_iterate (lyd, lyd->previous_samples/(1.0 * lyd->sample_rate));
+
+  if (!lyd->accbuf || lyd->accbuf_len < samples)
     {
-      if (accbuf) free (accbuf);
-      accbuf = malloc (sizeof (LydSample) * samples * 2);
-      accbuf_len = samples;
+      if (lyd->accbuf) free (lyd->accbuf);
+      lyd->accbuf = malloc (sizeof (LydSample) * samples * 2);
+      lyd->accbuf_len = samples;
     }
 
   LOCK ();
@@ -103,7 +108,7 @@ lyd_synthesize (Lyd  *lyd,
         voice->sample += samples;
     }
 
-  memset (accbuf, 0, sizeof (LydSample) * samples * 2);
+  memset (lyd->accbuf, 0, sizeof (LydSample) * samples * 2);
 
   for (iter=active; iter; iter=iter->next)
     {
@@ -134,18 +139,18 @@ lyd_synthesize (Lyd  *lyd,
               /* simple stereo distribution of mix */
               if (voice->position == 0.0)
                 {
-                  accbuf[i*2+0] += computed;
-                  accbuf[i*2+1] += computed;
+                  lyd->accbuf[i*2+0] += computed;
+                  lyd->accbuf[i*2+1] += computed;
                 }
               else if (voice->position > 0.0)
                 {
-                  accbuf[i*2+0] += computed * (1.0-voice->position);
-                  accbuf[i*2+1] += computed;
+                  lyd->accbuf[i*2+0] += computed * (1.0-voice->position);
+                  lyd->accbuf[i*2+1] += computed;
                 }
               else 
                 {
-                  accbuf[i*2+0] += computed;
-                  accbuf[i*2+1] += computed * (1.0+voice->position);
+                  lyd->accbuf[i*2+0] += computed;
+                  lyd->accbuf[i*2+1] += computed * (1.0+voice->position);
                 }
             }
         }
@@ -153,7 +158,7 @@ lyd_synthesize (Lyd  *lyd,
 
   for (i=0;i<samples;i++)
     {
-      LydSample value[2] = {accbuf[i*2+0], accbuf[i*2+1]};
+      LydSample value[2] = {lyd->accbuf[i*2+0], lyd->accbuf[i*2+1]};
 
       if (lyd->reverb > 0.0001)
         {
@@ -208,6 +213,7 @@ lyd_synthesize (Lyd  *lyd,
     }
   slist_free (active);
   UNLOCK ();
+  lyd->previous_samples = samples;
   return lyd->sample_no;
 }
 
@@ -258,12 +264,12 @@ lyd_voice_release (Lyd      *lyd,
   UNLOCK ();
 }
 
-static LydVoice *lyd_new_voice_unlocked (Lyd       *lyd,
+static LydVoice *lyd_voice_new_unlocked (Lyd       *lyd,
                                          LydProgram *program,
                                          int        tag)
 {
   LydVoice *voice;
-  voice     = lyd_voice_new (program);
+  voice     = lyd_voice_create (program);
   voice->lyd = lyd;
   voice->sample_rate = lyd->sample_rate;
   voice->tag = tag;
@@ -271,13 +277,13 @@ static LydVoice *lyd_new_voice_unlocked (Lyd       *lyd,
   return voice;
 }
 
-LydVoice *lyd_new_voice (Lyd       *lyd,
+LydVoice *lyd_voice_new (Lyd       *lyd,
                          LydProgram *program,
                          int        tag)
 {
   LydVoice *voice;
   LOCK ();
-  voice = lyd_new_voice_unlocked (lyd, program, tag);
+  voice = lyd_voice_new_unlocked (lyd, program, tag);
   UNLOCK ();
   return voice;
 }
