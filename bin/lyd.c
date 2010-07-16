@@ -62,7 +62,29 @@ int main (int    argc,
   lyd_midi_init (lyd);
 #endif
 
-  welcome (lyd);
+  if(argv[1])
+    {
+       gsize   length;
+       char   *mididata;
+       GError *error = NULL;
+
+        if (!g_file_get_contents (argv[1], &mididata, &length, &error))
+          {
+            printf ("Failed to read midi data from %s\n", argv[1]);
+            return -1;
+          }
+        else
+          {
+            printf ("Loaded %i bytes midi data from %s\n", length, argv[1]);
+          }
+        lyd_midi_load (lyd, (void *)mididata, length);
+        lyd_midi_set_playing (lyd, 1);
+        g_free (mididata);
+    }
+  else
+    {
+      welcome (lyd);
+    }
 
 #ifdef HAVE_GLIB
   g_main_loop_run (g_main_loop_new (NULL, FALSE));

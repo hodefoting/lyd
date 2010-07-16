@@ -98,26 +98,13 @@ LydVoice    *lyd_note_full (Lyd *lyd, int patch, float hz, float volume,
  */
 int          lyd_audio_init (Lyd *lyd, const char *driver); 
 
-
-/* MIDI support - complementary to the audio synthesis engine, lyd also provides
- * a MIDI state tracker that allows playback of midi files or real-time midi events
- * thorugh ALSA. If LYD was compiled with ALSA support it creates a virtual midi
- * device that can be used to deliver midi events to it.
- */
-
 /* load a .mid file from a memory */
 void         lyd_midi_load  (Lyd *lyd, unsigned char *data, int length);
 /* play loaded file */
 void         lyd_midi_set_playing (Lyd *lyd, int playing);
 /* send raw midi data to decoder, allows changing tempo on the fly */
 void         lyd_midi_out   (Lyd *lyd, unsigned char *data, int length);
-/* get duration of loaded midi file in seconds */
-float        lyd_midi_get_duration (Lyd *lyd);
-/* set loop positions (also enables looping)  */
-void         lyd_midi_set_repeat (Lyd *lyd, float start, float end);
 /* seek to a given position */
 void         lyd_midi_seek  (Lyd *lyd, float position);
-
-
 
 #endif

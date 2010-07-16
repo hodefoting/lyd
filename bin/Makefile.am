@@ -4,4 +4,4 @@ AM_LDFLAGS = \
 AM_CFLAGS = -I$(top_srcdir) $(GLIB_CFLAGS) $(OSC_CFLAGS) $(ALSA_CFLAGS)
 
 bin_PROGRAMS =  lyd
-lyd_SOURCES = lyd.c midi.c osc.c welcome.h
+lyd_SOURCES = lyd.c osc.c welcome.h

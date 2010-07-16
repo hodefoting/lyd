@@ -87,6 +87,7 @@ lyd_synthesize (Lyd  *lyd,
   short int *buf16 = (void*)stream;
 
   lyd_midi_iterate (lyd, lyd->previous_samples/(1.0 * lyd->sample_rate));
+  LOCK ();
 
   if (!lyd->accbuf || lyd->accbuf_len < samples)
     {
@@ -95,7 +96,6 @@ lyd_synthesize (Lyd  *lyd,
       lyd->accbuf_len = samples;
     }
 
-  LOCK ();
   /* create a list of voices that are currently playing or will
    * start playing during the duration of samples
    */

@@ -201,5 +201,9 @@ struct _LydVoice
                          */
 };
 
+/* get duration of loaded midi file in seconds */
+float        lyd_midi_get_duration (Lyd *lyd);
+/* set loop positions (also enables looping)  */
+void         lyd_midi_set_repeat (Lyd *lyd, float start, float end);
 
 #endif
