@@ -18,10 +18,11 @@
 #include "config.h"
 #endif
 #ifdef HAVE_OSC
+#ifdef HAVE_OSC
 #include <lyd/lyd.h>
 #include <lo/lo.h>
 #include <stdlib.h>
-#include <glib.h>
+#include <stdio.h>
 
 static LydProgram *programs[256]={NULL,};
 static LydVoice   *voices[1024]={NULL,};
@@ -31,7 +32,7 @@ osc_error (int         num,
            const char *msg,
            const char *path)
 {
-  g_print ("liblo server error %d in path %s: %s\n", num, path, msg);
+  printf ("liblo server error %d in path %s: %s\n", num, path, msg);
 }
 
 #define OSC_ARGS const char  *path,\
@@ -45,13 +46,13 @@ static int osc_log (OSC_ARGS)
 {
     int i;
 
-    g_print ("OSC %s ", path);
+    printf ("OSC %s ", path);
     for (i=0; i<argc; i++)
       {
-	g_print (" ");
+	printf (" ");
 	lo_arg_pp(types[i], argv[i]);
       }
-    g_print("\n");
+    printf("\n");
     return 1; /* message not handled */
 }
 
@@ -60,7 +61,7 @@ static int osc_compile (OSC_ARGS)
   LydProgram *program;
   int codeslot = argv[0]->i;
   const char *code = &argv[1]->s;
-  g_print ("compile %d %s\n", codeslot, code);
+  printf ("compile %d %s\n", codeslot, code);
 
   program = lyd_compile (lyd, code);
   if (!program)
@@ -79,7 +80,7 @@ static int osc_invoke (OSC_ARGS)
   int codeslot = argv[1]->i;
   if (!programs[codeslot])
     return 0;
-  g_print ("invoke: %d %d\n", slot, codeslot);
+  printf ("invoke: %d %d\n", slot, codeslot);
   voices[slot] = lyd_voice_new (lyd, programs[codeslot], 0);
   return 0;
 }
@@ -89,7 +90,7 @@ static int osc_run (OSC_ARGS)
   LydProgram *program;
   int slot = argv[0]->i;
   const char *code = &argv[1]->s;
-  g_print ("run %d %s\n", slot, code);
+  printf ("run %d %s\n", slot, code);
 
   program = lyd_compile (lyd, code);
   if (!program)
@@ -170,4 +171,5 @@ void lyd_osc_init (Lyd *lyd)
   lo_server_thread_add_method (st, NULL, NULL, osc_log, NULL);
   lo_server_thread_start (st);
 }
+#endif
 #endif

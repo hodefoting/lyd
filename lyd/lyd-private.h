@@ -161,7 +161,7 @@ static inline SList *slist_find (SList *list, void *data)
 
 #else
 
-#include <glib.h>
+//#include <glib.h>
 #define LOCK()   g_static_mutex_lock (&mutex)
 #define UNLOCK() g_static_mutex_unlock (&mutex)
 GStaticMutex mutex;

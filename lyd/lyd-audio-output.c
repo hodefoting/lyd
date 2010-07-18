@@ -17,18 +17,215 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include <glib.h>
+//#include <glib.h>
 #include <lyd/lyd.h>
+#include <lyd/lyd-private.h>
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
+#ifdef HAVE_ALSA
+#include <pthread.h>
+#include <alsa/asoundlib.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+static snd_pcm_t *alsa_open(char *dev, int rate, int channels)
+{
+   snd_pcm_hw_params_t *hwp;
+   snd_pcm_sw_params_t *swp;
+   snd_pcm_t *h;
+   int r;
+   int dir;
+   snd_pcm_uframes_t period_size_min;
+   snd_pcm_uframes_t period_size_max;
+   snd_pcm_uframes_t buffer_size_min;
+   snd_pcm_uframes_t buffer_size_max;
+   snd_pcm_uframes_t period_size;
+   snd_pcm_uframes_t buffer_size;
+
+   if ((r = snd_pcm_open(&h, dev, SND_PCM_STREAM_PLAYBACK, 0) < 0))
+           return NULL;
+
+   hwp = alloca(snd_pcm_hw_params_sizeof());
+   memset(hwp, 0, snd_pcm_hw_params_sizeof());
+   snd_pcm_hw_params_any(h, hwp);
+
+   snd_pcm_hw_params_set_access(h, hwp, SND_PCM_ACCESS_RW_INTERLEAVED);
+   snd_pcm_hw_params_set_format(h, hwp, SND_PCM_FORMAT_S16_LE);
+   snd_pcm_hw_params_set_rate(h, hwp, rate, 0);
+   snd_pcm_hw_params_set_channels(h, hwp, channels);
+
+   /* Configurue period */
+
+   dir = 0;
+   snd_pcm_hw_params_get_period_size_min(hwp, &period_size_min, &dir);
+   dir = 0;
+   snd_pcm_hw_params_get_period_size_max(hwp, &period_size_max, &dir);
+
+   period_size = 1024;
+
+   dir = 0;
+   r = snd_pcm_hw_params_set_period_size_near(h, hwp, &period_size, &dir);
+
+   if (r < 0) {
+           fprintf(stderr, "audio: Unable to set period size %lu (%s)\n",
+                   period_size, snd_strerror(r));
+           snd_pcm_close(h);
+           return NULL;
+   }
+
+   dir = 0;
+   r = snd_pcm_hw_params_get_period_size(hwp, &period_size, &dir);
+
+   if (r < 0) {
+           fprintf(stderr, "audio: Unable to get period size (%s)\n",
+                   snd_strerror(r));
+           snd_pcm_close(h);
+           return NULL;
+   }
+
+   /* Configure buffer size */
+
+   snd_pcm_hw_params_get_buffer_size_min(hwp, &buffer_size_min);
+   snd_pcm_hw_params_get_buffer_size_max(hwp, &buffer_size_max);
+   buffer_size = period_size * 4;
+
+   dir = 0;
+   r = snd_pcm_hw_params_set_buffer_size_near(h, hwp, &buffer_size);
+
+   if (r < 0) {
+           fprintf(stderr, "audio: Unable to set buffer size %lu (%s)\n",
+                   buffer_size, snd_strerror(r));
+           snd_pcm_close(h);
+           return NULL;
+   }
+
+   r = snd_pcm_hw_params_get_buffer_size(hwp, &buffer_size);
+
+   if (r < 0) {
+           fprintf(stderr, "audio: Unable to get buffer size (%s)\n",
+                   snd_strerror(r));
+           snd_pcm_close(h);
+           return NULL;
+   }
+
+   /* write the hw params */
+   r = snd_pcm_hw_params(h, hwp);
+
+   if (r < 0) {
+           fprintf(stderr, "audio: Unable to configure hardware parameters (%s)\n",
+                   snd_strerror(r));
+           snd_pcm_close(h);
+           return NULL;
+   }
+
+   /*
+    * Software parameters
+    */
+
+   swp = alloca(snd_pcm_sw_params_sizeof());
+   memset(hwp, 0, snd_pcm_sw_params_sizeof());
+   snd_pcm_sw_params_current(h, swp);
+
+   r = snd_pcm_sw_params_set_avail_min(h, swp, period_size);
+
+   if (r < 0) {
+           fprintf(stderr, "audio: Unable to configure wakeup threshold (%s)\n",
+                   snd_strerror(r));
+           snd_pcm_close(h);
+           return NULL;
+   }
+
+   snd_pcm_sw_params_set_start_threshold(h, swp, 0);
+
+   if (r < 0) {
+           fprintf(stderr, "audio: Unable to configure start threshold (%s)\n",
+                   snd_strerror(r));
+           snd_pcm_close(h);
+           return NULL;
+   }
+
+   r = snd_pcm_sw_params(h, swp);
+
+   if (r < 0) {
+           fprintf(stderr, "audio: Cannot set soft parameters (%s)\n",
+           snd_strerror(r));
+           snd_pcm_close(h);
+           return NULL;
+   }
+
+   r = snd_pcm_prepare(h);
+   if (r < 0) {
+           fprintf(stderr, "audio: Cannot prepare audio for playback (%s)\n",
+           snd_strerror(r));
+           snd_pcm_close(h);
+           return NULL;
+   }
+
+   return h;
+}
+
+static  snd_pcm_t *h = NULL;
+static void *alsa_audio_start(void *aux)
+{
+  Lyd *lyd = aux;
+  int c;
+  void *data = NULL;
+  int data_len = 0;
+
+  for (;;) {
+    //pthread_mutex_lock(&alsa->mutex);
+    //pthread_mutex_unlock(&alsa->mutex);
+
+    c = snd_pcm_wait(h, 1000);
+
+    if (c >= 0)
+            c = snd_pcm_avail_update(h);
+
+    if (c == -EPIPE)
+            snd_pcm_prepare(h);
+
+    if (c > 0){
+       if (!data || data_len < c)
+         {
+           if (data) free (data);
+           data = malloc (8 * (c + 512));
+           data_len = c + 512;
+         }
+       lyd_synthesize (lyd, c, data, NULL);
+       snd_pcm_writei(h, data, c);
+    }
+  }
+  return NULL;
+}
+
+int
+lyd_audio_init_alsa (Lyd *lyd)
+{
+  pthread_t tid;
+
+  h = alsa_open("default", 44100, 2);
+
+  //pthread_mutex_init(&alsa->mutex, NULL);
+  if (!h) {
+    fprintf(stderr, "Unable to open ALSA device (%d channels, %d Hz), dying\n",
+            2, 44100);
+    return 0;
+  }
+
+  pthread_create(&tid, NULL, alsa_audio_start, lyd);
+  lyd_set_sample_rate (lyd, 44100);
+  lyd_set_format (lyd, LYD_s16S);
+  return 1;
+}
+#endif
+
 #ifdef HAVE_SDL
 #include <SDL.h>
-//#include "kiss_fft.h"
-
-//static kiss_fft_cfg cfg;
 
 static void
 sdl_generate_audio (void    *data,
@@ -37,9 +234,6 @@ sdl_generate_audio (void    *data,
 {
   int samples = len / 4; /* 16bit stereo = 4 bytes*/
   lyd_synthesize (data, samples, buf, NULL);
-
-  //kiss_fft (cfg, cx_in, cx_out);
-
 }
 
 int
@@ -67,11 +261,6 @@ lyd_audio_init_sdl (Lyd *lyd)
   SDL_PauseAudio(0);
   g_free(desired);
   g_free(obtained);
-
-
-  /* initialize kiss-fft */
-  //cfg = kiss_fft_alloc (nfft, is_invertse_fft, 0, 0,);
-
   return 1;
 }
 #endif
@@ -200,6 +389,10 @@ lyd_audio_init (Lyd       *lyd,
        if (lyd_audio_init_jack (lyd))
          return TRUE;
 #endif
+#ifdef HAVE_ALSA
+       if (lyd_audio_init_alsa (lyd))
+         return TRUE;
+#endif
 #ifdef HAVE_SDL
        if (lyd_audio_init_sdl (lyd))
          return TRUE;
@@ -210,6 +403,10 @@ lyd_audio_init (Lyd       *lyd,
 #endif
        return FALSE;
     }
+#ifdef HAVE_SDL
+  else if (strstr (driver, "alsa"))
+    return lyd_audio_init_alsa (lyd);
+#endif
 #ifdef HAVE_SDL
   else if (strstr (driver, "sdl"))
     return lyd_audio_init_sdl (lyd);

@@ -48,32 +48,32 @@ AC_PROG_CC
 AC_DISABLE_STATIC
 AC_PROG_LIBTOOL
 
-m4_define([glib_req_version], [2.20.0])
-AC_ARG_WITH(glib, [  --without-glib          build without GLIB support])
-have_glib="no"
-if test "x$with_glib" != "xno"; then
-  PKG_CHECK_MODULES(GLIB, glib-2.0 >= glib_req_version gthread-2.0,
-    have_glib="yes"
-    AC_DEFINE(HAVE_GLIB, 1, [Define to 1 if GLIB is available])
-    ,
-    have_glib="no  (GLIB not found)")
-fi
-AC_SUBST(GLIB_CFLAGS)
-AC_SUBST(GLIB_LIBS)
-AM_CONDITIONAL(HAVE_GLIB, test "$have_glib" = "yes")
+#m4_define([glib_req_version], [2.20.0])
+#AC_ARG_WITH(glib, [  --without-glib          build without GLIB support])
+#have_glib="no"
+#if test "x$with_glib" != "xno"; then
+#  PKG_CHECK_MODULES(GLIB, glib-2.0 >= glib_req_version gthread-2.0,
+#    have_glib="yes"
+#    AC_DEFINE(HAVE_GLIB, 1, [Define to 1 if GLIB is available])
+#    ,
+#    have_glib="no  (GLIB not found)")
+#fi
+#AC_SUBST(GLIB_CFLAGS)
+#AC_SUBST(GLIB_LIBS)
+#AM_CONDITIONAL(HAVE_GLIB, test "$have_glib" = "yes")
 
-AC_ARG_WITH(sdl, [  --without-sdl           build library without SDL audio output])
-have_sdl="no"
-if test "x$with_sdl" != "xno"; then
-  PKG_CHECK_MODULES(SDL, sdl,
-    have_sdl="yes"
-    AC_DEFINE(HAVE_SDL, 1, [Define to 1 if SDL is available])
-    ,
-    have_sdl="no  (SDL not found)")
-fi
-AC_SUBST(SDL_CFLAGS)
-AC_SUBST(SDL_LIBS)
-AM_CONDITIONAL(HAVE_SDL, test "$have_sdl" = "yes")
+#AC_ARG_WITH(sdl, [  --without-sdl           build library without SDL audio output])
+#have_sdl="no"
+#if test "x$with_sdl" != "xno"; then
+#  PKG_CHECK_MODULES(SDL, sdl,
+#    have_sdl="yes"
+#    AC_DEFINE(HAVE_SDL, 1, [Define to 1 if SDL is available])
+#    ,
+#    have_sdl="no  (SDL not found)")
+#fi
+#AC_SUBST(SDL_CFLAGS)
+#AC_SUBST(SDL_LIBS)
+#AM_CONDITIONAL(HAVE_SDL, test "$have_sdl" = "yes")
 
 AC_ARG_WITH(alsa, [  --without-alsa          build library without ALSA audio output, and lyd binary without midi])
 have_alsa="no"
@@ -101,18 +101,18 @@ AC_SUBST(OSC_CFLAGS)
 AC_SUBST(OSC_LIBS)
 AM_CONDITIONAL(HAVE_OSC, test "$have_osc" = "yes")
 
-AC_ARG_WITH(ao, [  --without-ao            build library without AO audio output])
-have_ao="no"
-if test "x$with_ao" != "xno"; then
-  PKG_CHECK_MODULES(AO, ao,
-    have_ao="yes"
-    AC_DEFINE(HAVE_AO, 1, [Define to 1 if ao library is available])
-    ,
-    have_ao="no  (AO not found)")
-fi
-AC_SUBST(AO_CFLAGS)
-AC_SUBST(AO_LIBS)
-AM_CONDITIONAL(HAVE_AO, test "$have_ao" = "yes")
+#AC_ARG_WITH(ao, [  --without-ao            build library without AO audio output])
+#have_ao="no"
+#if test "x$with_ao" != "xno"; then
+#  PKG_CHECK_MODULES(AO, ao,
+#    have_ao="yes"
+#    AC_DEFINE(HAVE_AO, 1, [Define to 1 if ao library is available])
+#    ,
+#    have_ao="no  (AO not found)")
+#fi
+#AC_SUBST(AO_CFLAGS)
+#AC_SUBST(AO_LIBS)
+#AM_CONDITIONAL(HAVE_AO, test "$have_ao" = "yes")
 
 
 dnl ========================================================================

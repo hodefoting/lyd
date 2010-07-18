@@ -87,11 +87,7 @@ void         lyd_set_patch (Lyd *lyd, int no, const char *patch);
 /* play a single midi note */
 LydVoice    *lyd_note (Lyd *lyd, int patch, float hz, float volume, float duration);
 LydVoice    *lyd_note_full (Lyd *lyd, int patch, float hz, float volume,
-                            float duration, float pan, int hashkey);
-
-
-
-
+                            float duration, float pan, int tag);
 
 /* available drivers depends on how lyd was compiled, pass in "auto" to make
  * lyd auto select. Returns 0 if lyd failed to initialize audio output.

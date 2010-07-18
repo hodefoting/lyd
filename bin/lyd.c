@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "welcome.h"
 
@@ -59,37 +60,46 @@ int main (int    argc,
   lyd_osc_init (lyd);
 #endif
 #ifdef HAVE_ALSA
+#ifdef HAVE_GLIB
   lyd_midi_init (lyd);
+#endif
 #endif
 
   if(argv[1])
     {
-       gsize   length;
-       char   *mididata;
-       GError *error = NULL;
+       long    length;
+       char   *mididata = NULL;
+       FILE   *file;
 
-        if (!g_file_get_contents (argv[1], &mididata, &length, &error))
-          {
-            printf ("Failed to read midi data from %s\n", argv[1]);
-            return -1;
-          }
-        else
-          {
-            printf ("Loaded %i bytes midi data from %s\n", length, argv[1]);
-          }
-        lyd_midi_load (lyd, (void *)mididata, length);
-        lyd_midi_set_playing (lyd, 1);
-        g_free (mididata);
+       file = fopen (argv[1], "r");
+       if (file)
+         {
+           fseek (file, 0, SEEK_END);
+           length = ftell (file);
+           fseek (file, 0, SEEK_SET);
+           mididata = malloc (length);
+         }
+       if (!file || fread (mididata, length, 1, file) != 1)
+         {
+           printf ("Failed to read midi data from %s\n", argv[1]);
+           return -1;
+         }
+       else
+         {
+           printf ("Loaded %li bytes midi data from %s\n", length, argv[1]);
+           fclose (file);
+         }
+
+       lyd_midi_load (lyd, (void *)mididata, length);
+       lyd_midi_set_playing (lyd, 1);
+       free (mididata);
     }
   else
     {
       welcome (lyd);
     }
 
-#ifdef HAVE_GLIB
-  g_main_loop_run (g_main_loop_new (NULL, FALSE));
-#else
-  sleep(10);
-#endif
+  for (;;)
+    sleep (1);
   return 0;
 }
