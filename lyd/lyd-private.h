@@ -28,10 +28,10 @@ typedef float LydSample; /* global define for what type lyd computes with,
 
 #define LYD_SAMPLES                    23
 
-#define LYD_MAX_ELEMENTS               40
+#define LYD_MAX_ELEMENTS               50
 #define LYD_MAX_VARIABLES              8
 #define LYD_MAX_ARGS                   4
-#define LYD_VOICE_VOLUME               0.15
+#define LYD_VOICE_VOLUME               0.05
 #define LYD_MAX_REVERB_SIZE            44100
 #define LYD_RELEASED_SILENCE_DAMPENING 0.001
 
@@ -43,7 +43,7 @@ typedef enum
   LYD_ADD, LYD_SUB, LYD_MUL, LYD_DIV, LYD_ABS, LYD_POW, LYD_NEG, LYD_SQRT,
   LYD_MOD,
 
-  LYD_SIN, LYD_SAW, LYD_RAMP, LYD_SQUARE, LYD_PULSE, LYD_NOISE,
+  LYD_SIN, LYD_SAW, LYD_RAMP, LYD_SQUARE, LYD_PULSE, LYD_NOISE, LYD_ABSSIN, LYD_POSSIN, LYD_EVENSIN,
 
   LYD_ADSR, LYD_REVERB,
 

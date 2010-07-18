@@ -691,7 +691,8 @@ static int midi_seek(LydMidi *midi, int target)
         break;
 
       midi->elapsed = 250;
-      midi_main (midi);
+      if (!midi_main (midi))
+        break;
    }
    /* restore previously saved variables */
    midi->loop = old_loop;

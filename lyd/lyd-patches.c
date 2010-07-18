@@ -58,5 +58,5 @@ LydVoice *lyd_note (Lyd *lyd,
                     float volume,
                     float duration)
 {
-  return lyd_note_full (lyd, patch, hz, volume, duration, 1.0, 0);
+  return lyd_note_full (lyd, patch, hz, volume, duration, 0.0, 0);
 }

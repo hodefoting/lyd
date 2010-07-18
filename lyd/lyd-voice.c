@@ -54,20 +54,38 @@ static LydSample adsr (LydVoice *voice, LydSample **args, void **data)
   LydSample a = *args[0],  d = *args[1],
         s = *args[2],  r = *args[3];
 
-  if (voice->sample <= a * voice->sample_rate)
-    return (voice->sample * 1.0 / (a * voice->sample_rate));
-  else if (voice->sample < (a * voice->sample_rate) + (d * voice->sample_rate))
-    {
-      LydSample d2 = (((voice->sample - (a * voice->sample_rate))) /
-                      (d * voice->sample_rate));
-      return 1.0 * d2 + s * (1.0-d2);
-    }
-  else if (voice->released)
+  if (voice->released)                   /* release */
     {
       if (voice->released > r * voice->sample_rate)
         return 0.0; /* after end of release */
       else
-        return s * (1.0 -(voice->released) / (r * voice->sample_rate));
+        {
+          float prev;
+          if ((voice->sample - voice->released) <= voice->sample_rate * a)
+            prev = ((voice->sample - voice->released) * 1.0 / (a * voice->sample_rate)) *
+                   ((voice->sample - voice->released) * 1.0 / (a * voice->sample_rate));
+
+          else if (voice->sample - voice->released < (a+d) * voice->sample_rate)
+            {
+              LydSample d2 = ((((voice->sample -voice->released) - (a * voice->sample_rate))) /
+                              (d * voice->sample_rate));
+              prev = 1.0 - d2 + s * d2;
+            }
+          else
+            prev = s;
+          return prev * (1.0 -(voice->released) / (r * voice->sample_rate));
+        }
+    }
+  else if (voice->sample <= a * voice->sample_rate)  /* attack */
+    {
+      return (voice->sample * 1.0 / (a * voice->sample_rate)) *
+             (voice->sample * 1.0 / (a * voice->sample_rate));
+    }
+  else if (voice->sample < (a + d) * voice->sample_rate)
+    {                                          /* decay */
+      LydSample d2 = (((voice->sample - (a * voice->sample_rate))) /
+                      (d * voice->sample_rate));
+      return 1.0 - d2 + s * d2;
     }
   return s;
 }
@@ -202,9 +220,14 @@ static inline LydSample lyd_voice_compute (LydVoice  *voice)
     OP(LYD_SIN)    OUT = sin (PHASE * M_PI * 2);
     OP(LYD_SQUARE) OUT = PHASE > 0.5?1.0:-1.0;
     OP(LYD_PULSE)  OUT = PHASE > A(1)?1.0:-1.0;
+
     OP(LYD_SAW)    OUT = PHASE * 2 - 1.0;
     OP(LYD_RAMP)   OUT = -(PHASE * 2 - 1.0);
     OP(LYD_NOISE)  OUT = g_random_double_range (-1.0, 1.0);
+
+    OP(LYD_ABSSIN) OUT = fabs (sin (PHASE * M_PI * 2));
+    OP(LYD_POSSIN) LydSample res = sin (PHASE * M_PI * 2); OUT = res>0?res:0.0;
+    OP(LYD_EVENSIN) float angle = PHASE * M_PI * 2; LydSample res = sin (angle); OUT = res>0?sin(angle*2):0.0;
 
     OP_FUN(LYD_ADSR,   adsr)  
     OP_FUN(LYD_REVERB, voice_reverb) 

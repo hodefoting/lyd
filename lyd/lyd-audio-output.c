@@ -208,17 +208,17 @@ lyd_audio_init_alsa (Lyd *lyd)
 {
   pthread_t tid;
 
-  h = alsa_open("default", 44100, 2);
+  h = alsa_open("default", 48000, 2);
 
   //pthread_mutex_init(&alsa->mutex, NULL);
   if (!h) {
     fprintf(stderr, "Unable to open ALSA device (%d channels, %d Hz), dying\n",
-            2, 44100);
+            2, 48000);
     return 0;
   }
 
   pthread_create(&tid, NULL, alsa_audio_start, lyd);
-  lyd_set_sample_rate (lyd, 44100);
+  lyd_set_sample_rate (lyd, 48000);
   lyd_set_format (lyd, LYD_s16S);
   return 1;
 }
