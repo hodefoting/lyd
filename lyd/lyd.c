@@ -24,10 +24,6 @@
 
 static void lyd_voice_update_params (LydVoice *voice);
 
-/* we include the voice directly to make the mixing and the vm 
- * a single compilation unit
- */
-#include "lyd-voice.c"
 
 struct _Lyd
 {
@@ -51,6 +47,11 @@ struct _Lyd
 
   LydSample reverb_old[2][LYD_MAX_REVERB_SIZE];
 };
+
+/* we include the voice directly to make the mixing and the vm 
+ * a single compilation unit
+ */
+#include "lyd-voice.c"
 
 static LydSample lyd_reverb (Lyd *lyd, int channel, LydSample sample)
 {
@@ -269,8 +270,7 @@ static LydVoice *lyd_voice_new_unlocked (Lyd       *lyd,
                                          int        tag)
 {
   LydVoice *voice;
-  voice     = lyd_voice_create (program);
-  voice->lyd = lyd;
+  voice     = lyd_voice_create (lyd, program);
   voice->sample_rate = lyd->sample_rate;
   voice->tag = tag;
   lyd->voices = slist_prepend (lyd->voices, voice);
@@ -320,9 +320,12 @@ void lyd_set_format (Lyd *lyd, LydFormat format)
   lyd->format = format;
 }
 
+int lyd_dead;
+
 void lyd_free (Lyd *lyd)
 {
   /* XXX: shutdown properly */
+  lyd_dead = 1;
   g_free (lyd);
 }
 

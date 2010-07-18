@@ -45,35 +45,9 @@ dnl ========================================================================
 
 # Checks for programs.
 AC_PROG_CC
-AC_DISABLE_STATIC
 AC_PROG_LIBTOOL
 
-#m4_define([glib_req_version], [2.20.0])
-#AC_ARG_WITH(glib, [  --without-glib          build without GLIB support])
-#have_glib="no"
-#if test "x$with_glib" != "xno"; then
-#  PKG_CHECK_MODULES(GLIB, glib-2.0 >= glib_req_version gthread-2.0,
-#    have_glib="yes"
-#    AC_DEFINE(HAVE_GLIB, 1, [Define to 1 if GLIB is available])
-#    ,
-#    have_glib="no  (GLIB not found)")
-#fi
-#AC_SUBST(GLIB_CFLAGS)
-#AC_SUBST(GLIB_LIBS)
-#AM_CONDITIONAL(HAVE_GLIB, test "$have_glib" = "yes")
-
-#AC_ARG_WITH(sdl, [  --without-sdl           build library without SDL audio output])
-#have_sdl="no"
-#if test "x$with_sdl" != "xno"; then
-#  PKG_CHECK_MODULES(SDL, sdl,
-#    have_sdl="yes"
-#    AC_DEFINE(HAVE_SDL, 1, [Define to 1 if SDL is available])
-#    ,
-#    have_sdl="no  (SDL not found)")
-#fi
-#AC_SUBST(SDL_CFLAGS)
-#AC_SUBST(SDL_LIBS)
-#AM_CONDITIONAL(HAVE_SDL, test "$have_sdl" = "yes")
+AC_CHECK_LIB([pthread], [pthread_create])
 
 AC_ARG_WITH(alsa, [  --without-alsa          build library without ALSA audio output, and lyd binary without midi])
 have_alsa="no"
@@ -82,11 +56,24 @@ if test "x$with_alsa" != "xno"; then
     have_alsa="yes"
     AC_DEFINE(HAVE_ALSA, 1, [Define to 1 if alsa is available])
     ,
-    have_alsa="no  (ALSA not found)")
+    have_alsa="no  (ALSA not found, you need at least one audio driver)")
 fi
 AC_SUBST(ALSA_CFLAGS)
 AC_SUBST(ALSA_LIBS)
 AM_CONDITIONAL(HAVE_ALSA, test "$have_alsa" = "yes")
+
+AC_ARG_WITH(jack, [  --without-jack          build library without JACK audio output, and lyd binary without midi])
+have_jack="no"
+if test "x$with_jack" != "xno"; then
+  PKG_CHECK_MODULES(JACK, jack,
+    have_jack="yes"
+    AC_DEFINE(HAVE_JACK, 1, [Define to 1 if jack is available])
+    ,
+    have_jack="no")
+fi
+AC_SUBST(JACK_CFLAGS)
+AC_SUBST(JACK_LIBS)
+AM_CONDITIONAL(HAVE_JACK, test "$have_jack" = "yes")
 
 AC_ARG_WITH(OSC, [  --without-osc           build lyd binary without OSC (liblo) support])
 have_osc="no"
@@ -95,25 +82,11 @@ if test "x$with_osc" != "xno"; then
     have_osc="yes"
     AC_DEFINE(HAVE_OSC, 1, [Define to 1 if lo library is available])
     ,
-    have_osc="no  (SDL not found)")
+    have_osc="no  (liblo not found)")
 fi
 AC_SUBST(OSC_CFLAGS)
 AC_SUBST(OSC_LIBS)
 AM_CONDITIONAL(HAVE_OSC, test "$have_osc" = "yes")
-
-#AC_ARG_WITH(ao, [  --without-ao            build library without AO audio output])
-#have_ao="no"
-#if test "x$with_ao" != "xno"; then
-#  PKG_CHECK_MODULES(AO, ao,
-#    have_ao="yes"
-#    AC_DEFINE(HAVE_AO, 1, [Define to 1 if ao library is available])
-#    ,
-#    have_ao="no  (AO not found)")
-#fi
-#AC_SUBST(AO_CFLAGS)
-#AC_SUBST(AO_LIBS)
-#AM_CONDITIONAL(HAVE_AO, test "$have_ao" = "yes")
-
 
 dnl ========================================================================
 
@@ -134,9 +107,8 @@ AC_MSG_RESULT([
 
  Optional dependencies:
  
- glib:    $have_glib
- alsa:    $have_alsa
- sdl:     $have_sdl
- ao:      $have_ao
- osc:     $have_osc
+  alsa:    $have_alsa
+  jack:    $have_jack
+  osc:     $have_osc
 ]);
+

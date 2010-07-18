@@ -24,7 +24,7 @@ int main (int    argc,
   Lyd        *lyd;
   LydVoice   *voice;
   LydProgram *instrument;
-  const char *code = "reverb (0.2, 0.123, low_pass (1.3, hz=440.0, 0.03, pulse(200 + sin(190) * 1.4, sin(0.1)) * adsr(0.12, 0.12, 0.7, 0.30)) * volume=1.0 * 5.0)";
+  const char *code = "reverb (0.2, 0.123, low_pass (1.3, hz=440.0, 0.03, pulse(200 + sin(190) * 1.4, sin(0.1)) * adsr(0.12, 0.12, 0.7, 0.30)) * volume=1.0 * 8.0)";
 
   lyd = lyd_new ();
 

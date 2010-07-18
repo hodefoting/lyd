@@ -28,7 +28,7 @@ typedef float LydSample; /* global define for what type lyd computes with,
 
 #define LYD_SAMPLES                    23
 
-#define LYD_MAX_ELEMENTS               50
+#define LYD_MAX_ELEMENTS               80
 #define LYD_MAX_VARIABLES              8
 #define LYD_MAX_ARGS                   4
 #define LYD_VOICE_VOLUME               0.05
@@ -93,6 +93,7 @@ static inline float str2float (const char *str)
 
 /*** lyd uses glib conveniences but tries to be independent ***/
 #ifdef NIH
+
 #undef g_new0
 #undef G_UNLIKELY
 /* XXX: the fake glib needs lock/unlock replacements */

@@ -7,9 +7,10 @@ INCLUDES = -I$(srcdir) -I$(top_srcdir)
 
 AM_CPPFLAGS = \
         -DPREFIX=\""$(prefix)"\"  \
+	-I$(builddir)
         $(NULL)
 
-AM_CFLAGS = $(MAINTAINER_CFLAGS) $(GLIB_CFLAGS) $(SDL_CFLAGS) $(AO_CFLAGS) $(JACK_CFLAGS) -DNIH
+AM_CFLAGS = $(MAINTAINER_CFLAGS) $(JACK_CFLAGS) -DNIH
 
 lib_LTLIBRARIES = liblyd-@LYD_API_VERSION@.la
 
@@ -20,18 +21,19 @@ liblyd_@LYD_API_VERSION@_la_SOURCES = \
         $(srcdir)/lyd-audio-output.c \
         $(srcdir)/lyd-midi.c \
         $(srcdir)/lyd-patches.c \
+        $(builddir)/general-midi.inc \
         $(NULL)
 
-EXTRA_DIST = lyd-private.h lyd-voice.c biquad.c
+EXTRA_DIST = lyd-private.h lyd-voice.c biquad.c general-midi.txt
 
-liblyd_@LYD_API_VERSION@_la_LIBADD = $(ALSA_LIBS) $(GLIB_LIBS) $(SDL_LIBS) $(AO_LIBS) $(JACK_CFLAGS) -lm
-liblyd_@LYD_API_VERSION@_la_LDFLAGS = $(GLIB_LT_LDFLAGS) $(SDL_LT_LDFLAGS) $(AO_LT_LDFLAGS) $(JACK_LT_LDFLAGS)
+liblyd_@LYD_API_VERSION@_la_LIBADD = $(ALSA_LIBS) $(JACK_LIBS) -lm -lpthread
+liblyd_@LYD_API_VERSION@_la_LDFLAGS = $(ALSA_LT_LDFLAGS)  $(JACK_LT_LDFLAGS)
 
 lydheadersdir = $(includedir)/lyd-@LYD_API_VERSION@/lyd
 
 lydheaders_HEADERS = $(top_srcdir)/lyd/lyd.h 
 
-general-midi.inc: general-midi.txt
+$(builddir)/general-midi.inc: $(srcdir)/general-midi.txt
 	echo "static char *midi_patches[256]={" > $@
 	cat $< |sed -e 's/^/"/' -e 's/$$/",/' >> $@
 	echo "};" >> $@

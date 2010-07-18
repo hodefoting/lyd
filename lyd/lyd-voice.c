@@ -19,12 +19,14 @@
 #include "biquad.c"
 
 /* create a new voice from a program */
-static LydVoice * lyd_voice_create (LydProgram *program)
+static LydVoice * lyd_voice_create (Lyd *lyd, LydProgram *program)
 {
   LydVoice *voice = g_malloc0 (sizeof (LydVoice)
                              + sizeof (LydCommandState) * LYD_MAX_ELEMENTS);
   static LydSample nul = 0.0;
   int i, j;
+
+  voice->lyd = lyd;
 
   for (i = 0; program->commands[i].op; i++)
     {
@@ -44,6 +46,12 @@ static LydVoice * lyd_voice_create (LydProgram *program)
           else
             voice->state[i].arg[j] = &nul;
         }
+      if (program->commands[i].op == LYD_ADSR)
+        { /* premultiply with sample rate, simplifying runtime behavior  */
+          voice->state[i].literal[0] *= lyd->sample_rate;
+          voice->state[i].literal[1] *= lyd->sample_rate;
+          voice->state[i].literal[3] *= lyd->sample_rate;
+        }
     }
   voice->position = 0.0;
   return voice;
@@ -51,43 +59,32 @@ static LydVoice * lyd_voice_create (LydProgram *program)
 
 static LydSample adsr (LydVoice *voice, LydSample **args, void **data)
 {
-  LydSample a = *args[0],  d = *args[1],
-        s = *args[2],  r = *args[3];
-
-  if (voice->released)                   /* release */
+  LydSample a = *args[0],  d = *args[1], s = *args[2],  r = *args[3];
+  if (voice->released)
     {
-      if (voice->released > r * voice->sample_rate)
-        return 0.0; /* after end of release */
+      if (voice->released > r) /* after end of release */
+        return 0.0;            
       else
         {
-          float prev;
-          if ((voice->sample - voice->released) <= voice->sample_rate * a)
-            prev = ((voice->sample - voice->released) * 1.0 / (a * voice->sample_rate)) *
-                   ((voice->sample - voice->released) * 1.0 / (a * voice->sample_rate));
-
-          else if (voice->sample - voice->released < (a+d) * voice->sample_rate)
-            {
-              LydSample d2 = ((((voice->sample -voice->released) - (a * voice->sample_rate))) /
-                              (d * voice->sample_rate));
-              prev = 1.0 - d2 + s * d2;
-            }
-          else
-            prev = s;
-          return prev * (1.0 -(voice->released) / (r * voice->sample_rate));
+          float released_val;
+          if ((voice->sample - voice->released) <= a)     /* release in attack*/
+            released_val = ((voice->sample - voice->released) / a) * ((voice->sample - voice->released) / a);
+          else if (voice->sample - voice->released < (a+d))/*release in decay */
+            released_val = 1.0 + (s-1) * (((voice->sample - voice->released) - a) / d);
+          else                                            /*release in sustain*/
+            released_val = s;
+          return released_val * (1.0 - (voice->released) / r);
         }
     }
-  else if (voice->sample <= a * voice->sample_rate)  /* attack */
+  else if (voice->sample <= a)  /* in attack */
     {
-      return (voice->sample * 1.0 / (a * voice->sample_rate)) *
-             (voice->sample * 1.0 / (a * voice->sample_rate));
+      return (voice->sample / a) * (voice->sample / a);
     }
-  else if (voice->sample < (a + d) * voice->sample_rate)
-    {                                          /* decay */
-      LydSample d2 = (((voice->sample - (a * voice->sample_rate))) /
-                      (d * voice->sample_rate));
-      return 1.0 - d2 + s * d2;
+  else if (voice->sample < a + d)
+    {                          /* in decay */
+      return 1.0 + (s-1) * ((voice->sample - a) / d);
     }
-  return s;
+  return s;  /* in sustain */
 }
 
 typedef struct _ReverbData 
@@ -161,7 +158,6 @@ lyd_voice_free (LydVoice *voice)
 
 /* What follows is the actual execution engine of the virtual machine */
 
-
 /* shortcut boilerplate macros */
   #define A(no)              voice->state[i].arg[no][0] 
   #define TIME               ((1.0*voice->sample)/voice->sample_rate)
@@ -192,6 +188,9 @@ static inline float phaseit(float oldphase, float hz, int sample_rate)
     return 0.0;
   return phase;
 }
+
+#define ABS(a) ((a)>0?a:-a)
+
   #define PHASE              (A(1) = phaseit(A(1), A(0), voice->sample_rate))
 
   #define OP(op)             OP_END() OP_START(op)
@@ -225,6 +224,7 @@ static inline LydSample lyd_voice_compute (LydVoice  *voice)
     OP(LYD_RAMP)   OUT = -(PHASE * 2 - 1.0);
     OP(LYD_NOISE)  OUT = g_random_double_range (-1.0, 1.0);
 
+    /* OPL2 oscillators */
     OP(LYD_ABSSIN) OUT = fabs (sin (PHASE * M_PI * 2));
     OP(LYD_POSSIN) LydSample res = sin (PHASE * M_PI * 2); OUT = res>0?res:0.0;
     OP(LYD_EVENSIN) float angle = PHASE * M_PI * 2; LydSample res = sin (angle); OUT = res>0?sin(angle*2):0.0;
