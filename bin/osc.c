@@ -24,7 +24,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-static LydProgram *programs[256]={NULL,};
 static LydVoice   *voices[1024]={NULL,};
 
 static void
@@ -35,12 +34,8 @@ osc_error (int         num,
   printf ("liblo server error %d in path %s: %s\n", num, path, msg);
 }
 
-#define OSC_ARGS const char  *path,\
-         const char  *types,\
-         lo_arg     **argv,\
-         int          argc,\
-         void        *data,\
-         void        *lyd
+#define OSC_ARGS const char  *path, const char  *types, lo_arg     **argv,\
+                 int          argc, void        *data,  void        *lyd
 
 static int osc_log (OSC_ARGS)
 {
@@ -63,14 +58,7 @@ static int osc_compile (OSC_ARGS)
   const char *code = &argv[1]->s;
   printf ("compile %d %s\n", codeslot, code);
 
-  program = lyd_compile (lyd, code);
-  if (!program)
-    return 0;
-  if (programs[codeslot])
-    {
-      lyd_program_free (programs[codeslot]);
-    }
-  programs[codeslot] = program;
+  lyd_set_patch (lyd, codeslot, code);
   return 0;
 }
 
@@ -78,10 +66,8 @@ static int osc_invoke (OSC_ARGS)
 {
   int slot = argv[0]->i;
   int codeslot = argv[1]->i;
-  if (!programs[codeslot])
-    return 0;
   printf ("invoke: %d %d\n", slot, codeslot);
-  voices[slot] = lyd_voice_new (lyd, programs[codeslot], 0);
+  voices[slot] = lyd_note (lyd, codeslot, 61, 1.0, 100.0);
   return 0;
 }
 
@@ -143,18 +129,14 @@ static int osc_voice_set (OSC_ARGS)
 }
 
 /*
- 
 compile  <codeslot> "code"
 pset     <codeslot> <param> <value>
-
 invoke   <slot> <codeslot>
 release  <slot>
 kill     <slot> 
-
 run      <slot> "code"
 patch    <slot> "code"
 set      <slot> <param> <value>
-
 */
 
 void lyd_osc_init (Lyd *lyd)
