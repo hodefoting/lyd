@@ -33,8 +33,13 @@
         <ul>
             <li>Small binary footprint</li>
             <li>language binding friendly C API</li>
-            <li>Custom audio synthesis language with vm/compiler</li>
-            <li>Audio output drivers for: <a href='http://www.libsdl.org/'>SDL</a>, <a href='http://xiph.org/ao/'>ao</a>, <a href='http://jackaudio.org/'>jack</a></li>
+            <li>Custom audio synthesis language with vm/compiler, for doing
+            subtractive, fm, additive and perhaps other forms of
+            synthesis.</li>
+            <li>patch databank (preloaded with FM-synthesis biased GM set)</li>
+            <li>MIDI sequencer</li>
+            <li>Audio output drivers for: <a href='http://www.alsa-project.org/'>ALSA</a>, 
+                and <a href='http://jackaudio.org/'>jack</a></li>
         </ul>
         <li>audio daemon</li>
         <ul>
@@ -64,25 +69,16 @@
     from OSC.
     </p>
 
-    <p>The midi support creates a virtual ALSA MIDI device that USB MIDI keyboards can
-    be hooked up to as well as other pieces of midi software like <a href='http://www.rosegardenmusic.com/'>rosegarden</a>
-       or the commandline player <a href='http://www.parabola.me.uk/alsa/pmidi.html'>pmidi</a>. qjackctl provides a way to connect ALSA
-       midi devices (it does this without needing the jackd server to be
-       started).
+    <p>The lyd binary will try to play back midi files passed in the first argument. Note
+    that for voices with many tracks/simultanous voices, lyd is likely to become overpowered.
     </p>
-    <code>pmidi -p 128:0 music.mid</code>
-
 
     <h3>Roadmap/plans/todo/bugs <span class='foo'>(contributions welcome)</span></h3>
     <ul>
-        <li>Create instruments presets for all of general MIDI.</li>
-        <li>Synthesize longer segments for each voice (storing arrays of return
-        values for each op in the virtual machine). This should reduce the
-        overhead allowing more simultanous and complex voices with lower CPU overhead.</li>
-        <li>Integrated midi parser and playback API.</li>
+        <li>Improve GM patch set</li>
         <li>Loading PCM data from memory for using wav samples</li>
         <li>The compiler contains a leak.</li>
-        <li>Audio output driver using the <a href='http://0pointer.de/blog/projects/guide-to-sound-apis'>safe ALSA subset</a>.</li>
+        <li>Clever refactoring and optimizations to speed up the core</li>
     </ul>
 
     <h3>License</h3>
