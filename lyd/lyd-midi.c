@@ -36,6 +36,7 @@
 
 #include <stdlib.h>
 #include <math.h>
+#include <lyd-private.h>
 
 static float midi2hz (int midinote)
 {
@@ -328,14 +329,9 @@ static void update_controllers(LydMidi *midi)
       /* check for pitch bend change */
       if (midi->channel[c].pitch_bend != midi->channel[c].new_pitch_bend) {
          midi->channel[c].pitch_bend = midi->channel[c].new_pitch_bend;
-         {
-            for (note=0; note<MIDI_NOTES; note++) {
-              if (midi->channel[c].note_volume[note] >=1) {
-                bend = midi->channel[c].pitch_bend;
-                lyd_midi_set_pitch (midi, c, note, bend);
-              }
-            }
-         }
+         for (note=0; note<MIDI_NOTES; note++) 
+           if (midi->channel[c].note_volume[note] >=1) 
+             lyd_midi_set_pitch (midi, c, note, midi->channel[c].pitch_bend);
       }
    }
    midi->oldvolume = midi->volume;
@@ -714,16 +710,18 @@ static int midi_seek(LydMidi *midi, int target)
 
 static void lyd_midi_set_volume (LydMidi *midi, int channel, int note, int volume)
 {
-  printf ("set vol %i %i %i\n", channel, note, volume);
+  lyd_voice_set_param (midi->lyd, midi->channel[channel].note_voice[note], "volume",
+                       volume / 127.0);
 }
 static void lyd_midi_set_pitch (LydMidi *midi, int channel, int note, int bend)
 {
   printf ("set pitch %i %i %i\n", channel, note, bend);
+  lyd_voice_set_param (midi->lyd, midi->channel[channel].note_voice[note], "volume",
+                       midi2hz (note) + ((bend-8192) /16384.0) * 2);
 }
 
 void lyd_midi_program    (LydMidi *midi, int channel, int preset)
 {
-  printf ("program: %i=%i\n", channel, preset);
   midi->channel[channel].patch = preset;
 }
 
@@ -742,6 +740,7 @@ void lyd_midi_note_off (LydMidi *midi, int channel, int note)
       midi->channel[channel].note_voice[note] = NULL;
     }
 }
+
 
 #define gen_hash(channel, note) ((channel * 256 + note))
 
@@ -773,11 +772,15 @@ void lyd_midi_note_on (LydMidi *midi, int channel, int note, int vol)
   midi->channel[channel].note_volume[note] = vol; 
   if (!midi->seeking){
     voice = lyd_note_full (midi->lyd, midi->channel[channel].patch,
-                           midi2hz (corrected_note) /*XXX:bend*/,
+                           midi2hz (corrected_note) + ((bend-8192) /16384.0) * 2,
                            sort_out_volume (midi, channel, vol) / 127.0,
                            4.0, /* max duration of 4s to avoid stuck notes */
                            (midi->channel[channel].pan-64)/127.0,
                            hashkey);
+    if (midi->lyd->active > 50)
+      {
+        /* hunt for a voice to kill */
+      }
     midi->channel[channel].note_voice[note] = voice;
   }
 }

@@ -26,6 +26,11 @@ missing
 lyd.pc
 lyd-0.0.pc
 bin/lyd
+lyd/general-midi.inc
+lyd/Lyd-0.0.gir
+lyd/Lyd-0.0.typelib
+examples/patches
+examples/midi-test
 examples/lyd-hi
 examples/interpolated-param
 examples/scale

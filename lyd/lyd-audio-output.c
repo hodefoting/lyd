@@ -90,8 +90,6 @@ static void *alsa_audio_start(void *aux)
   int data_len = 0;
 
   for (;;) {
-    //pthread_mutex_lock(&alsa->mutex);
-    //pthread_mutex_unlock(&alsa->mutex);
     if (lyd_dead)
       return NULL;
 
@@ -114,7 +112,10 @@ static void *alsa_audio_start(void *aux)
          return NULL;
        lyd_synthesize (lyd, c, data, NULL);
        snd_pcm_writei(h, data, c);
+    } else {
+      fprintf (stderr, "alsa xrun %d voices\n", lyd->active);
     }
+     
   }
   return NULL;
 }
@@ -125,8 +126,6 @@ lyd_audio_init_alsa (Lyd *lyd)
   pthread_t tid;
 
   h = alsa_open("default", 48000, 2);
-
-  //pthread_mutex_init(&alsa->mutex, NULL);
   if (!h) {
     fprintf(stderr, "Unable to open ALSA device (%d channels, %d Hz), dying\n",
             2, 48000);

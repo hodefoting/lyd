@@ -25,29 +25,6 @@
 static void lyd_voice_update_params (LydVoice *voice);
 
 
-struct _Lyd
-{
-  int       sample_rate; /* sample rate */
-  LydFormat format;      /* */
-
-  unsigned int previous_samples; /* number of samples previously computed */
-  unsigned long sample_no; /* counter for global sample no */
-  SList    *voices;        /* list of currently playing voices */
-
-  LydSample reverb;
-  LydSample reverb_length;
-
-  LydSample level;
-  int       active;
-
-  int       reverb_pos;
-
-  LydSample *accbuf;
-  int accbuf_len;
-
-  LydSample reverb_old[2][LYD_MAX_REVERB_SIZE];
-};
-
 /* we include the voice directly to make the mixing and the vm 
  * a single compilation unit
  */
@@ -201,7 +178,7 @@ lyd_synthesize (Lyd  *lyd,
       LydVoice *voice = iter->data;
       if (voice->released &&
           (voice->silence_max -
-           voice->silence_min < 0.0000001 ||
+           voice->silence_min < 0.01 ||
            voice->released > voice->sample_rate * 15.0)
           )
         {
@@ -307,6 +284,7 @@ void lyd_voice_set_delay (Lyd *lyd, LydVoice *voice, double seconds)
 Lyd * lyd_new (void)
 {
   Lyd *lyd = g_new0 (Lyd, 1);
+  pthread_mutex_init(&lyd->mutex, NULL);
   return lyd;
 }
 

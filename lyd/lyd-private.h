@@ -31,7 +31,7 @@ typedef float LydSample; /* global define for what type lyd computes with,
 #define LYD_MAX_ARGS                   4
 #define LYD_VOICE_VOLUME               0.05
 #define LYD_MAX_REVERB_SIZE            44100
-#define LYD_RELEASED_SILENCE_DAMPENING 0.001
+#define LYD_RELEASED_SILENCE_DAMPENING 0.01
 
 /* The opcodes of lyds virtual machine */
 typedef enum
@@ -155,8 +155,6 @@ static inline SList *slist_find (SList *list, void *data)
   return list;
 }
 
-#define LOCK()
-#define UNLOCK()
 
 #else
 
@@ -172,6 +170,30 @@ GStaticMutex mutex;
 #define slist_free(l)       g_slist_free ((l))
 
 #endif
+
+struct _Lyd
+{
+  pthread_mutex_t mutex;
+  int       sample_rate; /* sample rate */
+  LydFormat format;      /* */
+
+  unsigned int previous_samples; /* number of samples previously computed */
+  unsigned long sample_no; /* counter for global sample no */
+  SList    *voices;        /* list of currently playing voices */
+
+  LydSample reverb;
+  LydSample reverb_length;
+
+  LydSample level;
+  int       active;
+
+  int       reverb_pos;
+
+  LydSample *accbuf;
+  int accbuf_len;
+
+  LydSample reverb_old[2][LYD_MAX_REVERB_SIZE];
+};
 
 struct _LydVoice
 {
@@ -199,6 +221,12 @@ struct _LydVoice
                            sized array
                          */
 };
+
+#ifdef NIH
+#define LOCK()    pthread_mutex_lock(&lyd->mutex)
+#define UNLOCK()  pthread_mutex_unlock(&lyd->mutex)
+#endif
+
 
 /* get duration of loaded midi file in seconds */
 float        lyd_midi_get_duration (Lyd *lyd);
