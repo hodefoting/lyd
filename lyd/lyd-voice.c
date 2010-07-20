@@ -191,7 +191,7 @@ static inline float phaseit(float oldphase, float hz, int sample_rate)
 
 #define ABS(a) ((a)>0?a:-a)
 
-  #define PHASE              (A(1) = phaseit(A(1), A(0), voice->sample_rate))
+  #define PHASE              (A(2) = phaseit(A(2), A(0), voice->sample_rate))
 
   #define OP(op)             OP_END() OP_START(op)
   #define OP_FUN(op, fun_name) OP_END() OP_START(op) OUT = fun_name (voice, \
