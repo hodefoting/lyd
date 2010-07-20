@@ -30,8 +30,10 @@ typedef float LydSample; /* global define for what type lyd computes with,
 #define LYD_MAX_VARIABLES              8
 #define LYD_MAX_ARGS                   4
 #define LYD_VOICE_VOLUME               0.05
-#define LYD_MAX_REVERB_SIZE            44100
-#define LYD_RELEASED_SILENCE_DAMPENING 0.01
+#define LYD_MAX_REVERB_SIZE            48000
+#define LYD_RELEASE_SILENCE_DAMPENING  0.001
+#define LYD_RELEASE_THRESHOLD          0.01
+#define LYD_MIN_RELASE_TIME_DIVISOR    100   /* computed as samplerate/this */
 
 /* The opcodes of lyds virtual machine */
 typedef enum

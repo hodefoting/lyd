@@ -108,10 +108,10 @@ lyd_synthesize (Lyd  *lyd,
                 {
                   voice->silence_max = (computed > voice->silence_max)
                    ?computed
-                   :voice->silence_max * (1.0 - LYD_RELEASED_SILENCE_DAMPENING);
+                   :voice->silence_max * (1.0 - LYD_RELEASE_SILENCE_DAMPENING);
                   voice->silence_min = (computed < voice->silence_min)
                    ?computed
-                   :voice->silence_min * (1.0 - LYD_RELEASED_SILENCE_DAMPENING);
+                   :voice->silence_min * (1.0 - LYD_RELEASE_SILENCE_DAMPENING);
                 }
 
               /* simple stereo distribution of mix */
@@ -176,9 +176,9 @@ lyd_synthesize (Lyd  *lyd,
   for (iter=active; iter; iter=iter->next)
     {                                  /* remove released and silent voices */
       LydVoice *voice = iter->data;
-      if (voice->released &&
-          (voice->silence_max -
-           voice->silence_min < 0.01 ||
+      if (voice->released > voice->sample_rate / LYD_MIN_RELASE_TIME_DIVISOR
+       && (voice->silence_max -
+           voice->silence_min < LYD_RELEASE_THRESHOLD ||
            voice->released > voice->sample_rate * 15.0)
           )
         {
@@ -187,7 +187,8 @@ lyd_synthesize (Lyd  *lyd,
             (voice->complete_cb) (voice->complete_data);
           lyd_voice_free (voice);
         }
-      lyd->active ++;
+      else
+        lyd->active ++;
     }
   slist_free (active);
   UNLOCK ();
