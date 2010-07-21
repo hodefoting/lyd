@@ -804,7 +804,7 @@ static void midi_init (Lyd *lyd)
       }
    }
 
-  midi->volume = 64;
+  midi->volume = 128;
   midi->pos = -1;
   midi->loop_start = -1;
   midi->loop_end = -1;

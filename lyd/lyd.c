@@ -186,9 +186,46 @@ lyd_synthesize (Lyd  *lyd,
           if (voice->complete_cb)
             (voice->complete_cb) (voice->complete_data);
           lyd_voice_free (voice);
+          iter->data = NULL;
         }
       else
         lyd->active ++;
+    }
+  while (lyd->active > lyd->max_active)
+    {
+      SList    *weakest_link = NULL;
+      LydVoice *weakest = NULL;
+      float     best_score = 0;
+      for (iter=active; iter; iter=iter->next)
+        {
+          LydVoice *voice = iter->data;
+          float score = 0;
+          if (!voice)
+            continue;
+          if (voice->released)
+            {
+              score += voice->released * 10;
+              score += voice->sample * 0.01;
+            }
+          else
+              score = voice->sample * 0.1;
+          if (score > best_score)
+            {
+              best_score = score;
+              weakest = voice;
+              weakest_link = iter;
+            }
+        }
+      if (weakest){
+        lyd->voices = slist_remove (lyd->voices, weakest);
+        if (weakest->complete_cb)
+          (weakest->complete_cb) (weakest->complete_data);
+        lyd_voice_free (weakest);
+        weakest_link->data = NULL;
+        lyd->active--;
+      }
+      else
+        break;
     }
   slist_free (active);
   UNLOCK ();
@@ -286,6 +323,7 @@ Lyd * lyd_new (void)
 {
   Lyd *lyd = g_new0 (Lyd, 1);
   pthread_mutex_init(&lyd->mutex, NULL);
+  lyd->max_active = 30;
   return lyd;
 }
 

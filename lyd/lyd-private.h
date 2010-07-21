@@ -188,6 +188,7 @@ struct _Lyd
 
   LydSample level;
   int       active;
+  int       max_active;
 
   int       reverb_pos;
 
