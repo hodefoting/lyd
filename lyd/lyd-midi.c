@@ -36,7 +36,6 @@
 
 #include <stdlib.h>
 #include <math.h>
-#include <lyd-private.h>
 
 static float midi2hz (int midinote)
 {
@@ -777,10 +776,6 @@ void lyd_midi_note_on (LydMidi *midi, int channel, int note, int vol)
                            4.0, /* max duration of 4s to avoid stuck notes */
                            (midi->channel[channel].pan-64)/127.0,
                            hashkey);
-    if (midi->lyd->active > 50)
-      {
-        /* hunt for a voice to kill */
-      }
     midi->channel[channel].note_voice[note] = voice;
   }
 }
