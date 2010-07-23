@@ -24,6 +24,8 @@ liblyd_@LYD_API_VERSION@_la_SOURCES = \
         $(builddir)/general-midi.inc \
         $(NULL)
 
+BUILT_SOURCES = $(builddir)/general-midi.inc
+
 EXTRA_DIST = lyd-private.h lyd-voice.c biquad.c general-midi.txt
 
 liblyd_@LYD_API_VERSION@_la_LIBADD = $(ALSA_LIBS) $(JACK_LIBS) -lm -lpthread
