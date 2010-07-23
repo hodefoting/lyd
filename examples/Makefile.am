@@ -1,11 +1,12 @@
 AM_LDFLAGS = ../lyd/liblyd-$(LYD_API_VERSION).la 
 AM_CFLAGS  = -I$(top_srcdir) $(GLIB_CFLAGS)
+CFILES = $(wildcard $(srcdir)/*.c)
+bins   = $(subst $(srcdir)/,,$(CFILES:.c=))
+EXTRA_DIST = $(wildcard *.c) $(wildcard util/*.[ch])
+all-local: $(bins)
+clean-local:
+	rm -f *.lo $(bins)
+%: %.c 
+	$(CC) $(DEFS) -I. -I$(top_builddir) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c $< -o $@
 
-noinst_PROGRAMS = lyd-hi interpolated-param scale midi-test patches sun-audio
 
-scale_SOURCES  = scale.c 
-lyd_hi_SOURCES  = lyd-hi.c
-patches_SOURCES  = patches.c
-midi_test_SOURCES  = midi-test.c
-sun_audio_SOURCES  = sun-audio.c
-interpolated_param_SOURCES = interpolated-param.c
