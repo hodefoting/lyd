@@ -19,6 +19,7 @@
 
 #include <stdlib.h>
 #include <ctype.h>
+#include <pthread.h>
 #include "lyd.h"
 
 typedef struct _LydCommand LydCommand;
@@ -97,7 +98,6 @@ static inline float str2float (const char *str)
 #undef g_new0
 #undef G_UNLIKELY
 /* XXX: the fake glib needs lock/unlock replacements */
-//#include <glib.h>
 //#define LOCK()   g_static_mutex_lock (&mutex)
 //#define UNLOCK() g_static_mutex_unlock (&mutex)
 //GStaticMutex mutex;

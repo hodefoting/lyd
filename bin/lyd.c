@@ -60,9 +60,7 @@ int main (int    argc,
   lyd_osc_init (lyd);
 #endif
 #ifdef HAVE_ALSA
-#ifdef HAVE_GLIB
   lyd_midi_init (lyd);
-#endif
 #endif
 
   if(argv[1])

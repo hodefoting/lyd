@@ -309,7 +309,7 @@ static void reset_controllers(LydMidi *midi, int channel)
  */
 static void update_controllers(LydMidi *midi)
 {
-   int c, note, vol, bend;
+   int c, note, vol;
 
    for (c=0; c<MIDI_CHANNELS; c++) {
       /* check for volume controller change */
@@ -925,9 +925,7 @@ void midi_resume(void)
 #include <math.h>
 
 #ifdef HAVE_ALSA
-#ifdef HAVE_GLIB
 #include <alsa/asoundlib.h>
-#include <glib.h>
 
 static void
 lyd_handle_midi (LydMidi         *midi,
@@ -949,16 +947,18 @@ lyd_handle_midi (LydMidi         *midi,
     case SND_SEQ_EVENT_SYSEX:
     case SND_SEQ_EVENT_PORT_SUBSCRIBED:
     case SND_SEQ_EVENT_PORT_UNSUBSCRIBED: break;
+    case SND_SEQ_EVENT_PITCHBEND:
+      midi->channel[ev->data.control.channel].new_pitch_bend = ev->data.control.value;
+          break;
 
     default: printf ("unhandled alsa midi event type %i\n", ev->type);break;
   }
 }
 
+#include <pthread.h>
 static snd_seq_t *handle;
 
-static gboolean midi_consume (GIOChannel  *source,
-                              GIOCondition condition,
-                              gpointer     lyd)
+static int midi_consume ()
 {
   do
     {
@@ -969,22 +969,37 @@ static gboolean midi_consume (GIOChannel  *source,
       snd_seq_free_event(ev);
     } 
   while (snd_seq_event_input_pending (handle, 0) > 0);
-  return TRUE;
+  return 0;
+}
+
+extern int lyd_dead;
+static void *alsa_midi_start(void *data)
+{
+  struct pollfd *pfd = data;
+  while (1)
+    {
+      if (lyd_dead)
+        break;
+      if (poll (pfd, 1, 1000))
+        if (pfd->revents > 0)
+          midi_consume();
+    }
+  return NULL;
 }
 
 void lyd_midi_init (Lyd *lyd)
 {
-  int porthandle;
   int err;
-  struct pollfd pfd;
+  static struct pollfd pfd;
   int npfd;
+  pthread_t tid;
 
   midi_init (lyd);
   err = snd_seq_open(&handle, "default", SND_SEQ_OPEN_INPUT, 0);
   if (err < 0)
     return;
   snd_seq_set_client_name(handle, "lyd");
-  porthandle = snd_seq_create_simple_port(handle, "in_1",
+  snd_seq_create_simple_port(handle, "in_1",
                       SND_SEQ_PORT_CAP_WRITE|SND_SEQ_PORT_CAP_SUBS_WRITE,
                       SND_SEQ_PORT_TYPE_MIDI_GENERIC);
 
@@ -995,9 +1010,9 @@ void lyd_midi_init (Lyd *lyd)
   }
 
   snd_seq_poll_descriptors (handle, &pfd, 1, POLLIN);
-  g_io_add_watch (g_io_channel_unix_new (pfd.fd),
-                  G_IO_IN, midi_consume, lyd);
+  pthread_create(&tid, NULL, alsa_midi_start, &pfd);
 }
-#endif
+
+
 #endif
 #endif
