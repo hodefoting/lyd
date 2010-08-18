@@ -184,9 +184,7 @@ lyd_voice_free (LydVoice *voice)
 static inline float phaseit(float oldphase, float hz, int sample_rate)
 {
   float phase = oldphase + hz / sample_rate; /* XXX: we're always one ahead*/
-  if (phase >= 1.0)
-    return 0.0;
-  return phase;
+  return fmod (phase, 1.0);
 }
 
 #define ABS(a) ((a)>0?a:-a)
