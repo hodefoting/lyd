@@ -63,6 +63,7 @@ static LydOpCodeMap op_lexicon[] = {
 
   {"adsr",       LYD_ADSR},
   {"reverb",     LYD_REVERB},
+  {"cycle",      LYD_CYCLE},
 
   {"low_pass",   LYD_LOW_PASS},
   {"high_pass",  LYD_HIGH_PASS},

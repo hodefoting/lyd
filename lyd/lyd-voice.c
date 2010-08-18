@@ -125,6 +125,21 @@ static inline LydSample voice_reverb (LydVoice   *voice,
   return sample;
 }
 
+static inline LydSample voice_cycle (LydVoice   *voice,
+                                     LydSample **args,
+                                     void      **data)
+{
+  LydSample freq = *args[0];
+  int      count, pos;
+
+  for (count = LYD_MAX_ARGS - 1; count > 1 && *args[count] == 0.0; count --);
+
+  pos   = fmod (freq * count * voice->sample / voice->sample_rate, count);
+
+  return *args[1 + (pos+count) % count];
+}
+
+
 static void
 lyd_voice_free (LydVoice *voice)
 {
@@ -227,8 +242,9 @@ static inline LydSample lyd_voice_compute (LydVoice  *voice)
     OP(LYD_POSSIN) LydSample res = sin (PHASE * M_PI * 2); OUT = res>0?res:0.0;
     OP(LYD_EVENSIN) float angle = PHASE * M_PI * 2; LydSample res = sin (angle); OUT = res>0?sin(angle*2):0.0;
 
-    OP_FUN(LYD_ADSR,   adsr)  
-    OP_FUN(LYD_REVERB, voice_reverb) 
+    OP_FUN(LYD_ADSR,   adsr)
+    OP_FUN(LYD_REVERB, voice_reverb)
+    OP_FUN(LYD_CYCLE,  voice_cycle)
 
     /* handle all the filters specially in one block */
     OP_END() case LYD_LOW_PASS:  case LYD_HIGH_PASS: case LYD_BAND_PASS:
