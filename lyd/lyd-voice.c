@@ -233,6 +233,9 @@ static inline LydSample lyd_voice_compute (LydVoice  *voice)
     OP(LYD_SQUARE) OUT = PHASE > 0.5?1.0:-1.0;
     OP(LYD_PULSE)  OUT = PHASE > A(1)?1.0:-1.0;
 
+    OP(LYD_TRIANGLE) OUT = PHASE < 0.25 ? 0 + A(2)*4 :
+                           A(2)  < 0.75 ? 2 - A(2)*4 : -4 + A(2)*4;
+
     OP(LYD_SAW)    OUT = PHASE * 2 - 1.0;
     OP(LYD_RAMP)   OUT = -(PHASE * 2 - 1.0);
     OP(LYD_NOISE)  OUT = g_random_double_range (-1.0, 1.0);

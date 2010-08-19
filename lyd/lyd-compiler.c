@@ -60,6 +60,7 @@ static LydOpCodeMap op_lexicon[] = {
   {"saw",        LYD_SAW},
   {"ramp",       LYD_RAMP},
   {"square",     LYD_SQUARE},
+  {"triangle",   LYD_TRIANGLE},
   {"pulse",      LYD_PULSE},
   {"noise",      LYD_NOISE},
 
