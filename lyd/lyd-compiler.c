@@ -56,6 +56,7 @@ static LydOpCodeMap op_lexicon[] = {
   {"possin",     LYD_POSSIN},
   {"pulssin",    LYD_PULSSIN},
   {"evensin",    LYD_EVENSIN},
+  {"evenpossin", LYD_EVENPOSSIN},
   {"saw",        LYD_SAW},
   {"ramp",       LYD_RAMP},
   {"square",     LYD_SQUARE},

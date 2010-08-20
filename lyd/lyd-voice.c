@@ -239,9 +239,12 @@ static inline LydSample lyd_voice_compute (LydVoice  *voice)
 
     /* OPL2 oscillators */
     OP(LYD_ABSSIN) OUT = fabs (sin (PHASE * M_PI * 2));
-    OP(LYD_POSSIN) LydSample res = sin (PHASE * M_PI * 2); OUT = res>0?res:0.0;
+    OP(LYD_POSSIN) OUT = PHASE < 0.5 ? sin (A(2) * M_PI * 2) : 0.0;
     OP(LYD_PULSSIN) OUT = fmod (PHASE, 0.5) < 0.25 ? fabs (sin (A(2) * M_PI * 2)) : 0.0;
+
+    /* OPL3 oscillators */
     OP(LYD_EVENSIN) OUT = PHASE < 0.5 ? sin (2 * A(2) * M_PI * 2) : 0.0;
+    OP(LYD_EVENPOSSIN) OUT = PHASE < 0.5 ? fabs (sin (2 * A(2) * M_PI * 2)) : 0.0;
 
     OP_FUN(LYD_ADSR,   adsr)
     OP_FUN(LYD_REVERB, voice_reverb)
