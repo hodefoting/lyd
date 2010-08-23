@@ -30,6 +30,7 @@ typedef float LydSample; /* global define for what type lyd computes with,
 #define LYD_MAX_ELEMENTS               80
 #define LYD_MAX_VARIABLES              8
 #define LYD_MAX_ARGS                   4
+#define LYD_MAX_CBS                    16
 #define LYD_VOICE_VOLUME               0.05
 #define LYD_MAX_REVERB_SIZE            48000
 #define LYD_RELEASE_SILENCE_DAMPENING  0.001
@@ -195,6 +196,9 @@ struct _Lyd
 
   LydSample *accbuf;
   int accbuf_len;
+
+  void (*cb[LYD_MAX_CBS])(Lyd *lyd, float elapsed, void *data);
+  void *cb_data[LYD_MAX_CBS];
 
   LydSample reverb_old[2][LYD_MAX_REVERB_SIZE];
 };

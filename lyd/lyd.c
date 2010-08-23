@@ -64,7 +64,13 @@ lyd_synthesize (Lyd  *lyd,
   LydSample *buf2  = (void*)stream2;
   short int *buf16 = (void*)stream;
 
-  lyd_midi_iterate (lyd, lyd->previous_samples/(1.0 * lyd->sample_rate));
+  { /* XXX: revisit whether this should happen under lock.. */
+    float elapsed = lyd->previous_samples/(1.0 * lyd->sample_rate);
+    lyd_midi_iterate (lyd, elapsed);
+    for (i = 0; i < LYD_MAX_CBS; i++)
+      if (lyd->cb[i])
+        lyd->cb[i](lyd, elapsed, lyd->cb_data[i]);
+  }
   LOCK ();
 
   if (!lyd->accbuf || lyd->accbuf_len < samples)
@@ -518,4 +524,33 @@ static void lyd_voice_update_params (LydVoice *voice)
           slist_free (oldfirst);
         }
     }
+}
+
+int
+lyd_add_cb (Lyd *lyd,
+            void (*cb)(Lyd *lyd, float elapsed, void *data),
+            void *data)
+{
+  int i = 0;
+  LOCK ();
+  while (i<LYD_MAX_CBS && lyd->cb[i] != NULL)
+    i++;
+
+  if (i<LYD_MAX_CBS)
+    {
+      lyd->cb[i] = cb;
+      lyd->cb_data[i] = data;
+      return i;
+    }
+  UNLOCK ();
+  return -1;
+}
+
+void
+lyd_remove_cb (Lyd *lyd, int id)
+{
+  LOCK ();
+  if (id >=0 && id < LYD_MAX_CBS)
+    lyd->cb[id] = NULL;
+  UNLOCK ();
 }

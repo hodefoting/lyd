@@ -103,4 +103,12 @@ void         lyd_midi_out   (Lyd *lyd, unsigned char *data, int length);
 /* seek to a given position */
 void         lyd_midi_seek  (Lyd *lyd, float position);
 
+/* add a callback function to be called _before_ synthesizing the elapsed
+ * segment of audio data
+ */
+int          lyd_add_cb     (Lyd *lyd,
+                             void (*cb)(Lyd *lyd, float elapsed, void *data),
+                             void *data);
+void         lyd_remove_cb (Lyd *lyd, int id);
+
 #endif
