@@ -7,6 +7,6 @@ all-local: $(bins)
 clean-local:
 	rm -f *.lo $(bins)
 %: %.c 
-	libtool --mode=link --tag=C $(CC) $(DEFS) -I. -I$(top_builddir) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) ../lyd/liblyd-0.0.la $< -o $@
+	$(LIBTOOL) --mode=link $(CC) $(DEFS) -I. -I$(top_builddir) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) ../lyd/liblyd-0.0.la $< -o $@
 
 
