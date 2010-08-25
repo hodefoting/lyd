@@ -32,6 +32,7 @@ typedef float LydSample; /* global define for what type lyd computes with,
 #define LYD_MAX_ARGS                   4
 #define LYD_MAX_CBS                    16
 #define LYD_VOICE_VOLUME               0.05
+#define LYD_MAX_WAVE                   128
 #define LYD_MAX_REVERB_SIZE            48000
 #define LYD_RELEASE_SILENCE_DAMPENING  0.001
 #define LYD_RELEASE_THRESHOLD          0.01
@@ -46,7 +47,8 @@ typedef enum
   LYD_MOD,
 
   LYD_SIN, LYD_SAW, LYD_RAMP, LYD_SQUARE, LYD_TRIANGLE, LYD_PULSE, LYD_NOISE,
-  LYD_ABSSIN, LYD_POSSIN, LYD_PULSSIN, LYD_EVENSIN, LYD_EVENPOSSIN,
+  LYD_ABSSIN, LYD_POSSIN, LYD_PULSSIN, LYD_EVENSIN, LYD_EVENPOSSIN, LYD_WAVE,
+  LYD_WAVELOOP,
 
   LYD_ADSR, LYD_REVERB, LYD_CYCLE,
 
@@ -126,6 +128,19 @@ static inline SList *slist_prepend (SList *list, void *data)
   new_->data=data;
   return new_;
 }
+static inline SList *slist_append (SList *list, void *data)
+{
+  SList *new_=g_new0(SList, 1);
+  new_->data=data;
+  if (list)
+    {
+      SList *last;
+      for (last = list; last->next; last=last->next);
+      last->next = new_;
+      return list;
+    }
+  return new_;
+}
 static SList *slist_remove (SList *list, void *data)
 {
   SList *iter, *prev = NULL;
@@ -151,6 +166,12 @@ static inline void slist_free (SList *list)
   while (list)
     list = slist_remove (list, list->data);
 }
+static inline SList *slist_nth (SList *list, int no)
+{
+  while(no-- && list)
+    list = list->next;
+  return list;
+}
 static inline SList *slist_find (SList *list, void *data)
 {
   for (;list;list=list->next)
@@ -175,6 +196,14 @@ GStaticMutex mutex;
 
 #endif
 
+typedef struct LydWave
+{
+  char  *name;
+  int    samples;
+  int    sample_rate;
+  float *data;
+} LydWave;
+
 struct _Lyd
 {
   pthread_mutex_t mutex;
@@ -184,6 +213,11 @@ struct _Lyd
   unsigned int previous_samples; /* number of samples previously computed */
   unsigned long sample_no; /* counter for global sample no */
   SList    *voices;        /* list of currently playing voices */
+  LydWave  *wave[LYD_MAX_WAVE];
+
+  int     (*wave_handler) (Lyd *lyd, const char *name,
+                           void *user_data);
+  void     *wave_handler_data;
 
   LydSample reverb;
   LydSample reverb_length;
@@ -214,6 +248,7 @@ struct _LydVoice
   long  sample;   /* position, negative values means queued for playback,
                        controlled by lyd */
   int   sample_rate;
+  float i_sample_rate; /* 1.0/sample_rate */
 
   LydSample silence_min; /* Silence detection */
   LydSample silence_max; /* (after release) */

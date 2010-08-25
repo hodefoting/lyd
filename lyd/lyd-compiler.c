@@ -63,6 +63,8 @@ static LydOpCodeMap op_lexicon[] = {
   {"triangle",   LYD_TRIANGLE},
   {"pulse",      LYD_PULSE},
   {"noise",      LYD_NOISE},
+  {"wave",       LYD_WAVE},
+  {"wave_loop",  LYD_WAVELOOP},
 
   {"adsr",       LYD_ADSR},
   {"reverb",     LYD_REVERB},
@@ -89,7 +91,7 @@ static LydConstantMap constant_lexicon[] = {
 };
 
 typedef enum {
-  name, literal, operator, function, variable, binary, unary, args,
+  name, string, literal, operator, function, variable, binary, unary, args,
 } LydTokenType;
 
 typedef struct _LydToken  LydToken;
@@ -114,6 +116,7 @@ struct _LydToken {
 };
 
 struct _LydParser  {
+  Lyd        *lyd;
   LydToken   *token;
   const char *buf;
   const char *p;
@@ -288,7 +291,17 @@ static LydToken *parser_scanner_next (LydParser *parser)
     }
   wpos = 0;
 
-  if (oneof (*parser->p, numerals))
+  if (*parser->p == '"')
+    {
+      parser->p++;
+      while (*parser->p && *parser->p !='"')
+        word[wpos++]=*parser->p++;
+      word[wpos]='\0';
+      if (*parser->p=='"')
+        parser->p++;
+      tok->type = string;
+    }
+  else if (oneof (*parser->p, numerals))
     {
       while (*parser->p && oneof (*parser->p, numerals) && wpos<40)
         word[wpos++]=*parser->p++;
@@ -336,9 +349,37 @@ parser_error_pos (LydParser *parser)
   return parser->p - parser->buf;
 }
 
+static int
+lyd_find_wave (Lyd *lyd, const char *name)
+{
+  int    i;
+  for (i = 0; i < LYD_MAX_WAVE; i++)
+    {
+      LydWave *wave = lyd->wave[i];
+      if (wave && !strcmp (wave->name, name))
+        return i;
+    }
+
+  if (lyd->wave_handler)
+    {
+      if (lyd->wave_handler (lyd, name, lyd->wave_handler_data))
+        printf ("wave loader returned error\n");
+      for (i = 0; i < LYD_MAX_WAVE; i++)
+        {
+          LydWave *wave = lyd->wave[i];
+          if (wave && !strcmp (wave->name, name))
+            return i;
+        }
+      fprintf (stderr, "Failed loading wave data \"%s\"\n", name);
+    }
+
+  else
+    fprintf (stderr, "Failed loading wave data \"%s\" no wave_handler\n", name);
+  return 0;
+}
+
 static LydToken *
-parser_advance (LydParser  *parser,
-                const char *expected)
+parser_advance (LydParser *parser, const char *expected)
 {
   LydToken *newtok;
   LydToken *t;
@@ -361,6 +402,12 @@ parser_advance (LydParser  *parser,
       *newtok = *parser_lookup (parser, "(lit)");
       newtok->str = g_strdup (t->str);
       newtok->value = g_ascii_strtod (t->str, NULL);
+    }
+  else if (t->type == string)
+    { 
+      *newtok = *parser_lookup (parser, "(lit)");
+      newtok->str = g_strdup (t->str);
+      newtok->value = lyd_find_wave (parser->lyd, t->str);
     }
   else 
     {
@@ -446,10 +493,11 @@ static LydToken *parser_parse (LydParser *this)
   return this->tree;
 }
 
-static LydParser *parser_new (const char *string)
+static LydParser *parser_new (Lyd *lyd, const char *string)
 {
   LydParser *this = g_new0 (LydParser, 1);
   this->buf = this->p = string;
+  this->lyd = lyd;
   this->error = NULL;
   this->token = NULL;
   return this;
@@ -479,6 +527,7 @@ static int tcount (LydParser *parser, LydToken *t, int *cnt)
         break;
       case variable:
       case literal:
+      case string:
       case function:
         break;
       case args:
@@ -510,6 +559,7 @@ static void tfree (LydToken *t)
         tfree (t->second);
         break;
       case literal:
+      case string:
       case variable:
       case function:
         break;
@@ -674,7 +724,7 @@ lyd_program_free (LydProgram *program)
 
 LydProgram *lyd_compile (Lyd *lyd, const char *source)
 {
-  LydParser *parser = parser_new (source);
+  LydParser *parser = parser_new (lyd, source);
   LydProgram *program;
   int commands;
   LydToken *t;
@@ -685,7 +735,7 @@ LydProgram *lyd_compile (Lyd *lyd, const char *source)
     {
       printf ("%d: %s\n",
                parser_error_pos (parser),
-               parser_error (parser));
+               parser_error (parser)?parser_error(parser):"unknown error");
       parser_free (parser);
         
       return NULL;

@@ -173,42 +173,63 @@ lyd_voice_free (LydVoice *voice)
 
 /* What follows is the actual execution engine of the virtual machine */
 
-/* shortcut boilerplate macros */
+/* shortcut boilerplate macros, used in case the execution engine is
+ * modified to operate on buffers instead of individual samples
+ */
   #define A(no)              voice->state[i].arg[no][0] 
-  #define TIME               ((1.0*voice->sample)/voice->sample_rate)
+  #define TIME               ((1.0*voice->sample) * voice->i_sample_rate)
   #define OUT                voice->state[i].out
+  #define PHASE              phase(voice, &A(2), A(0))
   #define DATA               voice->state[i].data
   #define OPS_START()        switch (voice->state[i].op){case LYD_NONE:{
   #define OPS_END()          }
   #define OP_START(op)       case op:{
   #define OP_END()           };break;
-
-#if we //were processing buffers.. we would use this boilerplate instead ...
-
-#define OPS_START()          switch (voice->state[i].op){case LYD_NONE:{{
-  #define A(no)              voice->state[i].arg[no][0][j]
-  #define OUT                voice->state[i].out[j]
-  #define TIME               ((1.0*(voice->sample + j))/voice->sample_rate)
-  #define OP_START(op)       case op:{int j;for (j=0;j<samples;j++){ 
-  #define OP_END()           }};break;
-#endif
-
-/* we store a phase incrementer in each voice, allowing us to change
- * the hz of a signal generator on the fly without aliasing 
- */
-static inline float phaseit(float oldphase, float hz, int sample_rate)
-{
-  float phase = oldphase + hz / sample_rate; /* XXX: we're always one ahead*/
-  return fmod (phase, 1.0);
-}
-
-#define ABS(a) ((a)>0?a:-a)
-
-  #define PHASE              (A(2) = phaseit(A(2), A(0), voice->sample_rate))
-
   #define OP(op)             OP_END() OP_START(op)
   #define OP_FUN(op, fun_name) OP_END() OP_START(op) OUT = fun_name (voice, \
                              &voice->state[i].arg[0], &DATA);
+  #define ABS(a)             ((a)>0?(a):-(a))
+
+/* we store a phase incrementer in each voice, allowing us to change
+ * the hz of a signal generator on the fly without sudden phase shifts.
+ */
+static inline float phase(LydVoice *voice, float *phasep, float hz)
+{
+  float old = *phasep;
+  float new = old + hz * voice->i_sample_rate;
+  *phasep = fmod (new, 1.0);
+  return old;
+}
+
+#define MIDDLE_C 261.625565
+
+static inline float wave_sample (LydVoice *voice, float *posp, int no, float hz)
+{
+  LydWave *wave = voice->lyd->wave[no];
+  float old = *posp;
+  float delta = voice->i_sample_rate * (hz>0.001?hz/MIDDLE_C:1.0);
+  float new = old + delta;
+  int sample_pos = new * wave->sample_rate;
+  *posp = new;
+  if (sample_pos < wave->samples)
+    return wave->data[sample_pos];
+  return 0.0;
+}
+
+static inline float wave_sample_loop (LydVoice *voice, float *posp, int no, float hz)
+{
+  LydWave *wave = voice->lyd->wave[no];
+  float old = *posp;
+  float delta = voice->i_sample_rate * (hz>0.001?hz/MIDDLE_C:1.0);
+  float new = old + delta;
+  int sample_pos = new * wave->sample_rate;
+  *posp = new;
+  if (sample_pos < wave->samples)
+    return wave->data[sample_pos];
+  else
+    *posp = 0.0;
+  return 0.0;
+}
 
 static inline LydSample lyd_voice_compute (LydVoice  *voice)
 {
@@ -240,6 +261,7 @@ static inline LydSample lyd_voice_compute (LydVoice  *voice)
     OP(LYD_RAMP)   OUT = -(PHASE * 2 - 1.0);
     OP(LYD_NOISE)  OUT = g_random_double_range (-1.0, 1.0);
 
+
     /* OPL2 oscillators */
     OP(LYD_ABSSIN) OUT = fabs (sin (PHASE * M_PI * 2));
     OP(LYD_POSSIN) OUT = PHASE < 0.5 ? sin (A(2) * M_PI * 2) : 0.0;
@@ -248,6 +270,11 @@ static inline LydSample lyd_voice_compute (LydVoice  *voice)
     /* OPL3 oscillators */
     OP(LYD_EVENSIN) OUT = PHASE < 0.5 ? sin (2 * A(2) * M_PI * 2) : 0.0;
     OP(LYD_EVENPOSSIN) OUT = PHASE < 0.5 ? fabs (sin (2 * A(2) * M_PI * 2)) : 0.0;
+
+    /* wave data */
+    OP(LYD_WAVE)   OUT = wave_sample (voice, &A(3), A(0), A(1));
+    /* wave data */
+    OP(LYD_WAVELOOP) OUT = wave_sample_loop (voice, &A(3), A(0), A(1));
 
     OP_FUN(LYD_ADSR,   adsr)
     OP_FUN(LYD_REVERB, voice_reverb)

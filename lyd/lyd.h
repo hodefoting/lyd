@@ -38,7 +38,10 @@ Lyd        *lyd_new             (void);
 
 void        lyd_set_sample_rate (Lyd *lyd, int sample_rate);
 
+int         lyd_get_sample_rate (Lyd *lyd);
+
 void        lyd_set_format      (Lyd *lyd, LydFormat format);
+LydFormat  *lyd_get_format      (Lyd *lyd);
 
 void        lyd_free            (Lyd *lyd);
 
@@ -71,10 +74,14 @@ void        lyd_voice_set_param_delayed (Lyd        *lyd,   LydVoice  *voice,
                                          const char *param, float      time,
                                          LydInterpolation interpolation, 
                                          float       value); 
-/* NYI */
-void        lyd_wav_from_data   (Lyd *lyd,         const char *name,
-                                 int  length,      LydFormat   format,
-                                 int  sample_rate, void       *buf);
+
+void        lyd_load_wave (Lyd *lyd, const char *name,
+                          int  samples, int sample_rate,
+                          float *data);
+void        lyd_set_wave_handler (Lyd *lyd,
+                                 int (*wave_handler) (Lyd *lyd, const char *wave,
+                                                     void *user_data),
+                                 void *user_data);
 
 void        lyd_voice_set_position (Lyd         *lyd,
                                     LydVoice    *voice,
@@ -102,6 +109,8 @@ void         lyd_midi_set_playing (Lyd *lyd, int playing);
 void         lyd_midi_out   (Lyd *lyd, unsigned char *data, int length);
 /* seek to a given position */
 void         lyd_midi_seek  (Lyd *lyd, float position);
+
+
 
 /* add a callback function to be called _before_ synthesizing the elapsed
  * segment of audio data

@@ -293,6 +293,7 @@ static LydVoice *lyd_voice_new_unlocked (Lyd       *lyd,
   LydVoice *voice;
   voice     = lyd_voice_create (lyd, program);
   voice->sample_rate = lyd->sample_rate;
+  voice->i_sample_rate = 1.0/lyd->sample_rate;
   voice->tag = tag;
   lyd->voices = slist_prepend (lyd->voices, voice);
   return voice;
@@ -345,8 +346,21 @@ void lyd_set_format (Lyd *lyd, LydFormat format)
 
 int lyd_dead;
 
+static void
+lyd_wave_free (LydWave *wave)
+{
+  g_free (wave->name);
+  g_free (wave->data);
+  g_free (wave);
+}
+
 void lyd_free (Lyd *lyd)
 {
+  int i;
+  for (i = 0; i < LYD_MAX_WAVE; i++)
+    if (lyd->wave[i])
+      lyd_wave_free (lyd->wave[i]);
+
   /* XXX: shutdown properly */
   lyd_dead = 1;
   g_free (lyd);
@@ -540,6 +554,7 @@ lyd_add_cb (Lyd *lyd,
     {
       lyd->cb[i] = cb;
       lyd->cb_data[i] = data;
+      UNLOCK ();
       return i;
     }
   UNLOCK ();
@@ -552,5 +567,57 @@ lyd_remove_cb (Lyd *lyd, int id)
   LOCK ();
   if (id >=0 && id < LYD_MAX_CBS)
     lyd->cb[id] = NULL;
+  UNLOCK ();
+}
+
+
+void
+lyd_load_wave (Lyd *lyd, const char *name,
+              int  samples, int sample_rate, float *data)
+{
+  int i;
+  LOCK ();
+  LydWave *wave = g_new0 (wave, 1);
+  for (i = 0; i < LYD_MAX_WAVE; i++)
+    {
+      LydWave *p = lyd->wave[i];
+      if (p && !strcmp(p->name, name))
+        {
+          lyd_wave_free (p);
+          lyd->wave[i] = NULL;
+          break;
+        }
+    }
+
+  if (data == NULL || samples == 0)
+    { 
+      UNLOCK ();
+      return;
+    }
+
+  wave->name = g_strdup (name);
+  wave->data = g_malloc0 (sizeof (float) * samples);
+  wave->samples = samples;
+  wave->sample_rate = sample_rate;
+  memcpy (wave->data, data, sizeof (float) * samples);
+  for (i = 0; i < LYD_MAX_WAVE; i++)
+    if (!lyd->wave[i])
+      {
+        lyd->wave[i] = wave;
+        break;
+      }
+
+  UNLOCK ();
+}
+
+void
+lyd_set_wave_handler (Lyd *lyd,
+                     int (*wave_handler) (Lyd *lyd, const char *wavename,
+                                          void *user_data),
+                     void *user_data)
+{
+  LOCK ();
+  lyd->wave_handler = wave_handler;
+  lyd->wave_handler_data = user_data;
   UNLOCK ();
 }
