@@ -96,15 +96,13 @@ static inline float str2float (const char *str)
 
 #define STREQUAL(str1,str2) (fabs((str1)-(str2))<0.0000001)
 
-/*** lyd uses glib conveniences but tries to be independent ***/
+/*** lyd is written with an independently recoded on demand
+ * minimal glib like core for single linked lists and memory management
+ */
 #ifdef NIH
 
 #undef g_new0
 #undef G_UNLIKELY
-/* XXX: the fake glib needs lock/unlock replacements */
-//#define LOCK()   g_static_mutex_lock (&mutex)
-//#define UNLOCK() g_static_mutex_unlock (&mutex)
-//GStaticMutex mutex;
 
 #define TRUE  1
 #define FALSE 0
@@ -183,7 +181,6 @@ static inline SList *slist_find (SList *list, void *data)
 
 #else
 
-//#include <glib.h>
 #define LOCK()   g_static_mutex_lock (&mutex)
 #define UNLOCK() g_static_mutex_unlock (&mutex)
 GStaticMutex mutex;
@@ -259,17 +256,14 @@ struct _LydVoice
   int    tag;
 
   SList *params;        /* list of key-lists form params */
-  LydCommandState state[]; /* instruction and working data should
-                           stay close using this layout, note: variable
-                           sized array
-                         */
+  LydCommandState *state;/* points to immediately after the LydVoice struct
+                            in the same allocation */
 };
 
 #ifdef NIH
 #define LOCK()    pthread_mutex_lock(&lyd->mutex)
 #define UNLOCK()  pthread_mutex_unlock(&lyd->mutex)
 #endif
-
 
 /* get duration of loaded midi file in seconds */
 float        lyd_midi_get_duration (Lyd *lyd);

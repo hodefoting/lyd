@@ -142,7 +142,9 @@ lyd_synthesize (Lyd  *lyd,
 
   for (i=0;i<samples;i++)
     {
-      LydSample value[2] = {lyd->accbuf[i*2+0], lyd->accbuf[i*2+1]};
+      LydSample value[2];
+      value[0] = lyd->accbuf[i*2+0];
+      value[1] = lyd->accbuf[i*2+1];
 
       if (lyd->reverb > 0.0001)
         {
@@ -575,9 +577,10 @@ void
 lyd_load_wave (Lyd *lyd, const char *name,
               int  samples, int sample_rate, float *data)
 {
+  LydWave *wave;
   int i;
   LOCK ();
-  LydWave *wave = g_new0 (LydWave, 1);
+  wave = g_new0 (LydWave, 1);
   for (i = 0; i < LYD_MAX_WAVE; i++)
     {
       LydWave *p = lyd->wave[i];

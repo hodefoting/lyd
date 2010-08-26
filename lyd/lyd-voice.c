@@ -25,6 +25,7 @@ static LydVoice * lyd_voice_create (Lyd *lyd, LydProgram *program)
                              + sizeof (LydCommandState) * LYD_MAX_ELEMENTS);
   static LydSample nul = 0.0;
   int i, j;
+  voice->state = (LydCommandState*)(((char *)voice) + sizeof (LydVoice));
 
   voice->lyd = lyd;
 

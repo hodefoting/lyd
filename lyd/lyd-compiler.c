@@ -91,7 +91,7 @@ static LydConstantMap constant_lexicon[] = {
 };
 
 typedef enum {
-  name, string, literal, operator, function, variable, binary, unary, args,
+  name, string, literal, operator, function, variable, binary, unary, args
 } LydTokenType;
 
 typedef struct _LydToken  LydToken;

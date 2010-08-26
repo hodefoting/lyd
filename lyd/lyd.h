@@ -31,7 +31,7 @@ typedef enum {
   LYD_GAP,    /* all values in transition are 0.0 */
   LYD_STEP,   /* all values before value have previous value */
   LYD_LINEAR, /* slide linearly between values */
-  LYD_CUBIC,  /* slide smoothly between values */
+  LYD_CUBIC   /* slide smoothly between values */
 } LydInterpolation;
 
 Lyd        *lyd_new             (void);

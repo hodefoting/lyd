@@ -18,6 +18,8 @@ AM_CONFIG_HEADER([config.h])
 
 AM_INIT_AUTOMAKE([1.10] foreign)
 
+m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
+
 LYD_MAJOR_VERSION=lyd_major
 LYD_MINOR_VERSION=lyd_minor
 LYD_MICRO_VERSION=lyd_micro
@@ -61,6 +63,21 @@ fi
 AC_SUBST(ALSA_CFLAGS)
 AC_SUBST(ALSA_LIBS)
 AM_CONDITIONAL(HAVE_ALSA, test "$have_alsa" = "yes")
+
+
+AC_ARG_WITH(sndfile, [  --without-sndfile          build library without SNDFILE audio output, and lyd binary without midi])
+have_sndfile="no"
+if test "x$with_sndfile" != "xno"; then
+  PKG_CHECK_MODULES(SNDFILE, sndfile,
+    have_sndfile="yes"
+    AC_DEFINE(HAVE_SNDFILE, 1, [Define to 1 if sndfile is available])
+    ,
+    have_sndfile="no  (sndfile not found)")
+fi
+AC_SUBST(SNDFILE_CFLAGS)
+AC_SUBST(SNDFILE_LIBS)
+AM_CONDITIONAL(HAVE_SNDFILE, test "$have_sndfile" = "yes")
+
 
 AC_ARG_WITH(jack, [  --without-jack          build library without JACK audio output, and lyd binary without midi])
 have_jack="no"
@@ -107,8 +124,9 @@ AC_MSG_RESULT([
 
  Optional dependencies:
  
-  alsa:    $have_alsa
-  jack:    $have_jack
-  osc:     $have_osc
+  alsa:     $have_alsa
+  jack:     $have_jack
+  sndfile:  $have_sndfile
+  osc:      $have_osc
 ]);
 

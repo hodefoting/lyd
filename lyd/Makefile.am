@@ -40,5 +40,4 @@ $(builddir)/general-midi.inc: $(srcdir)/general-midi.txt
 	cat $< |sed -e 's/^/"/' -e 's/$$/",/' >> $@
 	echo "};" >> $@
 
-clean:
-	rm -f general-midi.inc
+CLEANFILES += general-midi.inc

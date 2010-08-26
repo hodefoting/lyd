@@ -612,10 +612,9 @@ int play_midi(LydMidi *midi, int loop)
 
 static void stop_midi(LydMidi *midi)
 {
-   //midi->loaded = FALSE;
+   /*midi->loaded = FALSE;*/
    midi->playing = FALSE;
-   //play_midi(midi, FALSE);
-   midi->playing = FALSE; /* XXX: probably not needed */
+   /*play_midi(midi, FALSE);*/
 }
 
 static void pause_midi (LydMidi *midi)
@@ -679,7 +678,6 @@ static int midi_seek(LydMidi *midi, int target)
       while (mmpc <= 0) {
          mmpc += midi->pos_speed;
          mmp++;
-         //printf ("%i %i %i %i\n", target, mmpc, mmp, midi->time_seconds);
       }
 
       if (mmp >= target)
@@ -820,7 +818,7 @@ int get_midi_length(LydMidi *midi)
 {
   int ret;
   play_midi(midi, 0);
-  midi_seek(midi, 400);//INT_MAX);
+  midi_seek(midi, 1400);
   ret = midi->time_seconds;
   lyd_midi_prepare_to_play(midi);
   return ret;
