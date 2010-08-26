@@ -266,9 +266,11 @@ static int oneof (char needle, char *haystack)
   return 0;
 }
 
+#define MAX_TOK_LEN 512
+
 static LydToken *parser_scanner_next (LydParser *parser)
 {
-  char word[40]="";
+  char word[MAX_TOK_LEN]="";
   int   wpos=0;
   int   incomment=0;
   char *whitespace = "\n ";
@@ -296,15 +298,34 @@ static LydToken *parser_scanner_next (LydParser *parser)
       parser->p++;
       while (*parser->p && *parser->p !='"')
         word[wpos++]=*parser->p++;
+      if (wpos>=MAX_TOK_LEN)
+        wpos=MAX_TOK_LEN-1;
       word[wpos]='\0';
       if (*parser->p=='"')
         parser->p++;
       tok->type = string;
     }
+  else if (*parser->p == '\'')
+    {
+      parser->p++;
+      while (*parser->p && *parser->p !='\'')
+        word[wpos++]=*parser->p++;
+      if (wpos>=MAX_TOK_LEN)
+        wpos=MAX_TOK_LEN-1;
+      word[wpos]='\0';
+      if (*parser->p=='\'')
+        parser->p++;
+      tok->type = string;
+    }
   else if (oneof (*parser->p, numerals))
     {
-      while (*parser->p && oneof (*parser->p, numerals) && wpos<40)
-        word[wpos++]=*parser->p++;
+      while (*parser->p && oneof (*parser->p, numerals) && wpos<MAX_TOK_LEN)
+        {
+          word[wpos++]=*parser->p++;
+          if (wpos>=MAX_TOK_LEN)
+            wpos=MAX_TOK_LEN-1;
+          word[wpos]='\0';
+        }
       tok->type = literal;
     }
   else if (oneof (*parser->p, operators))
@@ -314,7 +335,7 @@ static LydToken *parser_scanner_next (LydParser *parser)
       while (*parser->p
              && !oneof (*parser->p, whitespace)
              && !oneof (*parser->p, operators)
-             && wpos<40)
+             && wpos<MAX_TOK_LEN)
         {
           word[wpos++]=*parser->p++;
           if (word[wpos-1]=='=' && &parser->p) /* directly swallow next char

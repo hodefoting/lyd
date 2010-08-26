@@ -577,7 +577,7 @@ lyd_load_wave (Lyd *lyd, const char *name,
 {
   int i;
   LOCK ();
-  LydWave *wave = g_new0 (wave, 1);
+  LydWave *wave = g_new0 (LydWave, 1);
   for (i = 0; i < LYD_MAX_WAVE; i++)
     {
       LydWave *p = lyd->wave[i];
