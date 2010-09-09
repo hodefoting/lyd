@@ -990,6 +990,7 @@ void lyd_midi_init (Lyd *lyd)
   int err;
   static struct pollfd pfd;
   int npfd;
+  int port_no;
   pthread_t tid;
 
   midi_init (lyd);
@@ -997,9 +998,9 @@ void lyd_midi_init (Lyd *lyd)
   if (err < 0)
     return;
   snd_seq_set_client_name(handle, "lyd");
-  snd_seq_create_simple_port(handle, "in_1",
-                      SND_SEQ_PORT_CAP_WRITE|SND_SEQ_PORT_CAP_SUBS_WRITE,
-                      SND_SEQ_PORT_TYPE_MIDI_GENERIC);
+  port_no = snd_seq_create_simple_port(handle, "in_1",
+                        SND_SEQ_PORT_CAP_WRITE|SND_SEQ_PORT_CAP_SUBS_WRITE,
+                        SND_SEQ_PORT_TYPE_MIDI_GENERIC);
 
   npfd = snd_seq_poll_descriptors_count(handle, POLLIN);
   if (npfd != 1) {
@@ -1009,6 +1010,34 @@ void lyd_midi_init (Lyd *lyd)
 
   snd_seq_poll_descriptors (handle, &pfd, 1, POLLIN);
   pthread_create(&tid, NULL, alsa_midi_start, &pfd);
+
+  /* look for midi input devices, and connect them to ourselves,
+   * should perhaps not do this unconditionally?
+   */
+  {
+    snd_seq_client_info_t *cinfo;
+
+    snd_seq_client_info_alloca (&cinfo);
+    snd_seq_client_info_set_client (cinfo, -1);
+    while (snd_seq_query_next_client (handle, cinfo) >= 0)
+      {
+        int client = snd_seq_client_info_get_client (cinfo);
+        snd_seq_port_info_t *pinfo;
+        snd_seq_port_info_alloca (&pinfo);
+        snd_seq_port_info_set_client (pinfo, client);
+        snd_seq_port_info_set_port (pinfo, -1);
+
+        while (snd_seq_query_next_port (handle, pinfo) >= 0)
+          {
+            int capability;
+            int port;
+            port = snd_seq_port_info_get_port (pinfo);
+            capability = snd_seq_port_info_get_capability(pinfo);
+            if (capability & SND_SEQ_PORT_CAP_READ)
+              snd_seq_connect_from (handle, 0, client, port);
+          }
+      }
+  }
 }
 
 
