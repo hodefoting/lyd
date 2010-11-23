@@ -9,4 +9,3 @@ Description: audio synthesis engine
 Version: @VERSION@
 Libs: -L${libdir} -llyd-${apiversion}
 Cflags: -I${includedir}/lyd-${apiversion}
-Requires: @LYD_REQUIRES@

@@ -68,6 +68,10 @@ struct _LydProgram
 };
 
 
+/* The commandstate is the compiled form of
+ * a lyd program,.
+ */
+
 typedef struct _LydCommandState 
 { LydOpCode  op;
   LydSample  out; 

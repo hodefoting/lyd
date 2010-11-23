@@ -177,18 +177,45 @@ lyd_voice_free (LydVoice *voice)
 /* shortcut boilerplate macros, used in case the execution engine is
  * modified to operate on buffers instead of individual samples
  */
-  #define A(no)              voice->state[i].arg[no][0] 
+  #define A(no)              state->arg[no][0] 
   #define TIME               ((1.0*voice->sample) * voice->i_sample_rate)
-  #define OUT                voice->state[i].out
+  #define OUT                state->out
   #define PHASE              phase(voice, &A(2), A(0))
-  #define DATA               voice->state[i].data
-  #define OPS_START()        switch (voice->state[i].op){case LYD_NONE:{
-  #define OPS_END()          }
-  #define OP_START(op)       case op:{
+  #define DATA               state->data
+
+
+/* defining this causes a different implementation of the
+ * innerloop to be used, this innerloop should have fewer
+ * cache mispredictions
+ *
+ * Spiller ingen trille for veldig enkelt instrument... 
+ * for mer kompliserte, vant switchen..
+ *
+ * komplisert
+ *   nested:     144 144 142 141
+ *   non-nested: 159 161 156 166
+ *               159 162 169 163 166
+ *
+ * just square wave: 478 438 400 464 477 481
+ * just sin    wave: 249 225 241
+ *
+ * sum of two sqw, w separate adsrs: 274 281 239
+ * sum of two sinqw, w separate adsrs: 122 129 125
+ *
+ *
+ * waveform fully solo: 528 522
+ * waveform w adsr or scale: 387 394 376 438 440
+ *    
+ */
+
+  #define OPS_START()        switch (state->op){case LYD_NONE:{
+  #define OPS_END()          }}
+  #define OP_START(op)       case LYD_##op:{
   #define OP_END()           };break;
+
   #define OP(op)             OP_END() OP_START(op)
   #define OP_FUN(op, fun_name) OP_END() OP_START(op) OUT = fun_name (voice, \
-                             &voice->state[i].arg[0], &DATA);
+                             &state->arg[0], &DATA);
   #define ABS(a)             ((a)>0?(a):-(a))
 
 /* we store a phase incrementer in each voice, allowing us to change
@@ -232,68 +259,72 @@ static inline float wave_sample_loop (LydVoice *voice, float *posp, int no, floa
   return 0.0;
 }
 
+
 static inline LydSample lyd_voice_compute (LydVoice  *voice)
 {
-  register int i;
+  LydCommandState *state;
   
-  for (i = 0; voice->state[i].op; i++)
-    OPS_START()
-    OP(LYD_NOP)    OUT =  voice->state[i].literal[0];
-    OP(LYD_MUL)    OUT =  A(0) * A(1);
-    OP(LYD_DIV)    OUT =  A(1)!=0.0?A(0) / A(1):0.0;
-    OP(LYD_MIX)    OUT = (A(0) + A(1))/2;
-    OP(LYD_MIX3)   OUT = (A(0) + A(1) + A(2))/3;
-    OP(LYD_MIX4)   OUT = (A(0) + A(1) + A(2) + A(3))/4;
-    OP(LYD_ADD)    OUT =  A(0) + A(1);
-    OP(LYD_SUB)    OUT =  A(0) - A(1);
-    OP(LYD_NEG)    OUT = - (A(0));
-    OP(LYD_MOD)    OUT = fmod (A(0),A(1));
-    OP(LYD_SQRT)   OUT = sqrt (A(0));
-    OP(LYD_POW)    OUT = pow (A(0), A(1));
-    OP(LYD_ABS)    OUT = fabs (A(0));
-    OP(LYD_SIN)    OUT = sin (PHASE * M_PI * 2);
-    OP(LYD_SQUARE) OUT = PHASE > 0.5?1.0:-1.0;
-    OP(LYD_PULSE)  OUT = PHASE > A(1)?1.0:-1.0;
+  for (state = &voice->state[0]; state->op; state++)
+    {
+      OPS_START()
+      OP(NOP)    OUT =  state->literal[0];
+      OP(MUL)    OUT =  A(0) * A(1);
+      OP(DIV)    OUT =  A(1)!=0.0?A(0) / A(1):0.0;
+      OP(MIX)    OUT = (A(0) + A(1))/2;
+      OP(MIX3)   OUT = (A(0) + A(1) + A(2))/3;
+      OP(MIX4)   OUT = (A(0) + A(1) + A(2) + A(3))/4;
+      OP(ADD)    OUT =  A(0) + A(1);
+      OP(SUB)    OUT =  A(0) - A(1);
+      OP(NEG)    OUT = - (A(0));
+      OP(MOD)    OUT = fmod (A(0),A(1));
+      OP(SQRT)   OUT = sqrt (A(0));
+      OP(POW)    OUT = pow (A(0), A(1));
+      OP(ABS)    OUT = fabs (A(0));
+      OP(SIN)    OUT = sin (PHASE * M_PI * 2);
+      OP(SQUARE) OUT = PHASE > 0.5?1.0:-1.0;
+      OP(PULSE)  OUT = PHASE > A(1)?1.0:-1.0;
 
-    OP(LYD_TRIANGLE) OUT = PHASE < 0.25 ? 0 + A(2)*4 :
-                           A(2)  < 0.75 ? 2 - A(2)*4 : -4 + A(2)*4;
+      OP(TRIANGLE) OUT = PHASE < 0.25 ? 0 + A(2)*4 :
+                          A(2)  < 0.75 ? 2 - A(2)*4 : -4 + A(2)*4;
 
-    OP(LYD_SAW)    OUT = PHASE * 2 - 1.0;
-    OP(LYD_RAMP)   OUT = -(PHASE * 2 - 1.0);
-    OP(LYD_NOISE)  OUT = g_random_double_range (-1.0, 1.0);
+      OP(SAW)    OUT = PHASE * 2 - 1.0;
+      OP(RAMP)   OUT = -(PHASE * 2 - 1.0);
+      OP(NOISE)  OUT = g_random_double_range (-1.0, 1.0);
 
+      /* OPL2 oscillators */
+      OP(ABSSIN) OUT = fabs (sin (PHASE * M_PI * 2));
+      OP(POSSIN) OUT = PHASE < 0.5 ? sin (A(2) * M_PI * 2) : 0.0;
+      OP(PULSSIN) OUT = fmod (PHASE, 0.5) < 0.25 ? fabs (sin (A(2) * M_PI * 2)) : 0.0;
 
-    /* OPL2 oscillators */
-    OP(LYD_ABSSIN) OUT = fabs (sin (PHASE * M_PI * 2));
-    OP(LYD_POSSIN) OUT = PHASE < 0.5 ? sin (A(2) * M_PI * 2) : 0.0;
-    OP(LYD_PULSSIN) OUT = fmod (PHASE, 0.5) < 0.25 ? fabs (sin (A(2) * M_PI * 2)) : 0.0;
+      /* OPL3 oscillators */
+      OP(EVENSIN) OUT = PHASE < 0.5 ? sin (2 * A(2) * M_PI * 2) : 0.0;
+      OP(EVENPOSSIN) OUT = PHASE < 0.5 ? fabs (sin (2 * A(2) * M_PI * 2)) : 0.0;
 
-    /* OPL3 oscillators */
-    OP(LYD_EVENSIN) OUT = PHASE < 0.5 ? sin (2 * A(2) * M_PI * 2) : 0.0;
-    OP(LYD_EVENPOSSIN) OUT = PHASE < 0.5 ? fabs (sin (2 * A(2) * M_PI * 2)) : 0.0;
+      /* wave data */
+      OP(WAVE)   OUT = wave_sample (voice, &A(3), A(0), A(1));
+      /* wave data */
+      OP(WAVELOOP) OUT = wave_sample_loop (voice, &A(3), A(0), A(1));
 
-    /* wave data */
-    OP(LYD_WAVE)   OUT = wave_sample (voice, &A(3), A(0), A(1));
-    /* wave data */
-    OP(LYD_WAVELOOP) OUT = wave_sample_loop (voice, &A(3), A(0), A(1));
+      OP_FUN(ADSR,   adsr)
+      OP_FUN(REVERB, voice_reverb)
+      OP_FUN(CYCLE,  voice_cycle)
 
-    OP_FUN(LYD_ADSR,   adsr)
-    OP_FUN(LYD_REVERB, voice_reverb)
-    OP_FUN(LYD_CYCLE,  voice_cycle)
+#define HANDLE_FILTER \
+        if (G_UNLIKELY (!DATA))\
+          DATA = BiQuad_new(state->op-LYD_LOW_PASS,A(0),A(1), voice->sample_rate, A(2));\
+        else if (1)\
+          BiQuad_update (DATA,state->op-LYD_LOW_PASS,A(0),A(1),voice->sample_rate,A(2));\
+        OUT = BiQuad(A(3), DATA);
 
-    /* handle all the filters specially in one block */
-    OP_END() case LYD_LOW_PASS:  case LYD_HIGH_PASS: case LYD_BAND_PASS:
-             case LYD_NOTCH:     case LYD_PEAK_EQ:   case LYD_LOW_SHELF:
-    OP_START(LYD_HIGH_SELF)
-
-    if (G_UNLIKELY (!DATA))
-      DATA = BiQuad_new(voice->state[i].op-LYD_LOW_PASS,A(0),A(1), voice->sample_rate, A(2));
-    else if (1)
-       /* we normally wont need live updates, should be enabled when needed */
-      BiQuad_update (DATA,voice->state[i].op-LYD_LOW_PASS,A(0),A(1),voice->sample_rate,A(2));
-
-    OUT = BiQuad(A(3), DATA);
-    OP_END()
-    OPS_END()
-  return voice->state[i-1].out;
+      OP(LOW_PASS)   HANDLE_FILTER
+      OP(HIGH_PASS)  HANDLE_FILTER
+      OP(BAND_PASS)  HANDLE_FILTER
+      OP(NOTCH)      HANDLE_FILTER
+      OP(LOW_SHELF)  HANDLE_FILTER
+      OP(HIGH_SELF) HANDLE_FILTER
+      OP(PEAK_EQ)    HANDLE_FILTER
+#undef HANDLE_FILTER
+      OPS_END()
+    }
+  return (state-1)->out;
 }

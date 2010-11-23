@@ -332,7 +332,7 @@ Lyd * lyd_new (void)
 {
   Lyd *lyd = g_new0 (Lyd, 1);
   pthread_mutex_init(&lyd->mutex, NULL);
-  lyd->max_active = 30;
+  lyd->max_active = 300;
   return lyd;
 }
 
