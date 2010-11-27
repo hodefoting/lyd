@@ -184,28 +184,20 @@ lyd_voice_free (LydVoice *voice)
   #define DATA               state->data
 
 
-/* defining this causes a different implementation of the
- * innerloop to be used, this innerloop should have fewer
- * cache mispredictions
- *
- * Spiller ingen trille for veldig enkelt instrument... 
- * for mer kompliserte, vant switchen..
- *
- * komplisert
- *   nested:     144 144 142 141
- *   non-nested: 159 161 156 166
- *               159 162 169 163 166
+/* Misc profiling log keeping, the numbers listed are the maximum concurrent
+ * number of given programs.
  *
  * just square wave: 478 438 400 464 477 481
+ *
+ *   after adding buf: 461 458 446 449 450
+ *
  * just sin    wave: 249 225 241
  *
  * sum of two sqw, w separate adsrs: 274 281 239
  * sum of two sinqw, w separate adsrs: 122 129 125
  *
- *
  * waveform fully solo: 528 522
  * waveform w adsr or scale: 387 394 376 438 440
- *    
  */
 
   #define OPS_START()        switch (state->op){case LYD_NONE:{
@@ -321,7 +313,7 @@ static inline LydSample lyd_voice_compute (LydVoice  *voice)
       OP(BAND_PASS)  HANDLE_FILTER
       OP(NOTCH)      HANDLE_FILTER
       OP(LOW_SHELF)  HANDLE_FILTER
-      OP(HIGH_SELF) HANDLE_FILTER
+      OP(HIGH_SELF)  HANDLE_FILTER
       OP(PEAK_EQ)    HANDLE_FILTER
 #undef HANDLE_FILTER
       OPS_END()

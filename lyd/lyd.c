@@ -20,7 +20,6 @@
 #include <math.h>
 #include "lyd-private.h"
 
-#define DEBUG_CLIPPING
 
 static void lyd_voice_update_params (LydVoice *voice);
 
@@ -73,10 +72,21 @@ lyd_synthesize (Lyd  *lyd,
   }
   LOCK ();
 
+  /* the accumulation buffer is temporary.. and shared between all voices
+   * we keep one around and grow it if it isn't large enough.. might need
+   * to keep an accum- buffer per voice instead..
+   *
+   * if there were remainder samples from previous rendering, they should
+   * be inserted at the start of the accumbuf,.. and perhaps the accumbuf
+   * start should be adjusted to fulfil SIMD requirements?
+   */
+
   if (!lyd->accbuf || lyd->accbuf_len < samples)
     {
       if (lyd->accbuf) free (lyd->accbuf);
+      if (lyd->tmpbuf) free (lyd->tmpbuf);
       lyd->accbuf = malloc (sizeof (LydSample) * samples * 2);
+      lyd->tmpbuf = malloc (sizeof (LydSample) * samples * 2);
       lyd->accbuf_len = samples;
     }
 
@@ -92,50 +102,53 @@ lyd_synthesize (Lyd  *lyd,
         voice->sample += samples;
     }
 
+  /* blanking accumulation buffer... */
   memset (lyd->accbuf, 0, sizeof (LydSample) * samples * 2);
 
   for (iter=active; iter; iter=iter->next)
     {
       LydVoice *voice = iter->data;
+      memset (lyd->tmpbuf, 0, sizeof (LydSample) * samples);
       for (i=0;i<samples;i++)
         {
           voice->sample++;
           if (voice->sample > 0)
             {
-              LydSample computed;
-              if (  (voice->duration != 0 && voice->sample >= voice->duration)
-                  || voice->released)
-                voice->released++;
-              
-              lyd_voice_update_params (voice);
-              computed = lyd_voice_compute (voice);
+              lyd_voice_update_params (voice); // XXX should take num samples,.. */
+              lyd->tmpbuf[i] = lyd_voice_compute (voice);
+            }
+        }
+      if (  (voice->duration != 0 && voice->sample >= voice->duration)
+             || voice->released)
+        voice->released += samples;
+      for (i=0;i<samples;i++)
+        {
+          if (voice->released)
+            {
+              LydSample computed = lyd->tmpbuf[i];
+              voice->silence_max = (computed > voice->silence_max)
+               ?computed
+               :voice->silence_max * (1.0 - LYD_RELEASE_SILENCE_DAMPENING);
+              voice->silence_min = (computed < voice->silence_min)
+               ?computed
+               :voice->silence_min * (1.0 - LYD_RELEASE_SILENCE_DAMPENING);
+            }
 
-              if (voice->released)
-                {
-                  voice->silence_max = (computed > voice->silence_max)
-                   ?computed
-                   :voice->silence_max * (1.0 - LYD_RELEASE_SILENCE_DAMPENING);
-                  voice->silence_min = (computed < voice->silence_min)
-                   ?computed
-                   :voice->silence_min * (1.0 - LYD_RELEASE_SILENCE_DAMPENING);
-                }
-
-              /* simple stereo distribution of mix */
-              if (voice->position == 0.0)
-                {
-                  lyd->accbuf[i*2+0] += computed;
-                  lyd->accbuf[i*2+1] += computed;
-                }
-              else if (voice->position > 0.0)
-                {
-                  lyd->accbuf[i*2+0] += computed * (1.0-voice->position);
-                  lyd->accbuf[i*2+1] += computed;
-                }
-              else 
-                {
-                  lyd->accbuf[i*2+0] += computed;
-                  lyd->accbuf[i*2+1] += computed * (1.0+voice->position);
-                }
+          /* simple stereo distribution of mix */
+          if (voice->position == 0.0)
+            {
+              lyd->accbuf[i*2+0] += lyd->tmpbuf[i];
+              lyd->accbuf[i*2+1] += lyd->tmpbuf[i];
+            }
+          else if (voice->position > 0.0)
+            {
+              lyd->accbuf[i*2+0] += lyd->tmpbuf[i] * (1.0-voice->position);
+              lyd->accbuf[i*2+1] += lyd->tmpbuf[i];
+            }
+          else 
+            {
+              lyd->accbuf[i*2+0] += lyd->tmpbuf[i];
+              lyd->accbuf[i*2+1] += lyd->tmpbuf[i] * (1.0+voice->position);
             }
         }
     }
@@ -332,7 +345,7 @@ Lyd * lyd_new (void)
 {
   Lyd *lyd = g_new0 (Lyd, 1);
   pthread_mutex_init(&lyd->mutex, NULL);
-  lyd->max_active = 300;
+  lyd->max_active = 1000;
   return lyd;
 }
 
@@ -365,6 +378,10 @@ void lyd_free (Lyd *lyd)
 
   /* XXX: shutdown properly */
   lyd_dead = 1;
+  if (lyd->accbuf)
+    g_free (lyd->accbuf);
+  if (lyd->tmpbuf)
+    g_free (lyd->tmpbuf);
   g_free (lyd);
 }
 

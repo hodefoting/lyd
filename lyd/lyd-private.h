@@ -27,6 +27,8 @@ typedef float LydSample; /* global define for what type lyd computes with,
                             can be set to float or double, some mor jiggling
                             would be needed to support 32bit int directly */
 
+// #define DEBUG_CLIPPING
+
 #define LYD_MAX_ELEMENTS               80
 #define LYD_MAX_VARIABLES              8
 #define LYD_MAX_ARGS                   4
@@ -230,6 +232,7 @@ struct _Lyd
   int       reverb_pos;
 
   LydSample *accbuf;
+  LydSample *tmpbuf;
   int accbuf_len;
 
   void (*cb[LYD_MAX_CBS])(Lyd *lyd, float elapsed, void *data);
