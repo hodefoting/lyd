@@ -109,15 +109,19 @@ lyd_synthesize (Lyd  *lyd,
     {
       LydVoice *voice = iter->data;
       memset (lyd->tmpbuf, 0, sizeof (LydSample) * samples);
-      for (i=0;i<samples;i++)
-        {
-          voice->sample++;
-          if (voice->sample > 0)
-            {
-              lyd_voice_update_params (voice); // XXX should take num samples,.. */
-              lyd->tmpbuf[i] = lyd_voice_compute (voice);
-            }
-        }
+
+      {
+        int first_sample = voice->sample<0?-voice->sample:0;
+        
+        memset (lyd->tmpbuf, 0, sizeof (LydSample) * first_sample);
+         
+        voice->sample++;
+        lyd_voice_update_params (voice);
+        lyd_voice_compute (voice, samples - first_sample, &lyd->tmpbuf[first_sample]);
+        voice->sample += samples - first_sample - 1;
+        voice->sample--;
+      }
+
       if (  (voice->duration != 0 && voice->sample >= voice->duration)
              || voice->released)
         voice->released += samples;
