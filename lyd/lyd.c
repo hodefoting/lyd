@@ -52,27 +52,19 @@ static LydSample lyd_reverb (Lyd *lyd, int channel, LydSample sample)
 
 void lyd_midi_iterate (Lyd *lyd, float elapsed); 
 
-long
+static void
 lyd_synthesize2 (Lyd  *lyd,
                  int   samples,
                  void *stream,
-                 void *stream2)
+                 void *stream2,
+                 SList *active)
 {
-  SList     *active = NULL;
   SList     *iter;
   int        i;
   LydSample *buf   = (void*)stream;
   LydSample *buf2  = (void*)stream2;
   short int *buf16 = (void*)stream;
 
-  { /* XXX: revisit whether this should happen under lock.. */
-    float elapsed = lyd->previous_samples/(1.0 * lyd->sample_rate);
-    lyd_midi_iterate (lyd, elapsed);
-    for (i = 0; i < LYD_MAX_CBS; i++)
-      if (lyd->cb[i])
-        lyd->cb[i](lyd, elapsed, lyd->cb_data[i]);
-  }
-  LOCK ();
 
   /* the accumulation buffer is temporary.. and shared between all voices
    * we keep one around and grow it if it isn't large enough.. might need
@@ -83,17 +75,6 @@ lyd_synthesize2 (Lyd  *lyd,
    * start should be adjusted to fulfil SIMD requirements?
    */
 
-  /* create a list of voices that are currently playing or will
-   * start playing during the duration of samples
-   */
-  for (iter = lyd->voices; iter; iter=iter->next)
-    {
-      LydVoice *voice = iter->data;
-      if (voice->sample + samples >=0)
-        active = slist_prepend (active, iter->data);
-      else
-        voice->sample += samples;
-    }
 
   /* blanking accumulation buffer... */
   assert (samples <= LYD_CHUNK);
@@ -102,6 +83,13 @@ lyd_synthesize2 (Lyd  *lyd,
   for (iter=active; iter; iter=iter->next)
     {
       LydVoice *voice = iter->data;
+
+      if (voice->sample + samples <0)
+        {
+          voice->sample += samples;
+          continue;
+        }
+
       {
         int first_sample = voice->sample<0?-voice->sample:0;
         
@@ -188,6 +176,50 @@ lyd_synthesize2 (Lyd  *lyd,
       }
       lyd->sample_no++;
     }
+}
+
+long
+lyd_synthesize (Lyd *lyd,
+                int  samples,
+                void *stream,
+                void *stream2)
+{
+  int left = samples;
+  int pos = 0;
+  SList     *iter, *active = NULL;
+
+  { /* XXX: revisit whether this should happen under lock.. */
+    int i;
+    float elapsed = lyd->previous_samples/(1.0 * lyd->sample_rate);
+    lyd_midi_iterate (lyd, elapsed);
+    for (i = 0; i < LYD_MAX_CBS; i++)
+      if (lyd->cb[i])
+        lyd->cb[i](lyd, elapsed, lyd->cb_data[i]);
+  }
+
+  LOCK ();
+  /* create a list of voices that are currently playing or will
+   * start playing during the duration of samples
+   */
+  for (iter = lyd->voices; iter; iter=iter->next)
+    {
+      LydVoice *voice = iter->data;
+      if (voice->sample + samples >=0)
+        active = slist_prepend (active, iter->data);
+      else
+        voice->sample += samples;
+    }
+
+  while (left > 0) /* break processing up in sizes of size LYD_CHUNK or smaller */
+    {
+      int chunk = LYD_CHUNK;
+      if (chunk > left)
+        chunk = left;
+      left -= chunk;
+
+      lyd_synthesize2 (lyd, chunk, stream + pos * 4, stream2 + pos * 4, active);
+      pos += chunk;
+    }
 
   lyd->active = 0;
   for (iter=active; iter; iter=iter->next)
@@ -245,30 +277,12 @@ lyd_synthesize2 (Lyd  *lyd,
         break;
     }
   slist_free (active);
+
+
   UNLOCK ();
+
   lyd->previous_samples = samples;
   return lyd->sample_no;
-}
-
-long
-lyd_synthesize (Lyd *lyd,
-                int  samples,
-                void *stream,
-                void *stream2)
-{
-  int left = samples;
-  int pos = 0;
-
-  while (left > 0)
-    {
-      int chunk = LYD_CHUNK;
-      if (chunk > left)
-        chunk = left;
-      left -= chunk;
-
-      lyd_synthesize2 (lyd, chunk, stream + pos * 4, stream2 + pos * 4);
-      pos += chunk;
-    }
 }
 
 void
