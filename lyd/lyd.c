@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <assert.h>
 #include "lyd-private.h"
 
 
@@ -82,15 +83,6 @@ lyd_synthesize2 (Lyd  *lyd,
    * start should be adjusted to fulfil SIMD requirements?
    */
 
-  if (!lyd->accbuf || lyd->accbuf_len < samples)
-    {
-      if (lyd->accbuf) free (lyd->accbuf);
-      if (lyd->tmpbuf) free (lyd->tmpbuf);
-      lyd->accbuf = malloc (sizeof (LydSample) * samples * 2);
-      lyd->tmpbuf = malloc (sizeof (LydSample) * samples * 2);
-      lyd->accbuf_len = samples;
-    }
-
   /* create a list of voices that are currently playing or will
    * start playing during the duration of samples
    */
@@ -104,13 +96,12 @@ lyd_synthesize2 (Lyd  *lyd,
     }
 
   /* blanking accumulation buffer... */
+  assert (samples <= LYD_CHUNK);
   memset (lyd->accbuf, 0, sizeof (LydSample) * samples * 2);
 
   for (iter=active; iter; iter=iter->next)
     {
       LydVoice *voice = iter->data;
-      memset (lyd->tmpbuf, 0, sizeof (LydSample) * samples);
-
       {
         int first_sample = voice->sample<0?-voice->sample:0;
         
@@ -404,10 +395,6 @@ void lyd_free (Lyd *lyd)
 
   /* XXX: shutdown properly */
   lyd_dead = 1;
-  if (lyd->accbuf)
-    g_free (lyd->accbuf);
-  if (lyd->tmpbuf)
-    g_free (lyd->tmpbuf);
   g_free (lyd);
 }
 

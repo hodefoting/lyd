@@ -115,7 +115,7 @@ lyd_voice_free (LydVoice *voice)
  * waveform fully solo: 528 522
  * waveform w adsr or scale: 387 394 376 438 440
  *
- * square wave+adsr:         503 514 517
+ * square wave+adsr:         567 541 
  * waveform w adsr or scale: 632 620 603
  *
  */
@@ -161,7 +161,6 @@ static inline float wave_sample_loop (LydVoice *voice, float *posp, int no, floa
     *posp = 0.0;
   return 0.0;
 }
-
 
 /* shortcut boilerplate macros, used in case the execution engine is
  * modified to operate on buffers instead of individual samples

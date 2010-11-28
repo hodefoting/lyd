@@ -29,7 +29,7 @@ typedef float LydSample; /* global define for what type lyd computes with,
 
 // #define DEBUG_CLIPPING
 
-#define LYD_CHUNK                      96
+#define LYD_CHUNK                      72
 #define LYD_MAX_ELEMENTS               80
 #define LYD_MAX_VARIABLES              8
 #define LYD_MAX_ARGS                   4
@@ -68,10 +68,10 @@ struct _LydProgram
 
 typedef struct _LydCommandState 
 { LydOpCode  op;
-  LydSample *arg[LYD_MAX_ARGS];
-  LydSample  literal[LYD_MAX_ARGS][LYD_CHUNK];
-  LydSample  out[LYD_CHUNK]; 
   void      *data;
+  LydSample *arg[LYD_MAX_ARGS];
+  LydSample  out[LYD_CHUNK]; 
+  LydSample  literal[LYD_MAX_ARGS][LYD_CHUNK];
 } LydCommandState;
 
 
@@ -223,8 +223,8 @@ struct _Lyd
 
   int       reverb_pos;
 
-  LydSample *accbuf;
-  LydSample *tmpbuf;
+  LydSample  accbuf[LYD_CHUNK * 2];
+  LydSample  tmpbuf[LYD_CHUNK];
   int accbuf_len;
 
   void (*cb[LYD_MAX_CBS])(Lyd *lyd, float elapsed, void *data);
