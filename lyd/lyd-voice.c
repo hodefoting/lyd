@@ -114,6 +114,10 @@ lyd_voice_free (LydVoice *voice)
  *
  * waveform fully solo: 528 522
  * waveform w adsr or scale: 387 394 376 438 440
+ *
+ * square wave+adsr:         503 514 517
+ * waveform w adsr or scale: 632 620 603
+ *
  */
 
 
@@ -162,30 +166,38 @@ static inline float wave_sample_loop (LydVoice *voice, float *posp, int no, floa
 /* shortcut boilerplate macros, used in case the execution engine is
  * modified to operate on buffers instead of individual samples
  */
-#define  INDEX  0
 
-  #define OUT                state->out[INDEX]
-  #define ARG(no)            ((state->arg[no])[INDEX])
+  #define OUT                state->out[i]
+  #define ARG0(no)           ((state->arg[no])[0])
+  #define ARG(no)            ((state->arg[no])[i])
   #define SAMPLE             (voice->sample + i)
   #define TIME               (1.0 * SAMPLE * voice->i_sample_rate)
-  #define PHASE              phase(voice, &ARG(2), ARG(0))
+  #define PHASE              phase(voice, &ARG0(2), ARG0(0))
   #define DATA               state->data
+
+  #define OP_START           {
+  #define OP_LOOP            int i;for (i = 0; i < samples; i++) {
+  #define OP_END             }
 
   #define ABS(a)               ((a)>0?(a):-(a))
 
 #ifdef HANDLE_FILTER
 #undef HANDLE_FILTER
 #endif
-  #define HANDLE_FILTER \
+  #define HANDLE_FILTER int i;\
     if (G_UNLIKELY (!DATA))\
-      DATA = BiQuad_new(state->op-LYD_LOW_PASS,ARG(0),ARG(1), voice->sample_rate, ARG(2));\
+      DATA = BiQuad_new(state->op-LYD_LOW_PASS,ARG0(0),ARG0(1), voice->sample_rate, ARG0(2));\
     else if (1)\
-      BiQuad_update (DATA,state->op-LYD_LOW_PASS,ARG(0),ARG(1),voice->sample_rate,ARG(2));\
-    OUT = BiQuad(ARG(3), DATA);
+      BiQuad_update (DATA,state->op-LYD_LOW_PASS,ARG0(0),ARG0(1),voice->sample_rate,ARG0(2));\
+    for (i=0; i<samples; i++)  \
+      OUT = BiQuad(ARG0(3), DATA);
+// XXX: not sure if the above shoulde be ARG0(?) or ARG(?), using ARG0 ensures
+// that it works at least partially.
+
 
 #define OP_ARGS LydVoice *voice, LydCommandState *state, int i
 
-static void adsr (OP_ARGS)
+static inline void adsr (OP_ARGS)
 {
   LydSample a = ARG(0),
             d = ARG(1),
@@ -272,36 +284,31 @@ lyd_voice_compute (LydVoice  *voice,
                    LydSample *retbuf)
 {
   LydCommandState *state;
-  int i;
   
   //printf ("%i %i  ", samples, ((unsigned int)(retbuf)) % LYD_CHUNK);
+  int i = 0;
 
-  /* perhaps do a check on whether SIMD might be applicable or not, and
-   * dispatch correct version
-   */
-  for (i = 0; i<samples; i++)
+  for (state = &voice->state[0]; state->op; state++)
     {
-      for (state = &voice->state[0]; state->op; state++)
+      switch (state->op)
         {
-          switch (state->op)
-            {
-              // for (i = 0; i<samples; i++) { CODE } break;
 #define LYD_OP(name, OP_CODE, CODE, BAR, BAZ) \
-          case LYD_##OP_CODE: \
-                     \
-              CODE;  \
-                     \
-          break;
+\
+           case LYD_##OP_CODE: { CODE } ; break;
+
 #include "lyd-ops.inc"
 #undef LYD_OP
-              default:
-                /* keep an array of opcode -> handler function mapping for
-                 * extensions provided by the application? (similarly need
-                 * extension for compiler..)
-                 */
-                printf("unhandled lyd opcode! %i\n", state->op);
-            }
+           default:
+             /* keep an array of opcode -> handler function mapping for
+              * extensions provided by the application? (similarly need
+              * extension for compiler..)
+              */
+             printf("unhandled lyd opcode! %i\n", state->op);
         }
-      retbuf[i] = (state-1)->out[INDEX];
     }
+  {
+   int i;
+   for (i = 0; i<samples; i++)
+     retbuf[i] = (state-1)->out[i];
+  }
 }
