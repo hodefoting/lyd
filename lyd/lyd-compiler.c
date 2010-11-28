@@ -37,46 +37,9 @@ typedef struct {
 /* table mapping keywords of the language to op-codes */
 static LydOpCodeMap op_lexicon[] = {
   {"none",       LYD_NONE},
-  {"nop",        LYD_NOP},
-  {"+",          LYD_ADD},
-  {"-",          LYD_SUB},
-  {"*",          LYD_MUL},
-  {"/",          LYD_DIV},
-  {"%",          LYD_MOD},
-  {"abs",        LYD_ABS},
-  {"pow",        LYD_POW},
-  {"sqrt",       LYD_SQRT},
-  {"neg",        LYD_NEG},
-  {"mix",        LYD_MIX},
-  {"mix3",       LYD_MIX3},
-  {"mix4",       LYD_MIX4},
-
-  {"sin",        LYD_SIN},
-  {"abssin",     LYD_ABSSIN},
-  {"possin",     LYD_POSSIN},
-  {"pulssin",    LYD_PULSSIN},
-  {"evensin",    LYD_EVENSIN},
-  {"evenpossin", LYD_EVENPOSSIN},
-  {"saw",        LYD_SAW},
-  {"ramp",       LYD_RAMP},
-  {"square",     LYD_SQUARE},
-  {"triangle",   LYD_TRIANGLE},
-  {"pulse",      LYD_PULSE},
-  {"noise",      LYD_NOISE},
-  {"wave",       LYD_WAVE},
-  {"wave_loop",  LYD_WAVELOOP},
-
-  {"adsr",       LYD_ADSR},
-  {"reverb",     LYD_REVERB},
-  {"cycle",      LYD_CYCLE},
-
-  {"low_pass",   LYD_LOW_PASS},
-  {"high_pass",  LYD_HIGH_PASS},
-  {"band_pass",  LYD_BAND_PASS},
-  {"notch",      LYD_NOTCH},
-  {"peak_eq",    LYD_PEAK_EQ},
-  {"low_shelf",  LYD_LOW_SHELF},
-  {"high_shelf", LYD_HIGH_SELF}
+#define LYD_OP(NAME, OP_CODE, FOO, BAR, BAZ)  {NAME, LYD_##OP_CODE},
+#include "lyd-ops.inc"
+#undef LYD_OP
 };
 
 typedef struct {

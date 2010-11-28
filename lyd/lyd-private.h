@@ -43,19 +43,10 @@ typedef float LydSample; /* global define for what type lyd computes with,
 /* The opcodes of lyds virtual machine */
 typedef enum
 {
-  LYD_NONE = 0,
-  LYD_NOP, LYD_MIX, LYD_MIX3, LYD_MIX4,
-  LYD_ADD, LYD_SUB, LYD_MUL, LYD_DIV, LYD_ABS, LYD_POW, LYD_NEG, LYD_SQRT,
-  LYD_MOD,
-
-  LYD_SIN, LYD_SAW, LYD_RAMP, LYD_SQUARE, LYD_TRIANGLE, LYD_PULSE, LYD_NOISE,
-  LYD_ABSSIN, LYD_POSSIN, LYD_PULSSIN, LYD_EVENSIN, LYD_EVENPOSSIN, LYD_WAVE,
-  LYD_WAVELOOP,
-
-  LYD_ADSR, LYD_REVERB, LYD_CYCLE,
-
-  LYD_LOW_PASS, LYD_HIGH_PASS, LYD_BAND_PASS, LYD_NOTCH, LYD_PEAK_EQ, 
-  LYD_LOW_SHELF, LYD_HIGH_SELF  /* the filters must maintain internal order */
+#define LYD_OP(NAME, OP_CODE, FOO, BAR, BAZ)  ,LYD_##OP_CODE
+  LYD_NONE = 0
+#include "lyd-ops.inc"
+#undef LYD_OP
 } LydOpCode;
 
 struct _LydCommand
@@ -76,15 +67,15 @@ struct _LydProgram
 
 typedef struct _LydCommandState 
 { LydOpCode  op;
-  LydSample  out; 
   LydSample *arg[LYD_MAX_ARGS];
   LydSample  literal[LYD_MAX_ARGS];
+  LydSample  out; 
   void      *data;
 } LydCommandState;
 
 
 
-/* cheapish "hashing to floating point number
+/* "hashing to floating point number
  * of the first few chars in a string
  */
 static inline float str2float (const char *str)
