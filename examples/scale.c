@@ -49,7 +49,7 @@ int main (int    argc,
     }
 
   instrument = lyd_compile (lyd, code);
-  for (i = 0; i<16;i++)
+  for (i = 0; i<11;i++)
     NOTE(i*0.5, 0.3, scale[i]);
 
   lyd_program_free (instrument);
