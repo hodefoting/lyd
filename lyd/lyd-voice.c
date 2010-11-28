@@ -124,7 +124,7 @@ lyd_voice_free (LydVoice *voice)
 /* we store a phase incrementer in each voice, allowing us to change
  * the hz of a signal generator on the fly without sudden phase shifts.
  */
-static inline float phase(LydVoice *voice, float *phasep, float hz)
+static inline float phase (LydVoice *voice, float *phasep, float hz)
 {
   float old = *phasep;
   float new = old + hz * voice->i_sample_rate;
@@ -162,29 +162,48 @@ static inline float wave_sample_loop (LydVoice *voice, float *posp, int no, floa
   return 0.0;
 }
 
-/* shortcut boilerplate macros, used in case the execution engine is
- * modified to operate on buffers instead of individual samples
- */
+  /* Shortcut code used for implementing ops, keeping them short concise
+   * and reabable.
+   */
 
-  #define OUT                state->out[i]
+  /* The value coming in on an argument/from a source, for the first of
+   * the computed samples, getting this value should always work (when
+   * used, XXX: using ARG() instead should be considered once more of lyd is
+   * buffer aware. */
   #define ARG0(no)           ((state->arg[no])[0])
-  #define ARG(no)            ((state->arg[no])[i])
-  #define SAMPLE             (voice->sample + i)
-  #define TIME               (1.0 * SAMPLE * voice->i_sample_rate)
+
+  /* Get, and advance the phase for an oscillator */
   #define PHASE              phase(voice, &ARG0(2), ARG0(0))
+
+  /* pointer to the state's data */
   #define DATA               state->data
 
-  #define OP_START           {
-  #define OP_LOOP            int i;for (i = 0; i < samples; i++) {
-  #define OP_END             }
+  /* macro used when defining ops, to indicate a callback function to
+   * be used for processing
+   */
+  #define OP_FUN(fun)        fun(voice, state, samples);
 
-  #define ABS(a)               ((a)>0?(a):-(a))
+  /* macro used to define looping code, this defines the variable i
+   * used in some of the other macros.
+   */
+  #define OP_LOOP(code)      register int i;for (i = 0; i < samples; i++) {code}
 
-#ifdef HANDLE_FILTER
-#undef HANDLE_FILTER
+  /* macros depending on i pointing to right index to work, needs
+   * a loop over the samples to work properly
+   */
+  /* The current sample being computed */
+  #define SAMPLE             (voice->sample + i)
+  /* get the current time in seconds */
+  #define TIME               (1.0 * SAMPLE * voice->i_sample_rate)
+  /* the output destination for the current sample */
+  #define OUT                state->out[i]
+
+  /* the value of an argument, sample accurate */
+  #define ARG(no)            ((state->arg[no])[i])
+
+#ifndef ABS
+  #define ABS(a)             ((a)>0?(a):-(a))
 #endif
-
-
 
 #define OP_ARGS LydVoice *voice, LydCommandState *state, int samples
 
@@ -229,7 +248,7 @@ static inline void op_adsr (OP_ARGS)
                 released_val = ((voice->sample - voice->released) / a) * ((SAMPLE - voice->released) / a);
               else if (SAMPLE - voice->released < (a+d))/*release in decay */
                 released_val = 1.0 + (s-1) * (((SAMPLE - voice->released) - a) / d);
-              else                                            /*release in sustain*/
+              else                                      /*release in sustain */
                 released_val = s;
               OUT = released_val * (1.0 - (voice->released) / r);
             }
@@ -299,32 +318,26 @@ static inline void op_cycle (OP_ARGS)
     }
 }
 
+/* The core virtual machine, the executes the lyd_commandstates in
+ * a voice.
+ */
 static inline void
 lyd_voice_compute (LydVoice  *voice,
                    int        samples,
                    LydSample *retbuf)
 {
   LydCommandState *state;
-  
-  //printf ("%i %i  ", samples, ((unsigned int)(retbuf)) % LYD_CHUNK);
-  int i = 0;
-
   for (state = &voice->state[0]; state->op; state++)
     {
       switch (state->op)
         {
-#define LYD_OP(name, OP_CODE, CODE, BAR, BAZ) \
-\
-           case LYD_##OP_CODE: { CODE } ; break;
-
-#include "lyd-ops.inc"
-#undef LYD_OP
-           default:
-             /* keep an array of opcode -> handler function mapping for
-              * extensions provided by the application? (similarly need
-              * extension for compiler..)
-              */
-             printf("unhandled lyd opcode! %i\n", state->op);
+#define LYD_OP(name, OP_CODE, CODE, DOC, BAZ) \
+          case LYD_##OP_CODE: { CODE } ; break;
+          #include "lyd-ops.inc"
+          /* the include expands into cases for opcodes and the code to
+           * run when the opcode is invoked.
+           */
+          #undef LYD_OP
         }
     }
   {
