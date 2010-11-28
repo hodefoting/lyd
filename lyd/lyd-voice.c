@@ -194,39 +194,43 @@ static inline float wave_sample_loop (LydVoice *voice, float *posp, int no, floa
 // that it works at least partially.
 
 
-#define OP_ARGS LydVoice *voice, LydCommandState *state, int i
+#define OP_ARGS LydVoice *voice, LydCommandState *state, int samples
 
 static inline void adsr (OP_ARGS)
 {
-  LydSample a = ARG(0),
-            d = ARG(1),
-            s = ARG(2),
-            r = ARG(3);
-
-  if (voice->released)
+  int i;
+  for (i=0; i<samples; i++)
     {
-      if (voice->released > r) /* after end of release */
+      LydSample a = ARG(0),
+                d = ARG(1),
+                s = ARG(2),
+                r = ARG(3);
+
+      if (voice->released)
         {
-          OUT = 0.0;
+          if (voice->released > r) /* after end of release */
+            {
+              OUT = 0.0;
+            }
+          else
+            {
+              float released_val;
+              if ((SAMPLE - voice->released) <= a)     /* release in attack*/
+                released_val = ((voice->sample - voice->released) / a) * ((SAMPLE - voice->released) / a);
+              else if (SAMPLE - voice->released < (a+d))/*release in decay */
+                released_val = 1.0 + (s-1) * (((SAMPLE - voice->released) - a) / d);
+              else                                            /*release in sustain*/
+                released_val = s;
+              OUT = released_val * (1.0 - (voice->released) / r);
+            }
         }
-      else
-        {
-          float released_val;
-          if ((SAMPLE - voice->released) <= a)     /* release in attack*/
-            released_val = ((voice->sample - voice->released) / a) * ((SAMPLE - voice->released) / a);
-          else if (SAMPLE - voice->released < (a+d))/*release in decay */
-            released_val = 1.0 + (s-1) * (((SAMPLE - voice->released) - a) / d);
-          else                                            /*release in sustain*/
-            released_val = s;
-          OUT = released_val * (1.0 - (voice->released) / r);
-        }
+      else if (SAMPLE <= a)                        /* in attack */
+        OUT = (SAMPLE / a) * (SAMPLE / a);
+      else if (SAMPLE < a + d)                     /* in decay */
+        OUT = 1.0 + (s-1) * ((SAMPLE - a) / d);
+      else                                         /* in sustain */
+        OUT = s;                               
     }
-  else if (SAMPLE <= a)                        /* in attack */
-    OUT = (SAMPLE / a) * (SAMPLE / a);
-  else if (SAMPLE < a + d)                     /* in decay */
-    OUT = 1.0 + (s-1) * ((SAMPLE - a) / d);
-  else                                         /* in sustain */
-    OUT = s;                               
 }
 
 typedef struct _ReverbData 
@@ -239,42 +243,50 @@ typedef struct _ReverbData
 static inline void voice_reverb (OP_ARGS)
 {
   ReverbData *data   = state->data;
-  LydSample   reverb = ARG(0),
-              length = ARG(1),
-              sample = ARG(2);
-  int         size   = length * voice->sample_rate;
-
-  if (size <=0)
-    return;
-
-  if (G_UNLIKELY (size > LYD_MAX_REVERB_SIZE))
-    size = LYD_MAX_REVERB_SIZE;
-
-  if (G_UNLIKELY (data == NULL ||
-      size != data->size))
+  int i;
+  for (i=0; i<samples; i++)
     {
-      data = state->data = g_malloc0 (sizeof (LydSample) *size + sizeof(ReverbData));
-      data->size = size;
-      data->old = (void*)((  ((char*)(data)) + sizeof (ReverbData)));
+      LydSample   reverb = ARG(0),
+                  length = ARG(1),
+                  sample = ARG(2);
+      int         size   = length * voice->sample_rate;
+
+      if (size <=0)
+        return;
+
+      if (G_UNLIKELY (size > LYD_MAX_REVERB_SIZE))
+        size = LYD_MAX_REVERB_SIZE;
+
+      if (G_UNLIKELY (data == NULL ||
+          size != data->size))
+        {
+          data = state->data = g_malloc0 (sizeof (LydSample) *size + sizeof(ReverbData));
+          data->size = size;
+          data->old = (void*)((  ((char*)(data)) + sizeof (ReverbData)));
+        }
+      
+      sample = sample + data->old[data->pos] * reverb;
+      data->old[data->pos++] = sample / (1.0 + reverb);
+      if (G_UNLIKELY (data->pos >= size))
+        data->pos = 0;
+      OUT = sample;
     }
-  
-  sample = sample + data->old[data->pos] * reverb;
-  data->old[data->pos++] = sample / (1.0 + reverb);
-  if (G_UNLIKELY (data->pos >= size))
-    data->pos = 0;
-  OUT = sample;
 }
 
 static inline void voice_cycle (OP_ARGS)
 {
   LydSample freq = *state->arg[0];
-  int      count, pos;
+  int i;
+  for (i = 0; i < samples; i++)
+    {
+      int      count, pos;
 
-  for (count = LYD_MAX_ARGS - 1; count > 1 && ARG(count) == 0.0; count --);
+      for (count = LYD_MAX_ARGS - 1; count > 1 && ARG(count) == 0.0; count --);
 
-  pos   = fmod (freq * count * SAMPLE / voice->sample_rate, count);
+      pos   = fmod (freq * count * SAMPLE / voice->sample_rate, count);
 
-  OUT = ARG(1 + (pos+count) % count);
+      OUT = ARG(1 + (pos+count) % count);
+    }
 }
 
 static inline void

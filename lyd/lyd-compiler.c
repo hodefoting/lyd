@@ -113,6 +113,7 @@ static LydToken symbols[]= {
   {"*",     operator, 60, nud_default, 60, led_infix},
   {"/",     operator, 60, nud_default, 60, led_infix},
   {"%",     operator, 60, nud_default, 60, led_infix},
+  {"^",     operator, 70, nud_default, 70, led_infix},
   {"(",     operator, 80, nud_lparen,  0,  led_lparen},
 };
 
