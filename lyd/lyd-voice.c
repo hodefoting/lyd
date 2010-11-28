@@ -183,20 +183,30 @@ static inline float wave_sample_loop (LydVoice *voice, float *posp, int no, floa
 #ifdef HANDLE_FILTER
 #undef HANDLE_FILTER
 #endif
-  #define HANDLE_FILTER int i;\
-    if (G_UNLIKELY (!DATA))\
-      DATA = BiQuad_new(state->op-LYD_LOW_PASS,ARG0(0),ARG0(1), voice->sample_rate, ARG0(2));\
-    else if (1)\
-      BiQuad_update (DATA,state->op-LYD_LOW_PASS,ARG0(0),ARG0(1),voice->sample_rate,ARG0(2));\
-    for (i=0; i<samples; i++)  \
-      OUT = BiQuad(ARG0(3), DATA);
-// XXX: not sure if the above shoulde be ARG0(?) or ARG(?), using ARG0 ensures
-// that it works at least partially.
+
 
 
 #define OP_ARGS LydVoice *voice, LydCommandState *state, int samples
 
-static inline void adsr (OP_ARGS)
+static inline void op_filter (OP_ARGS)
+{
+  int i;
+  if (G_UNLIKELY (!DATA))
+    DATA = BiQuad_new(state->op-LYD_LOW_PASS,ARG0(0),ARG0(1), voice->sample_rate, ARG0(2));\
+  
+  /* always updating the filter is expensive */
+  BiQuad_update (DATA,state->op-LYD_LOW_PASS,ARG0(0),ARG0(1),voice->sample_rate,ARG0(2));
+
+  for (i=0; i<samples; i++)
+    OUT = BiQuad(ARG0(3), DATA);
+  /* XXX: not sure if the above shoulde be ARG0(?) or ARG(?), using ARG0 ensures
+     that it works at least partially, the filter will need to be
+     potentially updated if the arguments are changing, though that
+     could be detected. */
+}
+
+
+static inline void op_adsr (OP_ARGS)
 {
   int i;
   for (i=0; i<samples; i++)
@@ -240,7 +250,7 @@ typedef struct _ReverbData
    LydSample *old;
 } ReverbData;
 
-static inline void voice_reverb (OP_ARGS)
+static inline void op_reverb (OP_ARGS)
 {
   ReverbData *data   = state->data;
   int i;
@@ -273,7 +283,7 @@ static inline void voice_reverb (OP_ARGS)
     }
 }
 
-static inline void voice_cycle (OP_ARGS)
+static inline void op_cycle (OP_ARGS)
 {
   LydSample freq = *state->arg[0];
   int i;

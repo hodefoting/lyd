@@ -126,23 +126,23 @@ LYD_OP("evenpossin", EVENPOSSIN,
        "OPL3 oscillator",)
 
 LYD_OP("adsr", ADSR,
-       OP_START  adsr (voice, state, samples);  OP_END,
+       OP_START  op_adsr (voice, state, samples);  OP_END,
        "ADSR Envelope - provides values in range 0.0-1.0 if oscillators are"
        " multiplied with an ADSR the amplitude will sink to 0.0 after release"
        " and the voice will be automatically freed after release when it no "
        " longer makes audio, adsr(a, d, s, r), sin(120)*adsr(0.3,0.3,0.8,1.5)",)
 
 LYD_OP("reverb", REVERB,
-       OP_START  voice_reverb (voice, state, samples); OP_END,
+       OP_START  op_reverb (voice, state, samples); OP_END,
        "Reverb filter",)
 
 LYD_OP("cycle", CYCLE,
-       OP_START  voice_cycle  (voice, state, samples); OP_END,
+       OP_START  op_cycle  (voice, state, samples); OP_END,
        "Cycles between provided input streams first argument gives frequency of source hopping.",)
 
 /* biquad based frequency filters */
 LYD_OP("low_pass", LOW_PASS,
-       HANDLE_FILTER,
+       OP_START  op_filter (voice, state, samples); OP_END,
        "Low pass filter, low_pass(gain, hz, bandwidth)",)
 
 LYD_OP("high_pass", HIGH_PASS,
@@ -150,22 +150,22 @@ LYD_OP("high_pass", HIGH_PASS,
        "High pass filter, high_pass(gain, hz, bandwidth)",)
 
 LYD_OP("band_pass", BAND_PASS,
-       HANDLE_FILTER,
+       OP_START  op_filter (voice, state, samples); OP_END,
        "Band pass filter, band_pass(gain, hz, bandwidth)",)
 
 LYD_OP("notch", NOTCH,
-       HANDLE_FILTER,
+       OP_START  op_filter (voice, state, samples); OP_END,
        "notch filter, notch(gain, hz, bandwidth)",)
 
 LYD_OP("peak_eq", PEAK_EQ,
-       HANDLE_FILTER,
+       OP_START  op_filter (voice, state, samples); OP_END,
        "peak eq filter, peak_eq(gain, hz, bandwidth)",)
 
 LYD_OP("low_shelf", LOW_SHELF,
-       HANDLE_FILTER,
+       OP_START  op_filter (voice, state, samples); OP_END,
        "low shelf filter, low_shelf(gain, hz, bandwidth)",)
 
 LYD_OP("high_shelf", HIGH_SHELF,
-       HANDLE_FILTER,
+       OP_START  op_filter (voice, state, samples); OP_END,
        "high shelf filter, high_shelf(gain, hz, bandwidth)",)
 

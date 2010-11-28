@@ -29,7 +29,7 @@ typedef float LydSample; /* global define for what type lyd computes with,
 
 // #define DEBUG_CLIPPING
 
-#define LYD_CHUNK                      72
+#define LYD_CHUNK                      64
 #define LYD_MAX_ELEMENTS               80
 #define LYD_MAX_VARIABLES              8
 #define LYD_MAX_ARGS                   4
@@ -63,7 +63,7 @@ struct _LydProgram
 
 
 /* The commandstate is the compiled form of
- * a lyd program,.
+ * a lyd op-code, 
  */
 
 typedef struct _LydCommandState 
