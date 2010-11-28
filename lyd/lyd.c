@@ -434,11 +434,15 @@ lyd_voice_set_param (Lyd        *lyd,
     {
       float hash = str2float (param);
       for (j=0;voice->state[j].op == LYD_NOP; j++)
-        if (STREQUAL(voice->state[j].literal[1], hash))
-          {
-            voice->state[j].literal[0] = value;/* could set the out directly?*/
-            break;
-          }
+        {
+          if (STREQUAL(voice->state[j].literal[1][0], hash))
+            {
+              int k;
+              for (k = 0; k < LYD_CHUNK; k++)
+                voice->state[j].literal[0][k] = value;/* could set the out directly?*/
+              break;
+            }
+        }
     }
   UNLOCK ();
 }
@@ -471,9 +475,9 @@ void lyd_voice_set_param_delayed (Lyd        *lyd,        LydVoice    *voice,
     {
       int i;
       for (i=0; voice->state[i].op == LYD_NOP; i++)
-        if (STREQUAL (voice->state[i].literal[1], param->param_name))
+        if (STREQUAL (voice->state[i].literal[1][0], param->param_name))
           {
-            param->ptr = &(voice->state[i].literal[0]);
+            param->ptr = &(voice->state[i].literal[0][0]);
             break;
           }
 

@@ -14,7 +14,7 @@
 #endif
 
 LYD_OP("nop",        NOP,
-    OUT = state->literal[0];,
+    OUT = state->literal[0][INDEX];,
     "Does nothing",)
 
 LYD_OP("+",          ADD,

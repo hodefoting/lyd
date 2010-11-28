@@ -69,8 +69,8 @@ struct _LydProgram
 typedef struct _LydCommandState 
 { LydOpCode  op;
   LydSample *arg[LYD_MAX_ARGS];
-  LydSample  literal[LYD_MAX_ARGS];
-  LydSample  out; 
+  LydSample  literal[LYD_MAX_ARGS][LYD_CHUNK];
+  LydSample  out[LYD_CHUNK]; 
   void      *data;
 } LydCommandState;
 

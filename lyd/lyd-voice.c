@@ -35,23 +35,30 @@ static LydVoice * lyd_voice_create (Lyd *lyd, LydProgram *program)
       for (j = 0; j < LYD_MAX_ARGS; j++)
         {
           int offset  = program->commands[i].arg[j];
+          int k;
 
-          voice->state[i].literal[j] = program->commands[i].arg[j];
+          for (k = 0; k < LYD_CHUNK; k++)
+            voice->state[i].literal[j][k] = program->commands[i].arg[j];
           if (offset >= 0) /* direct pointer */
             {
-              voice->state[i].arg[j] = &voice->state[i].literal[j];
-              voice->state[i].out = voice->state[i].literal[j];
+              voice->state[i].arg[j] = &voice->state[i].literal[j][0];
+              for (k = 0; k < LYD_CHUNK; k++)
+                voice->state[i].out[k] = voice->state[i].literal[j][0];
             }
           else if (i + offset >= 0)
-            voice->state[i].arg[j] = &voice->state[i + offset].out;
+            voice->state[i].arg[j] = &voice->state[i + offset].out[0];
           else
             voice->state[i].arg[j] = &nul;
         }
       if (program->commands[i].op == LYD_ADSR)
         { /* premultiply with sample rate, simplifying runtime behavior  */
-          voice->state[i].literal[0] *= lyd->sample_rate;
-          voice->state[i].literal[1] *= lyd->sample_rate;
-          voice->state[i].literal[3] *= lyd->sample_rate;
+          int k;
+          for (k = 0; k < LYD_CHUNK; k++)
+            {
+              voice->state[i].literal[0][k] *= lyd->sample_rate;
+              voice->state[i].literal[1][k] *= lyd->sample_rate;
+              voice->state[i].literal[3][k] *= lyd->sample_rate;
+            }
         }
     }
   voice->position = 0.0;
@@ -155,8 +162,10 @@ static inline float wave_sample_loop (LydVoice *voice, float *posp, int no, floa
 /* shortcut boilerplate macros, used in case the execution engine is
  * modified to operate on buffers instead of individual samples
  */
-  #define OUT                state->out
-  #define ARG(no)            (*(state->arg[no]))
+#define  INDEX  0
+
+  #define OUT                state->out[INDEX]
+  #define ARG(no)            ((state->arg[no])[INDEX])
   #define SAMPLE             (voice->sample + i)
   #define TIME               (1.0 * SAMPLE * voice->i_sample_rate)
   #define PHASE              phase(voice, &ARG(2), ARG(0))
@@ -293,6 +302,6 @@ lyd_voice_compute (LydVoice  *voice,
                 printf("unhandled lyd opcode! %i\n", state->op);
             }
         }
-      retbuf[i] = (state-1)->out;
+      retbuf[i] = (state-1)->out[INDEX];
     }
 }
