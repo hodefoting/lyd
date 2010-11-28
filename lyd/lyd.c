@@ -21,7 +21,8 @@
 #include "lyd-private.h"
 
 
-static void lyd_voice_update_params (LydVoice *voice);
+static void lyd_voice_update_params (LydVoice *voice,
+                                     int       samples);
 
 
 /* we include the voice directly to make the mixing and the vm 
@@ -51,10 +52,10 @@ static LydSample lyd_reverb (Lyd *lyd, int channel, LydSample sample)
 void lyd_midi_iterate (Lyd *lyd, float elapsed); 
 
 long
-lyd_synthesize (Lyd  *lyd,
-                int   samples,
-                void *stream,
-                void *stream2)
+lyd_synthesize2 (Lyd  *lyd,
+                 int   samples,
+                 void *stream,
+                 void *stream2)
 {
   SList     *active = NULL;
   SList     *iter;
@@ -116,7 +117,7 @@ lyd_synthesize (Lyd  *lyd,
         memset (lyd->tmpbuf, 0, sizeof (LydSample) * first_sample);
          
         voice->sample++;
-        lyd_voice_update_params (voice);
+        lyd_voice_update_params (voice, samples - first_sample);
         lyd_voice_compute (voice, samples - first_sample, &lyd->tmpbuf[first_sample]);
         voice->sample += samples - first_sample - 1;
         voice->sample--;
@@ -256,6 +257,27 @@ lyd_synthesize (Lyd  *lyd,
   UNLOCK ();
   lyd->previous_samples = samples;
   return lyd->sample_no;
+}
+
+long
+lyd_synthesize (Lyd *lyd,
+                int  samples,
+                void *stream,
+                void *stream2)
+{
+  int left = samples;
+  int pos = 0;
+
+  while (left > 0)
+    {
+      int chunk = LYD_CHUNK;
+      if (chunk > left)
+        chunk = left;
+      left -= chunk;
+
+      lyd_synthesize2 (lyd, chunk, stream + pos * 4, stream2 + pos * 4);
+      pos += chunk;
+    }
 }
 
 void
@@ -500,7 +522,8 @@ cubic (const float dx,
             ( - prev + next ) ) * dx + (j + j) ) / 2.0;
 }
 
-static void lyd_voice_update_params (LydVoice *voice)
+static void lyd_voice_update_params (LydVoice *voice,
+                                     int       samples)
 {
   SList *paramlist;
 

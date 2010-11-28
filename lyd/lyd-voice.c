@@ -265,9 +265,9 @@ lyd_voice_compute (LydVoice  *voice,
   LydCommandState *state;
   int i;
   
-  //printf ("%i %i  ", samples, ((unsigned int)(retbuf)) % 32);
+  //printf ("%i %i  ", samples, ((unsigned int)(retbuf)) % LYD_CHUNK);
 
-  /* here, do a check on whether SIMD might be applicable or not, and
+  /* perhaps do a check on whether SIMD might be applicable or not, and
    * dispatch correct version
    */
   for (i = 0; i<samples; i++)
@@ -276,7 +276,13 @@ lyd_voice_compute (LydVoice  *voice,
         {
           switch (state->op)
             {
-#define LYD_OP(name, OP_CODE, CODE, BAR, BAZ)  case LYD_##OP_CODE:  CODE  break;
+              // for (i = 0; i<samples; i++) { CODE } break;
+#define LYD_OP(name, OP_CODE, CODE, BAR, BAZ) \
+          case LYD_##OP_CODE: \
+                     \
+              CODE;  \
+                     \
+          break;
 #include "lyd-ops.inc"
 #undef LYD_OP
               default:

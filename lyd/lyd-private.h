@@ -29,6 +29,7 @@ typedef float LydSample; /* global define for what type lyd computes with,
 
 // #define DEBUG_CLIPPING
 
+#define LYD_CHUNK                      16
 #define LYD_MAX_ELEMENTS               80
 #define LYD_MAX_VARIABLES              8
 #define LYD_MAX_ARGS                   4
