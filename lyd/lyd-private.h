@@ -68,7 +68,7 @@ struct _LydProgram
  * optimal for 64bit.
  */
 
-typedef struct _LydCommandState 
+typedef struct _LydOpState 
 {
   LydSample  out[LYD_CHUNK];  /* needs to start on a multiple of 16 bytes from
                                * start of loop.
@@ -78,10 +78,10 @@ typedef struct _LydCommandState
   LydSample *arg[LYD_MAX_ARGS];  /*16 bytes */
   void      *data;               /* 4 bytes */
   int        pad[2];             /* XXX: this padding probably needs to be different
-                                    for 64bit to make thse sizeof(LydCommandState)
+                                    for 64bit to make thse sizeof(LydOpState)
 				    divisible by 16 
 				  */
-} LydCommandState;
+} LydOpState;
 
 
 
@@ -264,7 +264,7 @@ struct _LydVoice
   int    tag;
 
   SList *params;        /* list of key-lists form params */
-  LydCommandState *state;/* points to immediately after the LydVoice struct
+  LydOpState *state;/* points to immediately after the LydVoice struct
                             in the same allocation */
   int    pad[2];
 };

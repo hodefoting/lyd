@@ -27,13 +27,13 @@
 static LydVoice * lyd_voice_create (Lyd *lyd, LydProgram *program)
 {
   LydVoice *voice = g_malloc0 (sizeof (LydVoice)
-                             + sizeof (LydCommandState) * LYD_MAX_ELEMENTS + LYD_ALIGN);
+                             + sizeof (LydOpState) * LYD_MAX_ELEMENTS + LYD_ALIGN);
   static LydSample nul = 0.0;
   int i, j;
 
-  voice->state = (LydCommandState*)(((char *)voice) + sizeof (LydVoice));
+  voice->state = (LydOpState*)(((char *)voice) + sizeof (LydVoice));
 
-  /* ensure correct alignment of LydCommandStates */
+  /* ensure correct alignment of LydOpStates */
   {
     char *tmp = (void*)voice->state;
     int offset = LYD_ALIGN - ((uintptr_t) tmp) % LYD_ALIGN;
@@ -194,7 +194,7 @@ static inline float wave_sample_loop (LydVoice *voice, float *posp, int no, floa
   #define ABS(a)             ((a)>0?(a):-(a))
 #endif
 
-#define OP_ARGS LydVoice *voice, LydCommandState *state, int samples
+#define OP_ARGS LydVoice *voice, LydOpState *state, int samples
 
 static inline void op_filter (OP_ARGS)
 {
@@ -364,7 +364,7 @@ lyd_voice_compute (LydVoice  *voice,
                    int        samples,
                    LydSample *retbuf)
 {
-  LydCommandState *state;
+  LydOpState *state;
   for (state = &voice->state[0]; state->op; state++)
     {
       switch (state->op)
