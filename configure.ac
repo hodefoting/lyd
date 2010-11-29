@@ -18,7 +18,32 @@ AM_CONFIG_HEADER([config.h])
 
 AM_INIT_AUTOMAKE([1.10] foreign)
 
-m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
+dnl ----------------------------- from acbirnet.m4 -------------------------------
+dnl Check whether cc accepts a certain option
+dnl MC_PROG_CC_SUPPORTS_OPTION(OPTIONS, ACTION-IF-FOUND [,ACTION-IF-NOT-FOUND])
+AC_DEFUN([MC_PROG_CC_SUPPORTS_OPTION], [
+AC_MSG_CHECKING([whether ${CC-cc} supports $1])
+echo >conftest.c;
+if ${CC-cc} [$1] -c $CFLAGS conftest.c >/dev/null 2>&1 ; then
+    AC_MSG_RESULT(yes)
+    [$2]
+else
+    AC_MSG_RESULT(no)
+    [$3]
+fi
+rm -fr conftest*
+])dnl
+
+
+MC_PROG_CC_SUPPORTS_OPTION([-msse -mmmx -ftree-vectorize], [
+   SSE_FLAGS="-msse -mmmx -ftree-vectorize"
+],[
+   SSE_FLAGS=""
+])
+AC_SUBST(SSE_FLAGS)
+
+
+#m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
 
 LYD_MAJOR_VERSION=lyd_major
 LYD_MINOR_VERSION=lyd_minor

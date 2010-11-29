@@ -7,7 +7,7 @@ INCLUDES = -I$(srcdir) -I$(top_srcdir)
 
 AM_CPPFLAGS = \
         -DPREFIX=\""$(prefix)"\"  \
-	-I$(builddir)
+	-I$(builddir) $(SSE_FLAGS)
         $(NULL)
 
 AM_CFLAGS = $(MAINTAINER_CFLAGS) $(JACK_CFLAGS) -DNIH

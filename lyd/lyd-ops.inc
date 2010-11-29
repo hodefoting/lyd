@@ -20,27 +20,45 @@ LYD_OP("/", DIV,
        OP_LOOP(OUT = ARG(1)!=0.0 ? ARG(0) / ARG(1):0.0;),
        "Divides values, <tt>value1 / value2</tt>","")
 
-LYD_OP("%", MOD,
-       OP_LOOP(OUT = fmod (ARG(0),ARG(1));),
-       "Floating point modulus, <tt>value1 % value2</tt>","")
+LYD_OP("min", MIN,
+       OP_LOOP(
+         if (ARG(0) > ARG(1))
+         OUT = ARG(1);
+          else
+         OUT = ARG(0);),
+       "Returns the smallest of two values","(expression1, expression2)")
 
+LYD_OP("max", MAX,
+       OP_LOOP(
+         if (ARG(0) < ARG(1))
+         OUT = ARG(1);
+          else
+         OUT = ARG(0);),
+       "Returns the largest of two values","(expression1, expression2)")
 
-LYD_OP("^", POW,
-       OP_LOOP(OUT = pow (ARG(0), ARG(1));),
-       "Raises the value1 to the power of value2, <tt>value1 ^ value2</tt>","") 
-
-LYD_OP("abs", ABS,
-       OP_LOOP(OUT = fabs (ARG(0));),
-       "Makes the input value positive","(expression)")
+LYD_OP("rcp", RCP,
+       OP_LOOP(OUT = 1.0/ARG(0);),
+       "Returns the reciprocal (1/value)","(expression)")
 
 LYD_OP("sqrt", SQRT,
        OP_LOOP(OUT = sqrt(ARG(0));),
        "Performs a square root on the input value", "(expression)")
 
+LYD_OP("^", POW,
+       OP_LOOP(OUT = pow (ARG(0), ARG(1));),
+       "Raises the value1 to the power of value2, <tt>value1 ^ value2</tt>","") 
+
+LYD_OP("%", MOD,
+       OP_LOOP(OUT = fmod (ARG(0),ARG(1));),
+       "Floating point modulus, <tt>value1 % value2</tt>","")
+
+LYD_OP("abs", ABS,
+       OP_LOOP(OUT = fabs (ARG(0));),
+       "Makes the input value positive","(expression)")
+
 LYD_OP("neg", NEG,
        OP_LOOP(OUT = -ARG(0);),
        "Negates input value","(expression)") /* XXX: is this even neccesary, isn't -(expr) enough? */
-
 
 /* oscillators */
 

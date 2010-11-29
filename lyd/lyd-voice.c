@@ -18,14 +18,28 @@
 
 #include "biquad.c"
 
+
+#define LYD_ALIGN     16
+
+#include <stdint.h>
+
 /* create a new voice from a program */
 static LydVoice * lyd_voice_create (Lyd *lyd, LydProgram *program)
 {
   LydVoice *voice = g_malloc0 (sizeof (LydVoice)
-                             + sizeof (LydCommandState) * LYD_MAX_ELEMENTS);
+                             + sizeof (LydCommandState) * LYD_MAX_ELEMENTS + LYD_ALIGN);
   static LydSample nul = 0.0;
   int i, j;
+
   voice->state = (LydCommandState*)(((char *)voice) + sizeof (LydVoice));
+
+  /* ensure correct alignment of LydCommandStates */
+  {
+    char *tmp = (void*)voice->state;
+    int offset = LYD_ALIGN - ((uintptr_t) tmp) % LYD_ALIGN;
+    tmp += offset;
+    voice->state = (void*)tmp;
+  }
 
   voice->lyd = lyd;
 
@@ -151,6 +165,7 @@ static inline float wave_sample_loop (LydVoice *voice, float *posp, int no, floa
 
   /* pointer to the state's data */
   #define DATA               state->data
+
 
   /* macro used when defining ops, to indicate a callback function to
    * be used for processing

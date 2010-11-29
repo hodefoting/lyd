@@ -63,15 +63,24 @@ struct _LydProgram
 
 
 /* The commandstate is the compiled form of
- * a lyd op-code, 
+ * a lyd op-code, 32bit is assumed in the layout of
+ * the commandstate, other alignment would be more
+ * optimal for 64bit.
  */
 
 typedef struct _LydCommandState 
-{ LydOpCode  op;
-  void      *data;
-  LydSample *arg[LYD_MAX_ARGS];
-  LydSample  out[LYD_CHUNK]; 
+{
+  LydSample  out[LYD_CHUNK];  /* needs to start on a multiple of 16 bytes from
+                               * start of loop.
+			       */
   LydSample  literal[LYD_MAX_ARGS][LYD_CHUNK];
+  LydOpCode  op;                 /* 4 bytes */
+  LydSample *arg[LYD_MAX_ARGS];  /*16 bytes */
+  void      *data;               /* 4 bytes */
+  int        pad[2];             /* XXX: this padding probably needs to be different
+                                    for 64bit to make thse sizeof(LydCommandState)
+				    divisible by 16 
+				  */
 } LydCommandState;
 
 
@@ -257,6 +266,7 @@ struct _LydVoice
   SList *params;        /* list of key-lists form params */
   LydCommandState *state;/* points to immediately after the LydVoice struct
                             in the same allocation */
+  int    pad[2];
 };
 
 #ifdef NIH
