@@ -162,7 +162,8 @@ static inline float wave_sample_loop (LydVoice *voice, float *posp, int no, floa
 
   /* Get, and advance the phase for an oscillator: uses ARG0 because the state
    * for phase is carried per sample in chunk buffer  */
-  #define PHASE              phase(voice, &ARG0(2), ARG0(0))
+  #define PHASE_PEEK         ARG0(2)
+  #define PHASE              phase(voice, &PHASE_PEEK, ARG0(0))
 
   /* pointer to data extension point */
   #define DATA               state->data
@@ -200,17 +201,14 @@ static inline void op_filter (OP_ARGS)
 {
   int i;
   if (G_UNLIKELY (!DATA))
-    DATA = BiQuad_new(state->op-LYD_LOW_PASS,ARG0(0),ARG0(1), voice->sample_rate, ARG0(2));\
+    DATA = BiQuad_new(state->op-LYD_LOW_PASS,ARG(0),ARG(1), voice->sample_rate, ARG(2));\
   
-  /* always updating the filter is expensive */
-  BiQuad_update (DATA,state->op-LYD_LOW_PASS,ARG0(0),ARG0(1),voice->sample_rate,ARG0(2));
-
   for (i=0; i<samples; i++)
-    OUT = BiQuad(ARG0(3), DATA);
-  /* XXX: not sure if the above shoulde be ARG0(?) or ARG(?), using ARG0 ensures
-     that it works at least partially, the filter will need to be
-     potentially updated if the arguments are changing, though that
-     could be detected. */
+    {
+      /* always updating the filter is expensive */
+      BiQuad_update (DATA,state->op-LYD_LOW_PASS,ARG(0),ARG(1),voice->sample_rate,ARG(2));
+      OUT = BiQuad(ARG(3), DATA);
+    }
 }
 
 static inline void op_adsr (OP_ARGS)

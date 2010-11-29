@@ -58,7 +58,7 @@ LYD_OP("abs", ABS,
 
 LYD_OP("neg", NEG,
        OP_LOOP(OUT = -ARG(0);),
-       "Negates input value","(expression)") /* XXX: is this even neccesary, isn't -(expr) enough? */
+       "Negates input value","(expression)") 
 
 /* oscillators */
 
@@ -117,23 +117,22 @@ LYD_OP("abssin", ABSSIN,
        "OPL2 oscillator","(hz)")
 
 LYD_OP("possin", POSSIN,
-       OP_LOOP(OUT = PHASE < 0.5 ? sine (ARG0(2) * M_PI * 2) : 0.0;),
+       OP_LOOP(OUT = PHASE < 0.5 ? sine (PHASE_PEEK * M_PI * 2) : 0.0;),
        "OPL2 oscillator","(hz)")
 
 LYD_OP("pulssin", PULSSIN,
        OP_LOOP(OUT = fmod (PHASE, 0.5) < 0.25 ?
-                  fabs (sine (ARG0(2) * M_PI * 2)) :
+                  fabs (sine (PHASE_PEEK * M_PI * 2)) :
                   0.0;),
        "OPL2 oscillator","(hz)")
 
 LYD_OP("evensin", EVENSIN,
-       OP_LOOP(OUT = PHASE < 0.5 ? sine (2 * ARG0(2) * M_PI * 2) : 0.0;),
+       OP_LOOP(OUT = PHASE < 0.5 ? sine (2 * PHASE_PEEK * M_PI * 2) : 0.0;),
        "OPL3 oscillator","(hz)")
 
 LYD_OP("evenpossin", EVENPOSSIN,
-       OP_LOOP(OUT = PHASE < 0.5 ? fabs (sine (2 * ARG0(2) * M_PI * 2)) : 0.0;),
+       OP_LOOP(OUT = PHASE < 0.5 ? fabs (sine (2 * PHASE_PEEK * M_PI * 2)) : 0.0;),
        "OPL3 oscillator","(hz)")
-
 
 LYD_OP("reverb", REVERB,
        OP_FUN (op_reverb),
@@ -175,10 +174,9 @@ LYD_OP("high_shelf", HIGH_SHELF,
        "high shelf filter",
        "(gain, hz, bandwidth)")
 
-
 LYD_OP("mix", MIX,
        OP_LOOP(OUT = (ARG(0) + ARG(1))/2;),
-       "Mixes two inputs averaging down amplitude", "(a,b)") /* should be made generic like cycle */
+       "Mixes two inputs averaging down amplitude", "(a,b)") /* should perhaps be made generic like cycle */
 
 LYD_OP("mix3", MIX3,
        OP_LOOP(OUT = (ARG(0) + ARG(1) + ARG(2))/3;),
