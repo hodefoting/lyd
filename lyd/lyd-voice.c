@@ -160,12 +160,12 @@ static inline float wave_sample_loop (LydVoice *voice, float *posp, int no, floa
    * buffer aware. */
   #define ARG0(no)           ((state->arg[no])[0])
 
-  /* Get, and advance the phase for an oscillator */
+  /* Get, and advance the phase for an oscillator: uses ARG0 because the state
+   * for phase is carried per sample in chunk buffer  */
   #define PHASE              phase(voice, &ARG0(2), ARG0(0))
 
-  /* pointer to the state's data */
+  /* pointer to data extension point */
   #define DATA               state->data
-
 
   /* macro used when defining ops, to indicate a callback function to
    * be used for processing
@@ -356,20 +356,19 @@ static inline float noise (void)
   return noise_lookup [pos];
 }
 
-/* The core virtual machine, the executes the lyd_commandstates in
- * a voice.
+/* The core virtual machine, it computes maximum LYD_CHUNK
+ * samples in one go, a pointer to the result is returned.
  */
-static inline void
+static inline LydSample *
 lyd_voice_compute (LydVoice  *voice,
-                   int        samples,
-                   LydSample *retbuf)
+                   int        samples)
 {
   LydOpState *state;
   for (state = &voice->state[0]; state->op; state++)
     {
       switch (state->op)
         {
-	  case LYD_NONE: break;
+	        case LYD_NONE: break;
 #define LYD_OP(name, OP_CODE, CODE, DOC, BAZ) \
           case LYD_##OP_CODE: { CODE } ; break;
           #include "lyd-ops.inc"
@@ -379,9 +378,6 @@ lyd_voice_compute (LydVoice  *voice,
           #undef LYD_OP
         }
     }
-  {
-   int i;
-   for (i = 0; i<samples; i++)
-     retbuf[i] = (state-1)->out[i];
-  }
+  voice->sample += samples;
+  return (state-1)->out;
 }

@@ -232,9 +232,8 @@ struct _Lyd
 
   int       reverb_pos;
 
-  LydSample  accbuf[LYD_CHUNK * 2];
-  LydSample  tmpbuf[LYD_CHUNK];
-  int accbuf_len;
+  LydSample buf[LYD_CHUNK * 2];
+  int       buf_len;
 
   void (*cb[LYD_MAX_CBS])(Lyd *lyd, float elapsed, void *data);
   void *cb_data[LYD_MAX_CBS];
@@ -266,7 +265,6 @@ struct _LydVoice
   SList *params;        /* list of key-lists form params */
   LydOpState *state;/* points to immediately after the LydVoice struct
                             in the same allocation */
-  int    pad[2];
 };
 
 #ifdef NIH
