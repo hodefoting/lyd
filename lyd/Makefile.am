@@ -14,6 +14,7 @@ AM_CFLAGS = $(MAINTAINER_CFLAGS) $(JACK_CFLAGS) -DNIH
 
 lib_LTLIBRARIES = liblyd-@LYD_API_VERSION@.la
 
+
 # please, keep the list sorted alphabetically
 liblyd_@LYD_API_VERSION@_la_SOURCES = \
         $(srcdir)/lyd.c \

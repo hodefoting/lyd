@@ -1,8 +1,12 @@
 AM_LDFLAGS = ../lyd/liblyd-$(LYD_API_VERSION).la 
 AM_CFLAGS  = -I$(top_srcdir) $(GLIB_CFLAGS)
 CFILES = $(wildcard $(srcdir)/*.c)
-noinst_bins   = $(subst $(srcdir)/,,$(CFILES:.c=))
+bins = $(subst $(srcdir)/,,$(CFILES:.c=))
+
+noinst_PROGRAMS = interpolated-param lyd-hi midi-test patches scale sun-audio wave-storm
+
 EXTRA_DIST = $(wildcard *.c) $(wildcard util/*.[ch])
+
 all-local: $(bins)
 clean-local:
 	rm -f *.lo $(bins)

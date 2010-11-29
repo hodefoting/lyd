@@ -1,4 +1,4 @@
-SUBDIRS = lyd bin examples
+SUBDIRS = lyd bin examples doc
 
 lyd-@LYD_API_VERSION@.pc: lyd.pc
 	$(QUIET_GEN)cp -f lyd.pc lyd-$(LYD_API_VERSION).pc

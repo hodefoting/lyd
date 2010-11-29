@@ -331,6 +331,7 @@ lyd_voice_compute (LydVoice  *voice,
     {
       switch (state->op)
         {
+	  case LYD_NONE: break;
 #define LYD_OP(name, OP_CODE, CODE, DOC, BAZ) \
           case LYD_##OP_CODE: { CODE } ; break;
           #include "lyd-ops.inc"

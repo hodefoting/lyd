@@ -112,6 +112,7 @@ AC_CONFIG_FILES([
         lyd/Makefile
         examples/Makefile
         bin/Makefile
+        doc/Makefile
         lyd.pc
 ])
 
