@@ -695,3 +695,47 @@ lyd_set_wave_handler (Lyd *lyd,
   lyd->wave_handler_data = user_data;
   UNLOCK ();
 }
+
+LydVoice   *lyd_filter_new      (Lyd *lyd, LydProgram *program)
+{
+  LydVoice *filter;
+  filter     = lyd_voice_create (lyd, program);
+  filter->sample_rate = lyd->sample_rate;
+  filter->i_sample_rate = 1.0/lyd->sample_rate;
+  return filter;
+}
+
+void
+lyd_filter_process (LydVoice  *filter,
+                    LydSample *input, LydSample *output,
+                    int        samples)
+{
+  int left = samples;
+  int pos = 0;
+  filter->input_buf = input;
+  filter->input_buf_len = samples;
+
+  while (left)
+    {
+      int i;
+      LydSample *result = NULL;
+      int chunk = LYD_CHUNK;
+      if (chunk > left)
+        chunk = left;
+      left -= chunk;
+
+      filter->sample++; /* XXX: some odd one-off that is needed */
+      lyd_voice_update_params (filter, chunk);
+      result = lyd_voice_compute (filter, chunk);
+      for (i = 0; i< chunk; i++)
+        output[pos+i] = result[i];
+      filter->sample--; /* XXX: some odd one-off that is needed */
+      pos += chunk;
+    }
+}
+
+void lyd_filter_free (LydVoice *filter)
+{
+  lyd_voice_free (filter);
+}
+

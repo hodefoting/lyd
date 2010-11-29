@@ -122,6 +122,18 @@ static inline float phase (LydVoice *voice, float *phasep, float hz)
 
 #define MIDDLE_C 261.625565
 
+static inline float input_sample (LydVoice *voice, float *posp)
+{
+  float old = *posp;
+  float delta = voice->i_sample_rate;
+  float new = old + delta;
+  int sample_pos = new * voice->sample_rate;
+  *posp = new;
+  if (sample_pos < voice->input_buf_len)
+    return voice->input_buf[sample_pos];
+  return 0.0;
+}
+
 static inline float wave_sample (LydVoice *voice, float *posp, int no, float hz)
 {
   LydWave *wave = voice->lyd->wave[no];

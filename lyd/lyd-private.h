@@ -232,8 +232,8 @@ struct _Lyd
 
   int       reverb_pos;
 
-  LydSample buf[LYD_CHUNK * 2];
-  int       buf_len;
+  LydSample  buf[LYD_CHUNK*2];
+  int        buf_len;
 
   void (*cb[LYD_MAX_CBS])(Lyd *lyd, float elapsed, void *data);
   void *cb_data[LYD_MAX_CBS];
@@ -261,6 +261,8 @@ struct _LydVoice
   void   *complete_data;             /* data for complete callback */
   
   int    tag;
+  LydSample *input_buf;
+  int        input_buf_len;
 
   SList *params;        /* list of key-lists form params */
   LydOpState *state;/* points to immediately after the LydVoice struct

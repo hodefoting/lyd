@@ -100,6 +100,10 @@ LYD_OP("noise", NOISE,
        OP_LOOP(OUT = noise ();),
        "Noise generator produces evenly distributed values in the range -1.0 to 1.0","()")
 
+LYD_OP("input", INPUT,
+       OP_LOOP(OUT = input_sample (voice, &ARG0(3));),
+       "Used when implementing filters, acts as a signal source.", "()")
+
 LYD_OP("wave", WAVE,
        OP_LOOP(OUT = wave_sample (voice, &ARG0(3), ARG0(0), ARG0(1));),
        "PCM data oscillator, first argument is a string, second argument if"

@@ -18,6 +18,7 @@
 #define __LYD_H_
 
 typedef struct _LydVoice   LydVoice;
+typedef struct _LydVoice   LydFilter;
 typedef struct _Lyd        Lyd;
 typedef struct _LydProgram LydProgram;
 
@@ -35,6 +36,12 @@ typedef enum {
 } LydInterpolation;
 
 Lyd        *lyd_new             (void);
+
+LydFilter  *lyd_filter_new      (Lyd *lyd, LydProgram *program);
+void        lyd_filter_process  (LydFilter *filter,
+                                 float     *input, float *output,
+                                 int        samples);
+void        lyd_filter_free     (LydFilter *filter);
 
 void        lyd_set_sample_rate (Lyd *lyd, int sample_rate);
 
