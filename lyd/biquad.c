@@ -53,7 +53,7 @@ enum {
 
 /* Below this would be biquad.c */
 /* Computes a BiQuad filter on a sample */
-smp_type BiQuad(smp_type sample, biquad * b)
+static smp_type BiQuad(smp_type sample, biquad * b)
 {
     smp_type result;
 
@@ -73,7 +73,7 @@ smp_type BiQuad(smp_type sample, biquad * b)
 }
 
 
-biquad *BiQuad_update(biquad *b, int type, smp_type dbGain, smp_type freq,
+static biquad *BiQuad_update(biquad *b, int type, smp_type dbGain, smp_type freq,
 smp_type srate, smp_type bandwidth)
 {
     smp_type A, omega, sn, cs, alpha, beta;
@@ -164,7 +164,7 @@ smp_type srate, smp_type bandwidth)
 }
 
 /* sets up a BiQuad Filter */
-biquad *BiQuad_new(int type, smp_type dbGain, smp_type freq,
+static biquad *BiQuad_new(int type, smp_type dbGain, smp_type freq,
 smp_type srate, smp_type bandwidth)
 {
     biquad *b;
