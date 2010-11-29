@@ -95,9 +95,10 @@ lyd_synthesize2 (Lyd  *lyd,
       {
         int first_sample = voice->sample<0?-voice->sample:0;
         
+        voice->sample++; /* XXX: some odd one-off that is needed */
         lyd_voice_update_params (voice, samples - first_sample);
-        voice->sample++;
         result = lyd_voice_compute (voice, samples - first_sample);
+        voice->sample--; /* XXX: some odd one-off that is needed */
 
         if (  (voice->duration != 0 && voice->sample >= voice->duration)
                || voice->released)
@@ -548,62 +549,66 @@ static void lyd_voice_update_params (LydVoice *voice,
                                      int       samples)
 {
   SList *paramlist;
+  int j;
 
-  for (paramlist = voice->params;
-       paramlist;
-       paramlist = paramlist->next)
+  for (j=0; j<samples; j++)
     {
-      SList *i;
-      LydParam *prev = NULL, *prev_prev = NULL;
-      int freefirst = 0;
-
-      for (i = paramlist->data; 
-           i && LYD_PARAM (i->data)->sample_no < voice->lyd->sample_no;
-           i = i->next)
+      for (paramlist = voice->params;
+           paramlist;
+           paramlist = paramlist->next)
         {
-          prev_prev = prev;
-          prev = i->data;
-        }
-      if (prev_prev && prev_prev != ((SList*)paramlist->data)->data)
-        freefirst = 1;
+          SList *i;
+          LydParam *prev = NULL, *prev_prev = NULL;
+          int freefirst = 0;
 
-      if (i && prev)
-        {
-          LydParam *curr = i->data;
-          float     dt = curr->sample_no == prev->sample_no ? 1.0:
-                         (voice->lyd->sample_no - prev->sample_no)
-                        /(curr->sample_no - prev->sample_no * 1.0);
-      
-          switch (curr->interpolation)
+          for (i = paramlist->data; 
+               i && LYD_PARAM (i->data)->sample_no < voice->lyd->sample_no + j;
+               i = i->next)
             {
-              case LYD_LINEAR:
-                curr->ptr[0] = prev->value * (1.0-dt) + curr->value * dt;
-                break;
-              case LYD_GAP:
-                curr->ptr[0] = 0.0;
-                break;
-              case LYD_STEP:
-                curr->ptr[0] = dt < 0.9999?prev->value:curr->value;
-                break;
-              case LYD_CUBIC:
-               {
-                LydParam *next = i->next?i->next->data:curr;
-
-                if (!prev_prev)
-                  prev_prev = prev;
-                curr->ptr[0] = cubic (dt, prev_prev->value, prev->value,
-                                          curr->value, next->value);
-                break;
-               }
+              prev_prev = prev;
+              prev = i->data;
             }
-        }
+          if (prev_prev && prev_prev != ((SList*)paramlist->data)->data)
+            freefirst = 1;
 
-      if (freefirst) /* we trim away now unneeded items from the list */
-        {            /* to speed up subsequent evaluation */
-          SList *oldfirst = paramlist->data;
-          paramlist->data = oldfirst->next;
-          oldfirst->next = NULL;
-          slist_free (oldfirst);
+          if (i && prev)
+            {
+              LydParam *curr = i->data;
+              float     dt = curr->sample_no == prev->sample_no ? 1.0:
+                             ((voice->lyd->sample_no + j) - prev->sample_no)
+                            /(curr->sample_no - prev->sample_no * 1.0);
+          
+              switch (curr->interpolation)
+                {
+                  case LYD_LINEAR:
+                    curr->ptr[j] = prev->value * (1.0-dt) + curr->value * dt;
+                    break;
+                  case LYD_GAP:
+                    curr->ptr[j] = 0.0;
+                    break;
+                  case LYD_STEP:
+                    curr->ptr[j] = dt < 0.9999?prev->value:curr->value;
+                    break;
+                  case LYD_CUBIC:
+                   {
+                    LydParam *next = i->next?i->next->data:curr;
+
+                    if (!prev_prev)
+                      prev_prev = prev;
+                    curr->ptr[j] = cubic (dt, prev_prev->value, prev->value,
+                                              curr->value, next->value);
+                    break;
+                   }
+                }
+            }
+
+          if (freefirst) /* we trim away now unneeded items from the list */
+            {            /* to speed up subsequent evaluation */
+              SList *oldfirst = paramlist->data;
+              paramlist->data = oldfirst->next;
+              oldfirst->next = NULL;
+              slist_free (oldfirst);
+            }
         }
     }
 }
