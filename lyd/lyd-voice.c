@@ -95,32 +95,6 @@ lyd_voice_free (LydVoice *voice)
   g_free (voice);
 }
 
-
-/* What follows is the actual execution engine of the virtual machine */
-
-
-
-/* Misc profiling log keeping, the numbers listed are the maximum concurrent
- * number of given programs.
- *
- * just square wave: 478 438 400 464 477 481
- *
- *   after adding buf: 461 458 446 449 450
- *
- * just sin    wave: 249 225 241
- *
- * sum of two sqw, w separate adsrs: 274 281 239
- * sum of two sinqw, w separate adsrs: 122 129 125
- *
- * waveform fully solo: 528 522
- * waveform w adsr or scale: 387 394 376 438 440
- *
- * square wave+adsr:         567 541 
- * waveform w adsr or scale: 632 620 603
- *
- */
-
-
 /* we store a phase incrementer in each voice, allowing us to change
  * the hz of a signal generator on the fly without sudden phase shifts.
  */
@@ -224,7 +198,6 @@ static inline void op_filter (OP_ARGS)
      could be detected. */
 }
 
-
 static inline void op_adsr (OP_ARGS)
 {
   int i;
@@ -316,6 +289,56 @@ static inline void op_cycle (OP_ARGS)
 
       OUT = ARG(1 + (pos+count) % count);
     }
+}
+
+#define LOOKUP_BITS  11   /* configuration of size of lookup-table */
+#define LOOKUP_SIZE  (1<<11)
+#define LOOKUP_MASK  (LOOKUP_SIZE-1)
+
+
+static float lookup_inv_step;
+static float sin_lookup[LOOKUP_SIZE];
+static float noise_lookup[LOOKUP_SIZE];
+
+void lyd_init_lookup_tables (void)
+{
+  static int done = 0;
+
+  if (done)
+    return;
+  done = 1;
+
+  {
+    unsigned int i;
+    float step;
+    float f = 0;
+    step = M_PI * 2.0f / (float)LOOKUP_SIZE;
+    lookup_inv_step = 1.0f / step;
+
+    for (i = 0; i <= LOOKUP_SIZE; i++, f += step)
+      sin_lookup[i] = sinf(f);
+
+    for (i = 0; i <= LOOKUP_SIZE; i++)
+      noise_lookup[i] = g_random_double_range (-1.0, 1.0);
+  }
+}
+/* inline lookuptable based versions version */
+static inline float sine (float a)
+{
+  /* reduce size of sin lookup table by folding/mirroring the index value
+   * with further arithmetic exploiting symmetry.
+   */
+  return sin_lookup [((int)(a * lookup_inv_step)) & LOOKUP_MASK];
+}
+
+static inline float noise (void)
+{
+  /* recycling a tiny buffer of noise is probably not what we want, but
+   * it probably sounds good enough
+   */
+  static int pos = 0;
+  pos = (pos+1) & LOOKUP_MASK;
+  return noise_lookup [pos];
 }
 
 /* The core virtual machine, the executes the lyd_commandstates in

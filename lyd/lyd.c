@@ -372,11 +372,14 @@ void lyd_voice_set_delay (Lyd *lyd, LydVoice *voice, double seconds)
   UNLOCK ();
 }
                           
+void lyd_init_lookup_tables (void);
+
 Lyd * lyd_new (void)
 {
   Lyd *lyd = g_new0 (Lyd, 1);
   pthread_mutex_init(&lyd->mutex, NULL);
   lyd->max_active = 1000;
+  lyd_init_lookup_tables ();
   return lyd;
 }
 

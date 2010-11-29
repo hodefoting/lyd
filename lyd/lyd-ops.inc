@@ -53,7 +53,7 @@ LYD_OP("adsr", ADSR,
        "(a,d,s,r)")
 
 LYD_OP("sin", SIN,
-       OP_LOOP(OUT = sin (PHASE * M_PI * 2);),
+       OP_LOOP(OUT = sine (PHASE * M_PI * 2);),
        "Sine wave osicllator","(hz)")
 
 LYD_OP("saw", SAW,
@@ -79,7 +79,7 @@ LYD_OP("pulse", PULSE,
        "Pulse oscillator to simulate square wave use a width of 0.5","(hz, width)")
 
 LYD_OP("noise", NOISE,
-       OP_LOOP(OUT = g_random_double_range (-1.0, 1.0);),
+       OP_LOOP(OUT = noise ();),
        "Noise generator produces evenly distributed values in the range -1.0 to 1.0","()")
 
 LYD_OP("wave", WAVE,
@@ -95,25 +95,25 @@ LYD_OP("wave_loop", WAVELOOP,
        " to be silenced.","('test.wav', hz)")
 
 LYD_OP("abssin", ABSSIN,
-       OP_LOOP(OUT = fabs (sin (PHASE * M_PI * 2));),
+       OP_LOOP(OUT = fabs (sine (PHASE * M_PI * 2));),
        "OPL2 oscillator","(hz)")
 
 LYD_OP("possin", POSSIN,
-       OP_LOOP(OUT = PHASE < 0.5 ? sin (ARG0(2) * M_PI * 2) : 0.0;),
+       OP_LOOP(OUT = PHASE < 0.5 ? sine (ARG0(2) * M_PI * 2) : 0.0;),
        "OPL2 oscillator","(hz)")
 
 LYD_OP("pulssin", PULSSIN,
        OP_LOOP(OUT = fmod (PHASE, 0.5) < 0.25 ?
-                  fabs (sin (ARG0(2) * M_PI * 2)) :
+                  fabs (sine (ARG0(2) * M_PI * 2)) :
                   0.0;),
        "OPL2 oscillator","(hz)")
 
 LYD_OP("evensin", EVENSIN,
-       OP_LOOP(OUT = PHASE < 0.5 ? sin (2 * ARG0(2) * M_PI * 2) : 0.0;),
+       OP_LOOP(OUT = PHASE < 0.5 ? sine (2 * ARG0(2) * M_PI * 2) : 0.0;),
        "OPL3 oscillator","(hz)")
 
 LYD_OP("evenpossin", EVENPOSSIN,
-       OP_LOOP(OUT = PHASE < 0.5 ? fabs (sin (2 * ARG0(2) * M_PI * 2)) : 0.0;),
+       OP_LOOP(OUT = PHASE < 0.5 ? fabs (sine (2 * ARG0(2) * M_PI * 2)) : 0.0;),
        "OPL3 oscillator","(hz)")
 
 
