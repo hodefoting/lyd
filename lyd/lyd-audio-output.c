@@ -113,6 +113,7 @@ static void *alsa_audio_start(void *aux)
        snd_pcm_writei(h, data, c);
     } else {
       fprintf (stderr, "alsa underun %d voices\n", lyd->active);
+      exit(0);
     }
      
   }

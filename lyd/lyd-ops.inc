@@ -45,15 +45,15 @@ LYD_OP("sqrt", SQRT,
        "Performs a square root on the input value", "(expression)")
 
 LYD_OP("^", POW,
-       OP_LOOP(OUT = pow (ARG(0), ARG(1));),
+       OP_LOOP(OUT = powf (ARG(0), ARG(1));),
        "Raises the value1 to the power of value2, <tt>value1 ^ value2</tt>","") 
 
 LYD_OP("%", MOD,
-       OP_LOOP(OUT = fmod (ARG(0),ARG(1));),
+       OP_LOOP(OUT = fmodf (ARG(0),ARG(1));),
        "Floating point modulus, <tt>value1 % value2</tt>","")
 
 LYD_OP("abs", ABS,
-       OP_LOOP(OUT = fabs (ARG(0));),
+       OP_LOOP(OUT = fabsf (ARG(0));),
        "Makes the input value positive","(expression)")
 
 LYD_OP("neg", NEG,
@@ -84,7 +84,7 @@ LYD_OP("ramp", RAMP,
 
 LYD_OP("square", SQUARE,
        OP_LOOP(OUT = PHASE > 0.5?1.0:-1.0;),
-       "Square wave oscillator equivalent to a pulse with pulse width 0.5, square(hz)","(hz)")
+       "Square wave oscillator equivalent to a pulse with pulse width 0.5, values varying between -1.0 and 1.0","(hz)")
 
 LYD_OP("triangle", TRIANGLE,
        OP_LOOP(OUT = PHASE < 0.25 ?
@@ -98,7 +98,7 @@ LYD_OP("pulse", PULSE,
 
 LYD_OP("noise", NOISE,
        OP_LOOP(OUT = noise ();),
-       "Noise generator produces evenly distributed values in the range -1.0 to 1.0","()")
+       "Noise generator produces evenly distributed values in the range 0.0 to 1.0","()")
 
 LYD_OP("input", INPUT,
        OP_LOOP(OUT = input_sample (voice);),
@@ -145,7 +145,7 @@ LYD_OP("reverb", REVERB,
 /* biquad based frequency filters */
 LYD_OP("low_pass", LOW_PASS,
        OP_FUN (op_filter),
-       "Low pass filter",
+       "Low pass filter, for performance reasons the parameters of filters are not varying with sample accurate precision but vary per chunk of processed audio (at least for each 256 samples).",
        "(gain, hz, bandwidth)")
 
 LYD_OP("high_pass", HIGH_PASS,

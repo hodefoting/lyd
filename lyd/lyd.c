@@ -35,17 +35,14 @@ void lyd_midi_iterate (Lyd *lyd, float elapsed);
 
 
 static void
-lyd_synthesize2 (Lyd  *lyd,
-                 int   samples,
-                 void *stream,
-                 void *stream2,
-                 SList *active)
+lyd_synthesize_voice (Lyd      *lyd,
+                      LydVoice *voice,
+                      int       samples,
+                      int       tot_samples,
+                      int       pos)
 {
-  SList     *iter;
   int        i;
-  LydSample *buf   = (void*)stream;
-  LydSample *buf2  = (void*)stream2;
-  short int *buf16 = (void*)stream;
+  LydSample * __restrict__ result = NULL;
 
   /* the accumulation buffer is temporary.. and shared between all voices
    * we keep one around and grow it if it isn't large enough.. might need
@@ -58,120 +55,66 @@ lyd_synthesize2 (Lyd  *lyd,
 
   /* blanking accumulation buffer... */
   assert (samples <= LYD_CHUNK);
-  memset (lyd->buf, 0, sizeof (LydSample) * samples * 2);
 
-  for (iter=active; iter; iter=iter->next)
+  /* skip voices that are not yet playing */
+  if (voice->sample + samples <0)
     {
-      LydVoice *voice = iter->data;
-      LydSample *result = NULL;
+      voice->sample += samples;
+      return;
+    }
 
-      /* skip voices that are not yet playing forward */
-      if (voice->sample + samples <0)
-        {
-          voice->sample += samples;
-          continue;
-        }
+  /* iterate voice catching output samples in buffers */
+  {
+    int first_sample = voice->sample<0?-voice->sample:0;
+    
+    voice->sample++; /* XXX: some odd one-off that is needed */
+    lyd_voice_update_params (voice, samples - first_sample);
+    result = lyd_voice_compute (voice, samples - first_sample);
+    voice->sample--; /* XXX: some odd one-off that is needed */
 
-      /* iterate voice catching output samples in buffers */
+    if (  (voice->duration != 0 && voice->sample >= voice->duration)
+           || voice->released)
+      voice->released += samples - first_sample;
+  }
+
+  /* do silence detection for released voices, to know when
+   * the voice itself can be automatically destroyed.
+   */
+  if (voice->released)
+    for (i=0;i<samples;i++)
       {
-        int first_sample = voice->sample<0?-voice->sample:0;
-        
-        voice->sample++; /* XXX: some odd one-off that is needed */
-        lyd_voice_update_params (voice, samples - first_sample);
-        result = lyd_voice_compute (voice, samples - first_sample);
-        voice->sample--; /* XXX: some odd one-off that is needed */
-
-        if (  (voice->duration != 0 && voice->sample >= voice->duration)
-               || voice->released)
-          voice->released += samples - first_sample;
+        LydSample computed = result[i];
+        voice->silence_max = (computed > voice->silence_max)
+         ?computed
+         :voice->silence_max * (1.0 - LYD_RELEASE_SILENCE_DAMPENING);
+        voice->silence_min = (computed < voice->silence_min)
+         ?computed
+         :voice->silence_min * (1.0 - LYD_RELEASE_SILENCE_DAMPENING);
       }
 
-      /* do silence detection for released voices, to know when
-       * the voice itself can be automatically destroyed.
-       */
-      if (voice->released)
-        for (i=0;i<samples;i++)
-          {
-            LydSample computed = result[i];
-            voice->silence_max = (computed > voice->silence_max)
-             ?computed
-             :voice->silence_max * (1.0 - LYD_RELEASE_SILENCE_DAMPENING);
-            voice->silence_min = (computed < voice->silence_min)
-             ?computed
-             :voice->silence_min * (1.0 - LYD_RELEASE_SILENCE_DAMPENING);
-          }
-
-      /* simple stereo distribution of mix */
-      if (voice->position == 0.0)
-        for (i=0;i<samples;i++)
-          {
-            lyd->buf[i] += result[i];
-            lyd->buf[i+samples] += result[i];
-          }
-      else if (voice->position > 0.0)
-        for (i=0;i<samples;i++)
-          {
-            lyd->buf[i] += result[i] * (1.0-voice->position);
-            lyd->buf[i+samples] += result[i];
-          }
-      else 
-        for (i=0;i<samples;i++)
-          {
-            lyd->buf[i] += result[i];
-            lyd->buf[i+samples] += result[i] * (1.0+voice->position);
-          }
-    }
-
-  if (lyd->global_filter[0])
-    lyd_filter_process (lyd->global_filter[0], lyd->buf, lyd->buf, samples);
-  if (lyd->global_filter[1])
-    lyd_filter_process (lyd->global_filter[1], lyd->buf + samples, lyd->buf + samples, samples);
-
-  for (i=0;i<samples;i++)
+  /* simple stereo distribution of mix */
+  if (voice->position == 0.0)
     {
-      LydSample value[2];
-      value[0] = lyd->buf[i];
-      value[1] = lyd->buf[i+samples];
-      {
-        LydSample nlevel = fabs(value[0]);
-        if (nlevel > lyd->level)
-          lyd->level = nlevel;
-#ifdef DEBUG_CLIPPING
-        if (nlevel > 1.0)
-          g_printf ("clipping\n");
-#endif
-        nlevel = fabs(value[1]);
-        if (nlevel > lyd->level)
-          lyd->level = nlevel;
-#ifdef DEBUG_CLIPPING
-        if (nlevel > 1.0)
-          g_printf ("clipping\n");
-#endif
-      } 
+      for (i=0;i<samples;i++)
+        lyd->buf[pos+i] += result[i];
+      for (i=0;i<samples;i++)
+        lyd->buf[pos+i+tot_samples] += result[i];
     }
-
-  /* write from accumbuf into actual buffer */
-  switch (lyd->format)
+  else if (voice->position > 0.0)
     {
-      case LYD_f32:
-        for (i=0;i<samples;i++)
-          buf[i] = (lyd->buf[i] + lyd->buf[i+samples])/2 * LYD_VOICE_VOLUME ;
-        break;
-      case LYD_f32S:
-        for (i=0;i<samples;i++)
-          {
-            buf[i] = lyd->buf[i] * LYD_VOICE_VOLUME;
-            buf2[i] = lyd->buf[i+samples] * LYD_VOICE_VOLUME;
-          }
-        break;
-      case LYD_s16S:
-        for (i=0;i<samples;i++)
-          {
-            buf16[i*2]  = (lyd->buf[i] * 32767 * LYD_VOICE_VOLUME);
-            buf16[i*2+1] = (lyd->buf[i+samples] * 32767 * LYD_VOICE_VOLUME);
-          }
+      for (i=0;i<samples;i++)
+        lyd->buf[pos+i] += result[i] * (1.0-voice->position);
+      for (i=0;i<samples;i++)
+        lyd->buf[pos+i+tot_samples] += result[i];
     }
-  lyd->sample_no += samples;
+  else 
+    {
+      for (i=0;i<samples;i++)
+        lyd->buf[pos+i] += result[i];
+      for (i=0;i<samples;i++)
+        lyd->buf[pos+i+tot_samples] += result[i] * (1.0+voice->position);
+    }
+ 
 }
 
 /* should only be called after the sample rate has been set
@@ -201,49 +144,9 @@ void lyd_set_global_filter (Lyd *lyd, LydProgram *program)
     }
 }
 
-long
-lyd_synthesize (Lyd *lyd,
-                int  samples,
-                void *stream,
-                void *stream2)
+void clean_silent (Lyd *lyd, SList *active)
 {
-  int left = samples;
-  int pos = 0;
-  SList     *iter, *active = NULL;
-
-  { /* XXX: revisit whether this should happen under lock.. */
-    int i;
-    float elapsed = lyd->previous_samples/(1.0 * lyd->sample_rate);
-    lyd_midi_iterate (lyd, elapsed);
-    for (i = 0; i < LYD_MAX_CBS; i++)
-      if (lyd->cb[i])
-        lyd->cb[i](lyd, elapsed, lyd->cb_data[i]);
-  }
-
-  LOCK ();
-  /* create a list of voices that are currently playing or will
-   * start playing during the duration of samples
-   */
-  for (iter = lyd->voices; iter; iter=iter->next)
-    {
-      LydVoice *voice = iter->data;
-      if (voice->sample + samples >=0)
-        active = slist_prepend (active, iter->data);
-      else
-        voice->sample += samples;
-    }
-
-  while (left > 0) /* break processing up in sizes of size LYD_CHUNK or smaller */
-    {
-      int chunk = LYD_CHUNK;
-      if (chunk > left)
-        chunk = left;
-      left -= chunk;
-
-      lyd_synthesize2 (lyd, chunk, stream + pos * 4, stream2 + pos * 4, active);
-      pos += chunk;
-    }
-
+  SList *iter;
   lyd->active = 0;
   for (iter=active; iter; iter=iter->next)
     {                                  /* remove released and silent voices */
@@ -299,8 +202,115 @@ lyd_synthesize (Lyd *lyd,
       else
         break;
     }
-  slist_free (active);
+}
 
+long
+lyd_synthesize (Lyd  *lyd,
+                int   samples,
+                void *stream,
+                void *stream2)
+{
+  int i;
+  SList     *iter, *active = NULL;
+  LydSample * __restrict__ buf   = (void*)stream;
+  LydSample * __restrict__ buf2  = (void*)stream2;
+  short int * __restrict__ buf16 = (void*)stream;
+
+  { /* XXX: revisit whether this should happen under lock.. */
+    float elapsed = lyd->previous_samples/(1.0 * lyd->sample_rate);
+    lyd_midi_iterate (lyd, elapsed);
+    for (i = 0; i < LYD_MAX_CBS; i++)
+      if (lyd->cb[i])
+        lyd->cb[i](lyd, elapsed, lyd->cb_data[i]);
+  }
+
+  if (lyd->buf_len < samples || lyd->buf == NULL)
+    {
+      if (lyd->buf)
+        g_free (lyd->buf);
+      lyd->buf = g_malloc0 (sizeof (LydSample) * samples * 2);
+      lyd->buf_len = samples;
+    }
+  memset (lyd->buf, 0, sizeof (LydSample) * samples * 2);
+
+  LOCK ();
+  /* create a list of voices that are currently playing or will
+   * start playing during the duration of samples
+   */
+  for (iter = lyd->voices; iter; iter=iter->next)
+    {
+      LydVoice *voice = iter->data;
+      if (voice->sample + samples >=0)
+        {
+          int left = samples;
+          int pos = 0;
+          while (left > 0) /* break processing up in sizes of size LYD_CHUNK or smaller */
+            {
+              int chunk = LYD_CHUNK;
+              if (chunk > left)
+                chunk = left;
+              left -= chunk;
+              lyd_synthesize_voice (lyd, voice, chunk, samples, pos);
+              pos += chunk;
+            }
+
+          active = slist_prepend (active, iter->data);
+        }
+      else
+        voice->sample += samples;
+    }
+
+  if (lyd->global_filter[0])
+    lyd_filter_process (lyd->global_filter[0], lyd->buf, lyd->buf, samples);
+  if (lyd->global_filter[1])
+    lyd_filter_process (lyd->global_filter[1], lyd->buf + samples, lyd->buf + samples, samples);
+
+  for (i=0;i<samples;i++)
+    {
+      LydSample value[2];
+      value[0] = lyd->buf[i];
+      value[1] = lyd->buf[i+samples];
+      {
+        LydSample nlevel = fabs(value[0]);
+        if (nlevel > lyd->level)
+          lyd->level = nlevel;
+#ifdef DEBUG_CLIPPING
+        if (nlevel > 1.0)
+          g_printf ("clipping\n");
+#endif
+        nlevel = fabs(value[1]);
+        if (nlevel > lyd->level)
+          lyd->level = nlevel;
+#ifdef DEBUG_CLIPPING
+        if (nlevel > 1.0)
+          g_printf ("clipping\n");
+#endif
+      } 
+    }
+
+  /* write from accumbuf into actual buffer */
+  switch (lyd->format)
+    {
+      case LYD_f32:
+        for (i=0;i<samples;i++)
+          buf[i] = (lyd->buf[i] + lyd->buf[i+samples])/2 * LYD_VOICE_VOLUME ;
+        break;
+      case LYD_f32S:
+        for (i=0;i<samples;i++)
+          buf[i] = lyd->buf[i] * LYD_VOICE_VOLUME;
+        for (i=0;i<samples;i++)
+          buf2[i] = lyd->buf[i+samples] * LYD_VOICE_VOLUME;
+        break;
+      case LYD_s16S:
+        for (i=0;i<samples;i++)
+          buf16[i*2]  = (lyd->buf[i] * 32767 * LYD_VOICE_VOLUME);
+        for (i=0;i<samples;i++)
+          buf16[i*2+1] = (lyd->buf[i+samples] * 32767 * LYD_VOICE_VOLUME);
+    }
+  lyd->sample_no += samples;
+
+  clean_silent (lyd, active);
+  slist_free (active);
 
   UNLOCK ();
 
@@ -401,7 +411,7 @@ Lyd * lyd_new (void)
 {
   Lyd *lyd = g_new0 (Lyd, 1);
   pthread_mutex_init(&lyd->mutex, NULL);
-  lyd->max_active = 1000;
+  lyd->max_active = 2000;
   lyd_init_lookup_tables ();
   return lyd;
 }

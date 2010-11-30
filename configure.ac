@@ -35,8 +35,10 @@ rm -fr conftest*
 ])dnl
 
 
-MC_PROG_CC_SUPPORTS_OPTION([-msse -mmmx -ftree-vectorize], [
-   SSE_FLAGS="-msse -mmmx -ftree-vectorize"
+#MC_PROG_CC_SUPPORTS_OPTION([-msse -msse2 -msse3 -mmmx -ftree-vectorize -ffastmath -mtune=native -march=native], [
+#   SSE_FLAGS="-msse3 -msse2 -msse -mmmx -ftree-vectorize -O3 -ffastmath -mtune=native -march=native"
+MC_PROG_CC_SUPPORTS_OPTION([-msse -mmmx -O3 -ftree-vectorize -ffast-math], [
+   SSE_FLAGS="-msse -mmmx -O3 -ftree-vectorize  -ffast-math " # -ftree-vectorizer-verbose=3"
 ],[
    SSE_FLAGS=""
 ])

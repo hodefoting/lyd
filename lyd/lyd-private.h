@@ -22,19 +22,21 @@
 #include <pthread.h>
 #include "lyd.h"
 
-typedef struct _LydCommand LydCommand;
-typedef float LydSample; /* global define for what type lyd computes with,
+typedef struct _LydOp LydOp;
+typedef float LydSample;
+                         /* global define for what type lyd computes with,
                             can be set to float or double, some mor jiggling
                             would be needed to support 32bit int directly */
 
 // #define DEBUG_CLIPPING
 
-#define LYD_CHUNK                      32
+#define LYD_CHUNK                      128
 #define LYD_MAX_ELEMENTS               80
-#define LYD_MAX_VARIABLES              8
 #define LYD_MAX_ARGS                   4
+
+#define LYD_MAX_VARIABLES              16
 #define LYD_MAX_CBS                    16
-#define LYD_VOICE_VOLUME               0.05
+#define LYD_VOICE_VOLUME               0.05f
 #define LYD_MAX_WAVE                   128
 #define LYD_MAX_REVERB_SIZE            48000
 #define LYD_RELEASE_SILENCE_DAMPENING  0.001
@@ -50,7 +52,7 @@ typedef enum
 #undef LYD_OP
 } LydOpCode;
 
-struct _LydCommand
+struct _LydOp
 {
   LydOpCode op;                /* The operation to execute */
   float     arg[LYD_MAX_ARGS]; /* arguments to operation */
@@ -58,29 +60,25 @@ struct _LydCommand
 
 struct _LydProgram
 {
-  LydCommand commands[LYD_MAX_ELEMENTS];
+  LydOp commands[LYD_MAX_ELEMENTS];
 };
 
 
-/* The commandstate is the compiled form of
- * a lyd op-code, 32bit is assumed in the layout of
- * the commandstate, other alignment would be more
- * optimal for 64bit.
- */
 
 typedef struct _LydOpState 
 {
-  LydSample  out[LYD_CHUNK];  /* needs to start on a multiple of 16 bytes from
+  LydSample  out [LYD_CHUNK] __attribute__ ((aligned(16)));  /* needs to start on a multiple of 16 bytes from
                                * start of loop.
 			       */
-  LydSample  literal[LYD_MAX_ARGS][LYD_CHUNK];
+
   LydOpCode  op;                 /* 4 bytes */
   LydSample *arg[LYD_MAX_ARGS];  /*16 bytes */
   void      *data;               /* 4 bytes */
-  int        pad[2];             /* XXX: this padding probably needs to be different
-                                    for 64bit to make thse sizeof(LydOpState)
-				    divisible by 16 
-				  */
+  
+  /* 8 byte hole in structure, which is needed to maintain alignment
+   * when opstates are allocated in a chunk
+   */
+  LydSample  literal[LYD_MAX_ARGS][LYD_CHUNK] __attribute__ ((aligned(16)));
 } LydOpState;
 
 
@@ -223,9 +221,6 @@ struct _Lyd
                            void *user_data);
   void     *wave_handler_data;
 
-  LydSample reverb;
-  LydSample reverb_length;
-
   LydSample level;
   int       active;
   int       max_active;
@@ -234,15 +229,11 @@ struct _Lyd
                                    one instance for each channel
                                 */
 
-  int       reverb_pos;
-
-  LydSample  buf[LYD_CHUNK*2];
-  int        buf_len;
+  LydSample  *buf;
+  int         buf_len;
 
   void (*cb[LYD_MAX_CBS])(Lyd *lyd, float elapsed, void *data);
   void *cb_data[LYD_MAX_CBS];
-
-  LydSample reverb_old[2][LYD_MAX_REVERB_SIZE];
 };
 
 struct _LydVoice
@@ -271,8 +262,9 @@ struct _LydVoice
 
 
   SList *params;        /* list of key-lists form params */
-  LydOpState *state;/* points to immediately after the LydVoice struct
-                            in the same allocation */
+  LydOpState *state;/* points to immediately (optionally with needed
+                       padding after the LydVoice struct in the
+                       same allocation */
 };
 
 #ifdef NIH
