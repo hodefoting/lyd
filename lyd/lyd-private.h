@@ -29,7 +29,7 @@ typedef float LydSample; /* global define for what type lyd computes with,
 
 // #define DEBUG_CLIPPING
 
-#define LYD_CHUNK                      64
+#define LYD_CHUNK                      32
 #define LYD_MAX_ELEMENTS               80
 #define LYD_MAX_VARIABLES              8
 #define LYD_MAX_ARGS                   4
@@ -230,6 +230,10 @@ struct _Lyd
   int       active;
   int       max_active;
 
+  LydFilter *global_filter[2];  /* a global filter applied to all generated sound,
+                                   one instance for each channel
+                                */
+
   int       reverb_pos;
 
   LydSample  buf[LYD_CHUNK*2];
@@ -264,6 +268,7 @@ struct _LydVoice
   LydSample *input_buf;
   int        input_pos;
   int        input_buf_len;
+
 
   SList *params;        /* list of key-lists form params */
   LydOpState *state;/* points to immediately after the LydVoice struct

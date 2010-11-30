@@ -37,11 +37,6 @@ typedef enum {
 
 Lyd        *lyd_new             (void);
 
-LydFilter  *lyd_filter_new      (Lyd *lyd, LydProgram *program);
-void        lyd_filter_process  (LydFilter *filter,
-                                 float     *input, float *output,
-                                 int        samples);
-void        lyd_filter_free     (LydFilter *filter);
 
 void        lyd_set_sample_rate (Lyd *lyd, int sample_rate);
 
@@ -94,6 +89,24 @@ void        lyd_voice_set_position (Lyd         *lyd,
                                     LydVoice    *voice,
                                     double       position);
 
+
+/* Filters can be used to implement processing functions that
+ * do a lyd based transformation on input.
+ */
+LydFilter  *lyd_filter_new      (Lyd *lyd, LydProgram *program);
+void        lyd_filter_process  (LydFilter *filter,
+                                 float     *input,
+                                 float     *output,
+                                 int        samples);
+void        lyd_filter_free     (LydFilter *filter);
+
+/* Specify a filter shader that is run generated audio streams.
+ */
+void        lyd_set_global_filter (Lyd *lyd, LydProgram *program);
+
+
+
+
 /* Lyd comes with a set of default patches/audio programs, */
 const char * lyd_get_patch (Lyd *lyd, int no);
 void         lyd_set_patch (Lyd *lyd, int no, const char *patch);
@@ -120,7 +133,9 @@ void         lyd_midi_seek  (Lyd *lyd, float position);
 
 
 /* add a callback function to be called _before_ synthesizing the elapsed
- * segment of audio data
+ * segment of audio data, this can be used to drive tracker based playback,
+ * since the callback is invoked at a precise time, state changes and queing
+ * of voices happens with sample accurate precision.
  */
 int          lyd_add_cb     (Lyd *lyd,
                              void (*cb)(Lyd *lyd, float elapsed, void *data),

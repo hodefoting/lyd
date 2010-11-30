@@ -13,37 +13,34 @@
 
     <p>A compact self-contained realtime audio-synthesis engine</p>
 
-    <p>Lyd is a signal processing language and engine for audio processing.
-    Suitable for realtime effect and instrument synthesis. </p>
+    <p>Lyd is a signal processing language and engine.
+    Suitable for realtime audio effect and instrument synthesis.
+    </p>
 
     <h3>Features</h3>
     <ul>
-        <li>library/engine</li>
-        <ul>
-           <li>Small binary footprint</li>
-           <li>language binding friendly small C API</li>
-           <li><a href='reference.html'>audio synthesis language</a>,
-           <em>audio-shaders</em> or "GLSL for audio", lyd uses a language but
-           the vm could just as easily support nodes.</li>
-           <li>Extendable virtual machine.</li>
-           <li>32bit float processing</li>
-           <li>patch databank (preloaded with FM-synthesis biased GM set)</li>
-           <li>Loading of PCM data from wav (using callback handlers and libsndfile)</li>
-           <li>Audio output drivers (outside core) for: <a
-             href='http://www.alsa-project.org/'>ALSA</a>, and <a
-             href='http://jackaudio.org/'>jack</a></li>
-           <li>MIDI sequencer - for playback of midi tracks (timing is broken)</li>
-        </ul>
-        <li>audio daemon</li>
-        <ul>
-            <li>MIDI/OSC control</li>
-        </ul>
-      </ul>
+         <li>Small binary footprint</li>
+         <li>32bit float processing</li>
+         <li>language binding friendly <a href='http://pippin.gimp.org/git/lyd/tree/lyd/lyd.h'>C API</a></li>
+         <li><a href='reference.html'>audio synthesis language</a> providing
+         <em>audio-shaders</em> or "GLSL for audio", lyd uses a language but
+         the vm could just as easily support nodes.</li>
+         <li>Extendable virtual machine.</li>
+         <li>Accurate queuing of voices and control of interpolated variables.</li>
+         <li>Loading of PCM data from wav (using callback handlers and libsndfile)</li>
+    </ul>
+    <ul>
+         <li>Audio output drivers (outside core) for: <a
+           href='http://www.alsa-project.org/'>ALSA</a>, and <a
+           href='http://jackaudio.org/'>jack</a></li>
+         <li>MIDI sequencer - for playback of midi tracks (timing is broken)</li>
+         <li>patch databank (preloaded with <a href='http://pippin.gimp.org/git/lyd/tree/lyd/general-midi.txt'>FM-synthesis based GM set</a>)</li>
+         <li>ALSA midi/OSC control</li>
+    </ul>
 
     <h3>API documentation</h3>
-    <p>The public API is defined in <a href='http://pippin.gimp.org/git/lyd/tree/lyd/lyd.h'>lyd.h</a>,
-    examples of it is used can be seen in <a href='http://pippin.gimp.org/git/lyd/tree/examples'>some examples</a>.
-    The lyd language is documented in the <a href='reference.html'>lyd language reference.</a>.
+    <p>The best introduction to the use of lyd is the 
+    <a href='http://pippin.gimp.org/git/lyd/tree/examples'>examples in the source tree.</a>.
     </p>
 
     <h3>Lyd binary / audio daemon</h3>
@@ -55,10 +52,12 @@
     midi support. Allowing repatching instruments used with MIDI on the fly
     from OSC.  </p>
 
-    <p>The lyd binary will try to play back midi files passed in the first
-    argument. </p>
+    <p>If a string is passed as the first argument of lyd it will try to 
+    synthesize a 0.5s long 440hz note with the given instrument.
+    <tt>lyd 'square(hz + square(40)) * adsr(0.2,0.2,0.8,0.4)'</tt>
+    </p>
 
-    <h3>How it works</h3>
+    <h3>Internal architecture</h3>
 
     <p>The following is a technical summary of what lyd actually is, it is not
     neccesary to understand any of it to make use of lyd's language and
@@ -69,25 +68,21 @@
       href='http://pippin.gimp.org/git/lyd/tree/lyd/lyd-compiler.c'>lyd-compiler.c</a>,
     to generate op-codes for it's virtual machine.</p>
 
-    <p>The op-code process small chunks of data (up to 64 samples, this size
-    needs further investigation and perhaps needs tuning according to the
-    complexity of the program) per processing cycle. This chunking outperforms
-    a minimalistic sample by sample implementation almost by double even
-    without the SIMD optimizations this refactoring was done in preparation
-    for.</p>
-
     <p>The op-codes in compiled LydPrograms are in processing order and
     arguments to the opcodes are either be positive literals or negative
     integer back-pointers to the outputs of preceding opcodes.</p>
 
-    <p>When a compiled program is instantiated to an active LydVoice the
-    opcodes gain a processing context containing local storage for generated
-    output, pointers to input arguments and a pointer used for ops with local
-    state. When running the op-codes are only reading and modifying their own
-    local state.</p>
+    <p>When a compiled program is instantiated to an active LydVoice it
+    becomes an array of <a href='http://pippin.gimp.org/git/lyd/tree/lyd/lyd-private.h#n65'>LydOpState</a>
+    entires, a struct containing the
+    opcode and a processing context with local argument and output storage.
+    </p>
 
-    <p>The values for interpolated arguments are written into the arrays for
-    literal values in the relevant op-codes.</p>
+    <p>The op-code process small chunks of data (up to 32 samples, this size
+    needs further investigation and perhaps needs tuning according to the
+    complexity of the program) per processing cycle. This chunking allows gcc
+    to autovectorise the actual executable code in the ops.
+    </p>
 
     <p>The op-codes of lyds virtual machine, and the functions and operators of
     the lyd language are all defined in <a
@@ -96,7 +91,6 @@
     compiler, the vm and the <a href='reference.html'>language reference</a>.
     </p>
 
-
     <h3>Sources</h3>
     <ul><li>lyd lives in git: <a href='http://pippin.gimp.org/git/lyd/'>git repo summary</a>, <a href='http://pippin.gimp.org/git/lyd/tree'>browse code</a>.</li>
         <li><a href='http://pippin.gimp.org/git/lyd/snapshot/lyd-master.tar.bz2'>lyd-master.tar.bz2</a> </li>
@@ -104,14 +98,11 @@
         <li><code>git clone <a href='git://pippin.gimp.org/lyd'>git://pippin.gimp.org/lyd</code></a></li>
     </ul>
 
-
     <h3>Roadmap/plans/todo/bugs <span class='foo'>(contributions welcome)</span></h3>
     <ul>
         <li>Improve GM patch set</li>
-        <li>The compiler contains a leak.</li>
-        <li>SIMDify some op-codes for performance</li>
-        <li>Multiple render threads.</li>
-        <li>lv2, jack, VSTI plug-in (both synth and audio filter plug-ins)</li>
+        <li>The compiler contains a small leak.</li>
+        <li>lv2, jack and/or VSTI plug-in (both synth and audio filter plug-ins)</li>
     </ul>
 
     <h3>License</h3>

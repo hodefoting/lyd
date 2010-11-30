@@ -31,25 +31,6 @@ static void lyd_voice_update_params (LydVoice *voice,
  */
 #include "lyd-voice.c"
 
-static LydSample lyd_reverb (Lyd *lyd, int channel, LydSample sample)
-{
-  int size;
-  int p;
-
-  size = lyd->reverb_length * lyd->sample_rate;
-  if (size > LYD_MAX_REVERB_SIZE)
-    size = LYD_MAX_REVERB_SIZE;
-  
-  p = lyd->reverb_pos;
-  sample = sample + lyd->reverb_old[channel][p] * lyd->reverb;
-  lyd->reverb_old[channel][p] = sample / (1.0 + lyd->reverb);
-  lyd->reverb_pos++;
-
-  if (lyd->reverb_pos >= size)
-    lyd->reverb_pos=0;
-  return sample;
-}
-
 void lyd_midi_iterate (Lyd *lyd, float elapsed); 
 
 
@@ -124,33 +105,33 @@ lyd_synthesize2 (Lyd  *lyd,
       if (voice->position == 0.0)
         for (i=0;i<samples;i++)
           {
-            lyd->buf[i*2+0] += result[i];
-            lyd->buf[i*2+1] += result[i];
+            lyd->buf[i] += result[i];
+            lyd->buf[i+samples] += result[i];
           }
       else if (voice->position > 0.0)
         for (i=0;i<samples;i++)
           {
-            lyd->buf[i*2+0] += result[i] * (1.0-voice->position);
-            lyd->buf[i*2+1] += result[i];
+            lyd->buf[i] += result[i] * (1.0-voice->position);
+            lyd->buf[i+samples] += result[i];
           }
       else 
         for (i=0;i<samples;i++)
           {
-            lyd->buf[i*2+0] += result[i];
-            lyd->buf[i*2+1] += result[i] * (1.0+voice->position);
+            lyd->buf[i] += result[i];
+            lyd->buf[i+samples] += result[i] * (1.0+voice->position);
           }
     }
+
+  if (lyd->global_filter[0])
+    lyd_filter_process (lyd->global_filter[0], lyd->buf, lyd->buf, samples);
+  if (lyd->global_filter[1])
+    lyd_filter_process (lyd->global_filter[1], lyd->buf + samples, lyd->buf + samples, samples);
 
   for (i=0;i<samples;i++)
     {
       LydSample value[2];
-      value[0] = lyd->buf[i*2+0];
-      value[1] = lyd->buf[i*2+1];
-      if (lyd->reverb > 0.0001)
-        {
-          lyd->buf[i*2+0] = value[0] = lyd_reverb (lyd, 0, value[0]);
-          lyd->buf[i*2-1] = value[1] = lyd_reverb (lyd, 1, value[1]);
-        }
+      value[0] = lyd->buf[i];
+      value[1] = lyd->buf[i+samples];
       {
         LydSample nlevel = fabs(value[0]);
         if (nlevel > lyd->level)
@@ -174,23 +155,50 @@ lyd_synthesize2 (Lyd  *lyd,
     {
       case LYD_f32:
         for (i=0;i<samples;i++)
-          buf[i] = (lyd->buf[i*2+0] + lyd->buf[i*2+1])/2 * LYD_VOICE_VOLUME ;
+          buf[i] = (lyd->buf[i] + lyd->buf[i+samples])/2 * LYD_VOICE_VOLUME ;
         break;
       case LYD_f32S:
         for (i=0;i<samples;i++)
           {
-            buf[i] = lyd->buf[i*2+0] * LYD_VOICE_VOLUME;
-            buf2[i] = lyd->buf[i*2+1] * LYD_VOICE_VOLUME;
+            buf[i] = lyd->buf[i] * LYD_VOICE_VOLUME;
+            buf2[i] = lyd->buf[i+samples] * LYD_VOICE_VOLUME;
           }
         break;
       case LYD_s16S:
         for (i=0;i<samples;i++)
           {
-            buf16[i*2]  = (lyd->buf[i*2+0] * 32767 * LYD_VOICE_VOLUME);
-            buf16[i*2+1] = (lyd->buf[i*2+1] * 32767 * LYD_VOICE_VOLUME);
+            buf16[i*2]  = (lyd->buf[i] * 32767 * LYD_VOICE_VOLUME);
+            buf16[i*2+1] = (lyd->buf[i+samples] * 32767 * LYD_VOICE_VOLUME);
           }
     }
   lyd->sample_no += samples;
+}
+
+/* should only be called after the sample rate has been set
+ * on lyd
+ */
+void lyd_set_global_filter (Lyd *lyd, LydProgram *program)
+{
+  int i;
+  if (!program)
+    {
+      for (i = 0; i< 2; i++)
+        {
+          if (lyd->global_filter[i])
+            lyd_filter_free (lyd->global_filter[i]);
+          lyd->global_filter[i] = NULL;
+        }
+      return;
+    }
+  for (i = 0; i< 2; i++)
+    {
+      if (lyd->global_filter[i])
+        lyd_filter_free (lyd->global_filter[i]);
+      if (program)
+        lyd->global_filter[i] = lyd_filter_new (lyd, program);
+      else
+        lyd->global_filter[i] = NULL;
+    }
 }
 
 long
@@ -706,16 +714,22 @@ LydVoice   *lyd_filter_new      (Lyd *lyd, LydProgram *program)
 }
 
 void
-lyd_filter_process (LydVoice  *filter,
-                    LydSample *input, LydSample *output,
-                    int        samples)
+lyd_filter_process (LydVoice   *filter,
+                    LydSample  *input,
+                    LydSample  *output,
+                    int         samples)
 {
   int left = samples;
   int pos = 0;
 
-  filter->input_buf = input;
-  filter->input_pos = 0;
-  filter->input_buf_len = samples;
+  filter->sample_rate = filter->lyd->sample_rate;
+  filter->i_sample_rate = 1.0/filter->lyd->sample_rate;
+  if (input)
+    {
+      filter->input_buf = input;
+      filter->input_pos = 0;
+      filter->input_buf_len = samples;
+    }
 
   while (left)
     {
