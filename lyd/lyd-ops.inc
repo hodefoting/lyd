@@ -101,7 +101,7 @@ LYD_OP("noise", NOISE,
        "Noise generator produces evenly distributed values in the range -1.0 to 1.0","()")
 
 LYD_OP("input", INPUT,
-       OP_LOOP(OUT = input_sample (voice, &ARG0(3));),
+       OP_LOOP(OUT = input_sample (voice);),
        "Used when implementing filters, acts as a signal source.", "()")
 
 LYD_OP("wave", WAVE,

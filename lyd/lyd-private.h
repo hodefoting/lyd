@@ -262,6 +262,7 @@ struct _LydVoice
   
   int    tag;
   LydSample *input_buf;
+  int        input_pos;
   int        input_buf_len;
 
   SList *params;        /* list of key-lists form params */

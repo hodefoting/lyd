@@ -52,6 +52,7 @@ static LydSample lyd_reverb (Lyd *lyd, int channel, LydSample sample)
 
 void lyd_midi_iterate (Lyd *lyd, float elapsed); 
 
+
 static void
 lyd_synthesize2 (Lyd  *lyd,
                  int   samples,
@@ -64,7 +65,6 @@ lyd_synthesize2 (Lyd  *lyd,
   LydSample *buf   = (void*)stream;
   LydSample *buf2  = (void*)stream2;
   short int *buf16 = (void*)stream;
-
 
   /* the accumulation buffer is temporary.. and shared between all voices
    * we keep one around and grow it if it isn't large enough.. might need
@@ -712,7 +712,9 @@ lyd_filter_process (LydVoice  *filter,
 {
   int left = samples;
   int pos = 0;
+
   filter->input_buf = input;
+  filter->input_pos = 0;
   filter->input_buf_len = samples;
 
   while (left)

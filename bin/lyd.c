@@ -65,6 +65,7 @@ int main (int    argc,
 
   if(argv[1])
     {
+#if 0
        long    length;
        char   *mididata = NULL;
        FILE   *file;
@@ -91,6 +92,19 @@ int main (int    argc,
        lyd_midi_load (lyd, (void *)mididata, length);
        lyd_midi_set_playing (lyd, 1);
        free (mididata);
+#else
+       LydProgram *program = lyd_compile (lyd, argv[1]);
+       LydVoice *voice;
+       if (program)
+         {
+           voice = lyd_voice_new (lyd, program, 0);
+           lyd_voice_set_param (lyd, voice, "volume", 1.0);
+           lyd_voice_set_param (lyd, voice, "hz", 440.0);
+           lyd_voice_set_duration (lyd, voice, 0.5);
+           lyd_voice_set_delay (lyd, voice, 0.0); 
+           lyd_voice_set_position (lyd, voice, 0.0);
+         }
+#endif
     }
   else
     {
