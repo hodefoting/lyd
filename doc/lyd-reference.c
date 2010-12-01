@@ -20,7 +20,7 @@ int main (int argc, char **argv)
 
  "<h3><a name='keywords' href='#keywords'>Arithmetic</a></h3><p>Mathematical functions, paranthesises can be used to override or document precedence for the in-fix operations +,-,*,/,%% and ^</p\n");
   printf ("<p>");
-#define LYD_OP(TOKEN,ENUM,CODE,DOC,UNUSED) \
+#define LYD_OP(TOKEN,ENUM,ARG_COUNT,CODE,DOC,ARG_DOC) \
   if (!strcmp(TOKEN, "adsr")) printf ("</p><h3><a name='oscillators' href='#oscillators'>Oscillators</a></h3>"\
                                       "<p>Oscillators and other signal generators generate a time/sample dependent output and provides the changing elements of the equation expressed in the lyd language.</p><p>\n");\
   if (!strcmp(TOKEN, "reverb")) printf ("</p><h3><a name='filters' href='#filters'>Filters</a></h3><p>Filters adjust various qualities of a signal, ranging from providing chorus to masking out portions of the signal.</p><p>\n");\
@@ -30,7 +30,7 @@ int main (int argc, char **argv)
 #undef LYD_OP
   printf ("</p>");
 
-#define LYD_OP(TOKEN,ENUM,CODE,DOC,ARGS) \
+#define LYD_OP(TOKEN,ENUM,ARG_COUNT,CODE,DOC,ARGS) \
   printf ("<h3><a name='%s' href='#%s'>%s %s</a></h3><p>%s</p>\n", TOKEN, TOKEN, TOKEN, ARGS, DOC);
 #include "lyd-ops.inc"
 #undef LYD_OP

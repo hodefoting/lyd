@@ -21,6 +21,15 @@
 #include <assert.h>
 #include "lyd-private.h"
 
+int lyd_op_argc[]=
+{
+  0
+  //#define LYD_OP(name, OP_CODE, ARG_COUNT, CODE, DOC, ARG_DOC), 4 //ARG_COUNT 
+  #define LYD_OP(name, OP_CODE, ARG_COUNT, CODE, DOC, ARG_DOC), ARG_COUNT 
+  #include "lyd-ops.inc"
+  #undef LYD_OP
+  , -1
+};
 
 static void lyd_voice_update_params (LydVoice *voice,
                                      int       samples);
@@ -67,10 +76,8 @@ lyd_synthesize_voice (Lyd      *lyd,
   {
     int first_sample = voice->sample<0?-voice->sample:0;
     
-    voice->sample++; /* XXX: some odd one-off that is needed */
     lyd_voice_update_params (voice, samples - first_sample);
     result = lyd_voice_compute (voice, samples - first_sample);
-    voice->sample--; /* XXX: some odd one-off that is needed */
 
     if (  (voice->duration != 0 && voice->sample >= voice->duration)
            || voice->released)
@@ -118,7 +125,17 @@ lyd_synthesize_voice (Lyd      *lyd,
 }
 
 /* should only be called after the sample rate has been set
- * on lyd
+ * on lyd, the global filter could be extended into a
+ * generic posprocessing and stereo dispatch program.
+ *
+ * With separate processing pipeline statements all in a
+ * single lyd source.  * With multiple statements specifying
+ * and carrying out the assignment to output buffers would be
+ * needed in programs (autodetecting and expanding the
+ * single expression case would be good.)
+ *
+ * For now it is most useful for postprocessing, adding dither
+ * with "input() + (noise()-0.5) * (1./065536)"
  */
 void lyd_set_global_filter (Lyd *lyd, LydProgram *program)
 {
@@ -276,14 +293,14 @@ lyd_synthesize (Lyd  *lyd,
           lyd->level = nlevel;
 #ifdef DEBUG_CLIPPING
         if (nlevel > 1.0)
-          g_printf ("clipping\n");
+          printf ("clipping\n");
 #endif
         nlevel = fabs(value[1]);
         if (nlevel > lyd->level)
           lyd->level = nlevel;
 #ifdef DEBUG_CLIPPING
         if (nlevel > 1.0)
-          g_printf ("clipping\n");
+          printf ("clipping\n");
 #endif
       } 
     }
@@ -470,13 +487,18 @@ lyd_voice_set_param (Lyd        *lyd,
   if (slist_find (lyd->voices, voice))
     {
       float hash = str2float (param);
-      for (j=0;voice->state[j].op == LYD_NOP; j++)
+      LydOpState *state;
+      /* the variable constants are stored as a sequence of nops at the
+       * beginning of the program
+       */
+      for (state=voice->state; state->op == LYD_NOP; state = state->next)
         {
-          if (STREQUAL(voice->state[j].literal[1][0], hash))
+          if (STREQUAL(state->literal[1 * LYD_CHUNK], hash))
             {
               int k;
               for (k = 0; k < LYD_CHUNK; k++)
-                voice->state[j].literal[0][k] = value;/* could set the out directly?*/
+                state->literal[k] = value;/* could set the out directly,
+                                             and make nops be true no-ops? */
               break;
             }
         }
@@ -511,10 +533,11 @@ void lyd_voice_set_param_delayed (Lyd        *lyd,        LydVoice    *voice,
   if (slist_find (lyd->voices, voice))
     {
       int i;
-      for (i=0; voice->state[i].op == LYD_NOP; i++)
-        if (STREQUAL (voice->state[i].literal[1][0], param->param_name))
+      LydOpState *state;
+      for (state = voice->state; state->op == LYD_NOP; state = state->next)
+        if (STREQUAL (state->literal[LYD_CHUNK * 1], param->param_name))
           {
-            param->ptr = &(voice->state[i].literal[0][0]);
+            param->ptr = &(state->literal[0]);
             break;
           }
 
@@ -750,12 +773,10 @@ lyd_filter_process (LydVoice   *filter,
         chunk = left;
       left -= chunk;
 
-      filter->sample++; /* XXX: some odd one-off that is needed */
       lyd_voice_update_params (filter, chunk);
       result = lyd_voice_compute (filter, chunk);
       for (i = 0; i< chunk; i++)
         output[pos+i] = result[i];
-      filter->sample--; /* XXX: some odd one-off that is needed */
       pos += chunk;
     }
 }
@@ -764,4 +785,3 @@ void lyd_filter_free (LydVoice *filter)
 {
   lyd_voice_free (filter);
 }
-

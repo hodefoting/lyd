@@ -19,9 +19,8 @@
 #include "biquad.c"
 
 
-#define LYD_ALIGN     16
 typedef union { LydSample v[LYD_CHUNK]; }
-LydChunk __attribute__ ((__aligned__(16)));
+LydChunk __attribute__ ((__aligned__(LYD_ALIGN)));
 
 #include <stdint.h>
 
@@ -31,13 +30,18 @@ static LydVoice * lyd_voice_create (Lyd *lyd, LydProgram *program)
   LydVoice *voice;
   static LydSample nul = 0.0;
   int i, j;
+  LydOpState *state;
+  LydOpState *states[LYD_MAX_ELEMENTS];
 
   int opcount;
-  for (opcount = 0; program->commands[opcount].op; opcount++);
+  int arg_count = 0;
+  int codesize;
+  for (opcount = 0; program->commands[opcount].op; opcount++)
+    arg_count += lyd_op_argc[program->commands[opcount].op];
   opcount++;
 
-  voice = g_malloc0 (sizeof (LydVoice)
-                             + sizeof (LydOpState) * opcount + LYD_ALIGN);
+  codesize = sizeof (LydOpState) * opcount + sizeof (LydChunk) * arg_count;
+  voice = g_malloc0 (sizeof (LydVoice) + codesize + LYD_ALIGN);
   voice->state = (LydOpState*)(((char *)voice) + sizeof (LydVoice));
 
   /* ensure 16 byte alignment of LydOpStates */
@@ -49,42 +53,56 @@ static LydVoice * lyd_voice_create (Lyd *lyd, LydProgram *program)
   }
 
   voice->lyd = lyd;
+  state = voice->state;
 
   for (i = 0; program->commands[i].op; i++)
     {
-      voice->state[i].op = program->commands[i].op;
-      voice->state[i].next = &voice->state[i+1];
+      states[i] = state;
+      state->op = program->commands[i].op;
+      state->next = 
+          (LydOpState*)(((char *)state) +
+                        sizeof (LydOpState) +
+                        (sizeof (LydChunk)) * lyd_op_argc[state->op]);
       
-      for (j = 0; j < LYD_MAX_ARGS; j++)
+      for (j = 0; j < lyd_op_argc[state->op]; j++)
         {
           int offset  = program->commands[i].arg[j];
           int k;
 
           for (k = 0; k < LYD_CHUNK; k++)
-            voice->state[i].literal[j][k] = program->commands[i].arg[j];
+            state->literal[j * LYD_CHUNK + k] = program->commands[i].arg[j];
           if (offset >= 0) /* direct pointer */
             {
-              voice->state[i].arg[j] = &voice->state[i].literal[j][0];
+              state->arg[j] = &state->literal[j * LYD_CHUNK];
               for (k = 0; k < LYD_CHUNK; k++)
-                voice->state[i].out[k] = voice->state[i].literal[j][0];
+                state->out[k] = state->arg[j][0];
             }
           else if (i + offset >= 0)
-            voice->state[i].arg[j] = &voice->state[i + offset].out[0];
+            {
+              state->arg[j] = &states[i + offset]->out[0];
+            }
           else
-            voice->state[i].arg[j] = &nul;
+            state->arg[j] = &nul;
+          assert (state->arg[j]);
         }
+
       if (program->commands[i].op == LYD_ADSR)
         { /* premultiply with sample rate, simplifying runtime behavior  */
           int k;
           for (k = 0; k < LYD_CHUNK; k++)
             {
-              voice->state[i].literal[0][k] *= lyd->sample_rate;
-              voice->state[i].literal[1][k] *= lyd->sample_rate;
-              voice->state[i].literal[3][k] *= lyd->sample_rate;
+              state->literal[0 * LYD_CHUNK + k] *= lyd->sample_rate;
+              state->literal[1 * LYD_CHUNK + k] *= lyd->sample_rate;
+              state->literal[3 * LYD_CHUNK + k] *= lyd->sample_rate;
             }
         }
+      state = state->next;
     }
   voice->position = 0.0;
+  voice->sample = 1;  /* XXX: unsure why this is needed and
+                         it cannot just start at 0, some patches in the
+                         GM set with patches example go silent without this.
+                       */
   return voice;
 }
 
@@ -92,19 +110,19 @@ static LydVoice * lyd_voice_create (Lyd *lyd, LydProgram *program)
 static void
 lyd_voice_free (LydVoice *voice)
 {
-  int i;
-  for (i = 0; voice->state[i].op; i++)
-    if (voice->state[i].data)
-      switch (voice->state[i].op)
+  LydOpState *state;
+  for (state = voice->state; state->op; state=state->next)
+    if (state->data)
+      switch (state->op)
         {
           case LYD_LOW_PASS:  case LYD_HIGH_PASS: case LYD_BAND_PASS:
           case LYD_NOTCH:     case LYD_PEAK_EQ:
           case LYD_LOW_SHELF: case LYD_HIGH_SHELF:
-            free (voice->state[i].data);
+            free (state->data);
             break;
           case LYD_REVERB:
           default:
-            g_free (voice->state[i].data);
+            g_free (state->data);
         }
   {
     SList *l1, *l2;
@@ -145,35 +163,35 @@ static inline float input_sample (LydVoice *voice)
 
 #define MIDDLE_C 261.625565
 
-static inline float wave_sample (LydVoice *voice, float *posp, int no, float hz)
+static inline float wave_sample (LydVoice *voice, LydOpState *state, int no, float hz)
 {
   LydWave *wave = voice->lyd->wave[no];
-  float old = *posp;
+  float old = state->phase;
   float delta = voice->i_sample_rate * (hz>0.001?hz/MIDDLE_C:1.0);
   float new = old + delta;
   int sample_pos = new * wave->sample_rate;
-  *posp = new;
+  state->phase = new;
   if (sample_pos < wave->samples)
     return wave->data[sample_pos];
   return 0.0;
 }
 
-static inline float wave_sample_loop (LydVoice *voice, float *posp, int no, float hz)
+static inline float wave_sample_loop  (LydVoice *voice, LydOpState *state, int no, float hz)
 {
   LydWave *wave = voice->lyd->wave[no];
-  float old = *posp;
+  float old = state->phase;
   float delta = voice->i_sample_rate * (hz>0.001?hz/MIDDLE_C:1.0);
   float new = old + delta;
   int sample_pos = new * wave->sample_rate;
-  *posp = new;
+  state->phase = new;
   if (sample_pos < wave->samples)
     return wave->data[sample_pos];
-  *posp = 0.0;
+  state->phase = 0.0;
   return 0.0;
 }
 
   #define OUT      out->v[i]  
-  #define ARG(no)  arg##no->v[i]  
+  #define ARG(no)  arg##no->v[i]
   #define ARG0(no) arg##no->v[0]
   /* Shortcut code used for implementing ops, keeping them short concise
    * and reabable.
@@ -204,11 +222,15 @@ static inline float wave_sample_loop (LydVoice *voice, float *posp, int no, floa
     LydChunk * __restrict__ arg1 = (void*)(state->arg[1]);\
     LydChunk * __restrict__ arg2 = (void*)(state->arg[2]);\
     LydChunk * __restrict__ arg3 = (void*)(state->arg[3]);\
+    LydChunk * __restrict__ arg4 = (void*)(state->arg[4]);\
+    LydChunk * __restrict__ arg5 = (void*)(state->arg[5]);\
+    LydChunk * __restrict__ arg6 = (void*)(state->arg[6]);\
+    LydChunk * __restrict__ arg7 = (void*)(state->arg[7]);\
     LydChunk * __restrict__ out  = (void*)(state->out);\
 
   /* to remove warnings about unused vars, gcc optimizes this away for us */
   #define ALIGNED_ARGS_SILENCE \
-    arg0=arg1=arg2=arg3 
+    arg0=arg1=arg2=arg3=arg4=arg5=arg6=arg7
 
   #define OP_LOOP(CODE) \
     ALIGNED_ARGS \
@@ -234,19 +256,14 @@ static inline float wave_sample_loop (LydVoice *voice, float *posp, int no, floa
 static inline void op_filter (OP_ARGS)
 {
   ALIGNED_ARGS;
-  int i;
+  int i = 0;
   if (G_UNLIKELY (!DATA))
     DATA = BiQuad_new(state->op-LYD_LOW_PASS,ARG(0),ARG(1), voice->sample_rate, ARG(2));\
   
-  i=0; /* we update the filter once per all samples, assuming that it doesn't
-          vary that rapidly, still allowing it to vary, would perhaps be best
-          to simply "hash" the arguments and keep them in storage. seems to give
-          at least 4x performance boost.
-        */
+  /* always updating the filter is expensive, so we do it once per chunk  */
   BiQuad_update (DATA,state->op-LYD_LOW_PASS,ARG(0),ARG(1),voice->sample_rate,ARG(2));
   for (i=0; i<samples; i++)
     {
-      /* always updating the filter is expensive */
       OUT = BiQuad(ARG(3), DATA);
     }
   ALIGNED_ARGS_SILENCE;
@@ -339,7 +356,7 @@ static inline void op_cycle (OP_ARGS)
   LydSample freq = ARG0(0);
   for (i = 0; i < samples; i++)
     {
-      int      count = LYD_MAX_ARGS, pos;
+      int      count = lyd_op_argc [state->op], pos;
 
       if(ARG(3) == 0.0) count --;
       if(ARG(2) == 0.0) count --;
@@ -359,7 +376,6 @@ static inline void op_cycle (OP_ARGS)
 #define LOOKUP_BITS   11   /* configuration of size of lookup-table */
 #define LOOKUP_SIZE   (1<<11)
 #define LOOKUP_MASK   (LOOKUP_SIZE-1)
-
 
 static float lookup_inv_step;
 static float sin_lookup[LOOKUP_SIZE];
@@ -409,21 +425,19 @@ static inline LydSample *
 lyd_voice_compute (LydVoice  *voice,
                    int        samples)
 {
-  LydOpState *state;
-  for (state = &voice->state[0]; state->op; state=state->next)
-    {
-      switch (state->op)
-        {
-	        case LYD_NONE: break;
-#define LYD_OP(name, OP_CODE, CODE, DOC, BAZ) \
-          case LYD_##OP_CODE: asm("#====LYDOPCODE " name);{ CODE } ; asm("#=====OPCODE END " name); break;
-          #include "lyd-ops.inc"
-          /* the include expands into cases for opcodes and the code to
-           * run when the opcode is invoked.
-           */
-          #undef LYD_OP
-        }
-    }
+  LydOpState *state, *last_state = NULL;
+  for (state = voice->state; state->op; last_state = state, state=state->next)
+    switch (state->op)
+      {
+	      case LYD_NONE: break;
+#define LYD_OP(name, OP_CODE, ARGC, CODE, DOC, BAZ) \
+        case LYD_##OP_CODE: asm("#====LYDOPCODE " name);{ CODE } ; asm("#=====OPCODE END " name); break;
+        #include "lyd-ops.inc"
+        /* the include expands into cases for opcodes and the code to
+        * run when the opcode is invoked.
+          */
+        #undef LYD_OP
+      }
   voice->sample += samples;
-  return (state-1)->out;
+  return last_state->out;
 }

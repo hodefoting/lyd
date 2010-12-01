@@ -37,7 +37,7 @@ typedef struct {
 /* table mapping keywords of the language to op-codes */
 static LydOpCodeMap op_lexicon[] = {
   {"none",       LYD_NONE},
-#define LYD_OP(NAME, OP_CODE, FOO, BAR, BAZ)  {NAME, LYD_##OP_CODE},
+#define LYD_OP(NAME, OP_CODE, ARGS, CODE, DOC, ARG_DOC)  {NAME, LYD_##OP_CODE},
 #include "lyd-ops.inc"
 #undef LYD_OP
 };

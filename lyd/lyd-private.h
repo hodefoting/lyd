@@ -32,7 +32,7 @@ typedef float LydSample;
 
 #define LYD_CHUNK                      128
 #define LYD_MAX_ELEMENTS               128
-#define LYD_MAX_ARGS                   4
+#define LYD_MAX_ARGS                   8
 
 #define LYD_MAX_VARIABLES              16
 #define LYD_MAX_CBS                    16
@@ -42,11 +42,12 @@ typedef float LydSample;
 #define LYD_RELEASE_SILENCE_DAMPENING  0.001
 #define LYD_RELEASE_THRESHOLD          0.01
 #define LYD_MIN_RELASE_TIME_DIVISOR    100   /* computed as samplerate/this */
+#define LYD_ALIGN                      16    /* needed for tree-vectorize SIMD*/
 
 /* The opcodes of lyds virtual machine */
 typedef enum
 {
-#define LYD_OP(NAME, OP_CODE, FOO, BAR, BAZ)  ,LYD_##OP_CODE
+#define LYD_OP(NAME, OP_CODE, FOO, BAR, BAZ, QUX)  ,LYD_##OP_CODE
   LYD_NONE = 0
 #include "lyd-ops.inc"
 #undef LYD_OP
@@ -68,15 +69,15 @@ typedef struct _LydOpState  LydOpState;
 
 struct _LydOpState 
 {
-  LydSample   out [LYD_CHUNK] __attribute__ ((aligned(16)));  
+  LydSample   out [LYD_CHUNK] __attribute__ ((aligned(LYD_ALIGN)));  
 
   LydOpCode   op;                 /* 4 bytes */
-  LydSample  *arg[LYD_MAX_ARGS];  /*16 bytes */
   void       *data;               /* 4 bytes */
   LydOpState *next;               /* 4 bytes */
   LydSample   phase;              /* 4 bytes */
+  LydSample  *arg[LYD_MAX_ARGS];  /* ? bytes */
   
-  LydSample   literal[LYD_MAX_ARGS][LYD_CHUNK] __attribute__ ((aligned(16)));
+  LydSample   literal[] __attribute__ ((aligned(LYD_ALIGN)));
 };
 
 
