@@ -73,7 +73,13 @@ LYD_OP("adsr", ADSR, 4,
        " multiplied with an ADSR the amplitude will sink to 0.0 after release"
        " and the voice will be automatically freed after release when it no "
        " longer makes audio, <tt>sin(120)*adsr(0.3,0.3,0.8,1.5)</tt>",
-       "(a,d,s,r)")
+       "(attack, decay, sustain, release)")
+
+LYD_OP("ddadsr", DDADSR, 6,
+       OP_FUN (op_ddadsr),
+       "DDADSR Envelope - like ADSR, but with delay and duration first",
+       "(delay, duration, atack, decay, sustain, release)")
+
 
 LYD_OP("sin", SIN, 1,
        OP_LOOP(OUT = sine (PHASE * M_PI * 2);),

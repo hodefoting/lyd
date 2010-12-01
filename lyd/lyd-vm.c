@@ -84,15 +84,32 @@ static LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
           assert (state->arg[j]);
         }
 
-      if (program->commands[i].op == LYD_ADSR)
-        { /* premultiply with sample rate, simplifying runtime behavior  */
-          int k;
-          for (k = 0; k < LYD_CHUNK; k++)
-            {
-              state->literal[0 * LYD_CHUNK + k] *= lyd->sample_rate;
-              state->literal[1 * LYD_CHUNK + k] *= lyd->sample_rate;
-              state->literal[3 * LYD_CHUNK + k] *= lyd->sample_rate;
-            }
+      switch (program->commands[i].op)
+        {
+          case LYD_ADSR:
+          { /* premultiply with sample rate, simplifying runtime behavior  */
+            int k;
+            for (k = 0; k < LYD_CHUNK; k++)
+              {
+                state->literal[0 * LYD_CHUNK + k] *= lyd->sample_rate;
+                state->literal[1 * LYD_CHUNK + k] *= lyd->sample_rate;
+                state->literal[3 * LYD_CHUNK + k] *= lyd->sample_rate;
+              }
+            break;
+          }
+          case LYD_DDADSR:
+          { /* premultiply with sample rate, simplifying runtime behavior  */
+            int k;
+            for (k = 0; k < LYD_CHUNK; k++)
+              {
+                state->literal[0 * LYD_CHUNK + k] *= lyd->sample_rate;
+                state->literal[1 * LYD_CHUNK + k] *= lyd->sample_rate;
+                state->literal[2 * LYD_CHUNK + k] *= lyd->sample_rate;
+                state->literal[3 * LYD_CHUNK + k] *= lyd->sample_rate;
+                state->literal[5 * LYD_CHUNK + k] *= lyd->sample_rate;
+              }
+            break;
+          }
         }
       state = state->next;
     }
@@ -268,16 +285,63 @@ static inline void op_filter (OP_ARGS)
   ALIGNED_ARGS_SILENCE;
 }
 
+
+static inline void op_ddadsr (OP_ARGS)
+{
+  ALIGNED_ARGS;
+  int i;
+  LydSample delay = ARG0(0),
+            duration = ARG0(1),
+            a = ARG0(2),
+            d = ARG0(3),
+            s = ARG0(4),
+            r = ARG0(5);
+  for (i=0; i<samples; i++)
+    {
+      int sample = SAMPLE - delay;
+
+      if (sample < 0)
+        {
+          OUT = 0.0;
+        }
+      else if (sample > duration)
+        {
+          int released = sample - duration;
+          if (released > r) /* after end of release */
+            {
+              OUT = 0.0;
+            }
+          else
+            {
+              float released_val;
+              if ((sample - released) <= a)  /* release in attack*/
+                released_val = (((vm->sample - delay)- released) / a) * ((sample - released) / a);
+              else if (sample - released < (a+d))/*release in decay */
+                released_val = 1.0 + (s-1) * (((sample - released) - a) / d);
+              else                                      /*release in sustain */
+                released_val = s;
+              OUT = released_val * (1.0 - (released) / r);
+            }
+        }
+      else if (sample <= a)                        /* in attack */
+        OUT = (sample / a) * (sample / a);
+      else if (sample < a + d)                     /* in decay */
+        OUT = 1.0 + (s-1) * ((sample - a) / d);
+      else                                         /* in sustain */
+        OUT = s; 
+    }
+}
+
 static inline void op_adsr (OP_ARGS)
 {
   ALIGNED_ARGS;
   int i;
+  LydSample a = ARG0(0),
+            d = ARG0(1),
+            s = ARG0(2),
+            r = ARG0(3);
   for (i=0; i<samples; i++)
     {
-      LydSample a = ARG(0),
-                d = ARG(1),
-                s = ARG(2),
-                r = ARG(3);
 
       if (vm->released)
         {
