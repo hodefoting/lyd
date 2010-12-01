@@ -53,6 +53,8 @@ static LydVoice * lyd_voice_create (Lyd *lyd, LydProgram *program)
   for (i = 0; program->commands[i].op; i++)
     {
       voice->state[i].op = program->commands[i].op;
+      voice->state[i].next = &voice->state[i+1];
+      
       for (j = 0; j < LYD_MAX_ARGS; j++)
         {
           int offset  = program->commands[i].arg[j];
@@ -408,7 +410,7 @@ lyd_voice_compute (LydVoice  *voice,
                    int        samples)
 {
   LydOpState *state;
-  for (state = &voice->state[0]; state->op; state++)
+  for (state = &voice->state[0]; state->op; state=state->next)
     {
       switch (state->op)
         {
