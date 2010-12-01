@@ -1,0 +1,13 @@
+
+  body {font-family: Sans; background: #222;margin:0px;}
+  h3 {font-size: 100%; font-weight:bold; padding: 0.5em; margin:0;
+      margin-left:-1em;margin-right:-1em;padding-left:1em;
+      color:black;background:#aaa;margin-top:1em;
+  }
+  img {border: 0px;}
+  h3 a {color: black; text-decoration: none }
+  div.content {border: 3px solid #000;background:white;
+      max-width: 30em; margin-left: auto; margin-right: auto; padding: 1em}
+  img#logo {position:relative; top: 23px;}
+  tt {display: block; margin-top: 1em;margin-bottom: 1em; font-size: 100%;}
+  span.foo {color:#555;}
