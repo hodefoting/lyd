@@ -31,7 +31,7 @@ typedef float LydSample;
 // #define DEBUG_CLIPPING
 
 #define LYD_CHUNK                      128
-#define LYD_MAX_ELEMENTS               80
+#define LYD_MAX_ELEMENTS               128
 #define LYD_MAX_ARGS                   4
 
 #define LYD_MAX_VARIABLES              16
@@ -64,22 +64,20 @@ struct _LydProgram
 };
 
 
+typedef struct _LydOpState  LydOpState;
 
-typedef struct _LydOpState 
+struct _LydOpState 
 {
-  LydSample  out [LYD_CHUNK] __attribute__ ((aligned(16)));  /* needs to start on a multiple of 16 bytes from
-                               * start of loop.
-			       */
+  LydSample   out [LYD_CHUNK] __attribute__ ((aligned(16)));  
 
-  LydOpCode  op;                 /* 4 bytes */
-  LydSample *arg[LYD_MAX_ARGS];  /*16 bytes */
-  void      *data;               /* 4 bytes */
+  LydOpCode   op;                 /* 4 bytes */
+  LydSample  *arg[LYD_MAX_ARGS];  /*16 bytes */
+  void       *data;               /* 4 bytes */
+  LydOpState *next;               /* 4 bytes */
+  LydSample   phase;              /* 4 bytes */
   
-  /* 8 byte hole in structure, which is needed to maintain alignment
-   * when opstates are allocated in a chunk
-   */
-  LydSample  literal[LYD_MAX_ARGS][LYD_CHUNK] __attribute__ ((aligned(16)));
-} LydOpState;
+  LydSample   literal[LYD_MAX_ARGS][LYD_CHUNK] __attribute__ ((aligned(16)));
+};
 
 
 

@@ -120,12 +120,12 @@ lyd_voice_free (LydVoice *voice)
 /* we store a phase incrementer in each voice, allowing us to change
  * the hz of a signal generator on the fly without sudden phase shifts.
  */
-static inline float phase (LydVoice *voice, float *phasep, float hz)
+static inline float phase (LydVoice *voice, LydOpState *state, float hz)
 {
-  float old = *phasep;
+  float old = state->phase;
   float new = old + hz * voice->i_sample_rate;
   int newi = new;
-  *phasep = new - newi;
+  state->phase = new - newi;
   return old;
 }
 
@@ -183,8 +183,8 @@ static inline float wave_sample_loop (LydVoice *voice, float *posp, int no, floa
 
   /* Get, and advance the phase for an oscillator: uses ARG0 because the state
    * for phase is carried per sample in chunk buffer  */
-  #define PHASE_PEEK         ARG0(2)
-  #define PHASE              phase(voice, &PHASE_PEEK, ARG0(0))
+  #define PHASE_PEEK         state->phase
+  #define PHASE              phase(voice, state, ARG0(0))
 
   /* pointer to data extension point */
   #define DATA               state->data
