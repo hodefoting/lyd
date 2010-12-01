@@ -25,10 +25,16 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+
+#ifdef HAVE_SNDFILE
+#include <sndfile.h>
+#endif
+
 #include <unistd.h>
 
 #include "welcome.h"
 
+static int wave_handler (Lyd *lyd, const char *wavename, void *user_data);
 int lyd_audio_init   (Lyd        *lyd,
                       const char *driver);
 
@@ -55,6 +61,8 @@ int main (int    argc,
       printf ("failed to initialize lyd (audio output)\n");
       exit (1);
     }
+
+  lyd_set_wave_handler (lyd, wave_handler, NULL);
 
 #ifdef HAVE_OSC
   lyd_osc_init (lyd);
@@ -113,5 +121,40 @@ int main (int    argc,
 
   for (;;)
     sleep (1);
+  return 0;
+}
+
+
+/* callback to load file on demand when compiling LydPrograms
+ */
+static int
+wave_handler (Lyd *lyd, const char *wavename, void *user_data)
+{
+  SNDFILE *infile;
+  SF_INFO  sfinfo;
+
+  sfinfo.format = 0;
+  if (!(infile = sf_open (wavename, SFM_READ, &sfinfo)))
+    {
+      float data[10];
+      lyd_load_wave (lyd, wavename, 10, 400, data);
+      printf ("failed to open file %s\n", wavename);
+      sf_perror (NULL);
+      return 1;
+    }
+
+  if (sfinfo.channels > 1)
+    {
+      printf ("too many channels\n");
+      return 1;
+    }
+  {
+    float *data = malloc (sfinfo.frames * sizeof (float));
+    sf_read_float (infile, data, sfinfo.frames);
+    lyd_load_wave (lyd, wavename, sfinfo.frames, sfinfo.samplerate, data);
+    free (data);
+    sf_close (infile);
+    printf ("loaded %s\n", wavename);
+  }
   return 0;
 }
