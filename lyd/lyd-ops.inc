@@ -110,7 +110,8 @@ LYD_OP("input", INPUT, 0,
        "Used when implementing filters, acts as a signal source.", "()")
 
 LYD_OP("time", GTIME, 0,
-       OP_LOOP(OUT = TIME;),
+       OP_LOOP(
+         OUT = TIME;),
        "current time of sample running, in seconds","()")
 
 LYD_OP("wave", WAVE, 2,
