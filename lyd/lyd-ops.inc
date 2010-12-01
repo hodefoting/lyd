@@ -75,29 +75,29 @@ LYD_OP("adsr", ADSR, 4,
        " longer makes audio, <tt>sin(120)*adsr(0.3,0.3,0.8,1.5)</tt>",
        "(a,d,s,r)")
 
-LYD_OP("sin", SIN, 2,
+LYD_OP("sin", SIN, 1,
        OP_LOOP(OUT = sine (PHASE * M_PI * 2);),
        "Sine wave osicllator","(hz)")
 
-LYD_OP("saw", SAW, 2,
+LYD_OP("saw", SAW, 1,
        OP_LOOP(OUT = PHASE * 2 - 1.0;),
        "Sawtooth oscillator", "(hz)")
 
-LYD_OP("ramp", RAMP, 2,
+LYD_OP("ramp", RAMP, 1,
        OP_LOOP(OUT = -(PHASE * 2 - 1.0);),
        "Ramp oscillator, opposite of sawtooth.","(hz)")
 
-LYD_OP("square", SQUARE, 2,
+LYD_OP("square", SQUARE, 1,
        OP_LOOP(OUT = PHASE > 0.5?1.0:-1.0;),
        "Square wave oscillator equivalent to a pulse with pulse width 0.5, values varying between -1.0 and 1.0","(hz)")
 
-LYD_OP("triangle", TRIANGLE, 3,
+LYD_OP("triangle", TRIANGLE, 1,
        OP_LOOP(OUT = PHASE < 0.25 ?
                        0 + PHASE_PEEK *4 :
                        PHASE_PEEK < 0.75 ? 2 - PHASE_PEEK : -4 + PHASE_PEEK;),
        "Triangle waveform","(hz)")
 
-LYD_OP("pulse", PULSE, 3,
+LYD_OP("pulse", PULSE, 2,
        OP_LOOP(OUT = PHASE > ARG(1)?1.0:-1.0;),
        "Pulse oscillator to simulate square wave use a width of 0.5","(hz, width)")
 
@@ -106,18 +106,22 @@ LYD_OP("noise", NOISE, 0,
        "Noise generator produces evenly distributed values in the range 0.0 to 1.0","()")
 
 LYD_OP("input", INPUT, 0,
-       OP_LOOP(OUT = input_sample (voice);),
+       OP_LOOP(OUT = input_sample (vm);),
        "Used when implementing filters, acts as a signal source.", "()")
 
+LYD_OP("time", GTIME, 0,
+       OP_LOOP(OUT = TIME;),
+       "current time of sample running, in seconds","()")
+
 LYD_OP("wave", WAVE, 2,
-       OP_LOOP(OUT = wave_sample (voice, state, ARG0(0), ARG0(1));),
+       OP_LOOP(OUT = wave_sample (vm, state, ARG0(0), ARG0(1));),
        "PCM data oscillator, first argument is a string, second argument if"
        " present is gives pitch deviation determined by desired playback hz"
        " assuming sample recorded is middle-C, wave('test.wav') or"
        " wave('test.wav', 440.0)","('wave-identifier'[, hz])")
 
 LYD_OP("wave_loop", WAVELOOP, 2,
-       OP_LOOP(OUT = wave_sample_loop (voice, state, ARG0(0), ARG0(1));),
+       OP_LOOP(OUT = wave_sample_loop (vm, state, ARG0(0), ARG0(1));),
        "Like wave() but loops the given sample, needs to be scaled with an adsr"
        " to be silenced.","('test.wav', hz)")
 

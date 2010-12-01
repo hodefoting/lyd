@@ -33,7 +33,7 @@ void lyd_set_patch (Lyd *lyd,
   midi_patches[no] = strdup (patch); /* XXX: leaking */
 }
 
-LydVoice *lyd_note_full (Lyd *lyd,
+LydVM *lyd_note_full (Lyd *lyd,
                          int patch,
                          float hz,
                          float volume,
@@ -42,7 +42,7 @@ LydVoice *lyd_note_full (Lyd *lyd,
                          int hashkey)
 {
   LydProgram *program = lyd_compile (lyd, lyd_get_patch (lyd, patch));
-  LydVoice *voice;
+  LydVM *voice;
   voice = lyd_voice_new (lyd, program, hashkey);
 
   lyd_voice_set_param (lyd, voice, "volume", volume);
@@ -52,7 +52,7 @@ LydVoice *lyd_note_full (Lyd *lyd,
   return voice;
 }
 
-LydVoice *lyd_note (Lyd *lyd,
+LydVM *lyd_note (Lyd *lyd,
                     int patch,
                     float hz,
                     float volume,

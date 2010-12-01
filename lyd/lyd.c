@@ -31,21 +31,21 @@ int lyd_op_argc[]=
   , -1
 };
 
-static void lyd_voice_update_params (LydVoice *voice,
+static void lyd_voice_update_params (LydVM *voice,
                                      int       samples);
 
 
 /* we include the voice directly to make the mixing and the vm 
  * a single compilation unit
  */
-#include "lyd-voice.c"
+#include "lyd-vm.c"
 
 void lyd_midi_iterate (Lyd *lyd, float elapsed); 
 
 
 static void
 lyd_synthesize_voice (Lyd      *lyd,
-                      LydVoice *voice,
+                      LydVM *voice,
                       int       samples,
                       int       tot_samples,
                       int       pos)
@@ -77,7 +77,7 @@ lyd_synthesize_voice (Lyd      *lyd,
     int first_sample = voice->sample<0?-voice->sample:0;
     
     lyd_voice_update_params (voice, samples - first_sample);
-    result = lyd_voice_compute (voice, samples - first_sample);
+    result = lyd_vm_compute (voice, samples - first_sample);
 
     if (  (voice->duration != 0 && voice->sample >= voice->duration)
            || voice->released)
@@ -167,7 +167,7 @@ void clean_silent (Lyd *lyd, SList *active)
   lyd->active = 0;
   for (iter=active; iter; iter=iter->next)
     {                                  /* remove released and silent voices */
-      LydVoice *voice = iter->data;
+      LydVM *voice = iter->data;
       if (voice->released > voice->sample_rate / LYD_MIN_RELASE_TIME_DIVISOR
        && (voice->silence_max -
            voice->silence_min < LYD_RELEASE_THRESHOLD ||
@@ -177,7 +177,7 @@ void clean_silent (Lyd *lyd, SList *active)
           lyd->voices = slist_remove (lyd->voices, voice);
           if (voice->complete_cb)
             (voice->complete_cb) (voice->complete_data);
-          lyd_voice_free (voice);
+          lyd_vm_free (voice);
           iter->data = NULL;
         }
       else
@@ -186,11 +186,11 @@ void clean_silent (Lyd *lyd, SList *active)
   while (lyd->active > lyd->max_active)
     {
       SList    *weakest_link = NULL;
-      LydVoice *weakest = NULL;
+      LydVM *weakest = NULL;
       float     best_score = 0;
       for (iter=active; iter; iter=iter->next)
         {
-          LydVoice *voice = iter->data;
+          LydVM *voice = iter->data;
           float score = 0;
           if (!voice)
             continue;
@@ -212,7 +212,7 @@ void clean_silent (Lyd *lyd, SList *active)
         lyd->voices = slist_remove (lyd->voices, weakest);
         if (weakest->complete_cb)
           (weakest->complete_cb) (weakest->complete_data);
-        lyd_voice_free (weakest);
+        lyd_vm_free (weakest);
         weakest_link->data = NULL;
         lyd->active--;
       }
@@ -256,7 +256,7 @@ lyd_synthesize (Lyd  *lyd,
    */
   for (iter = lyd->voices; iter; iter=iter->next)
     {
-      LydVoice *voice = iter->data;
+      LydVM *voice = iter->data;
       if (voice->sample + samples >=0)
         {
           int left = samples;
@@ -345,11 +345,11 @@ lyd_kill (Lyd *lyd,
 again: 
   for (iter = lyd->voices; iter; iter=iter->next)
     {
-      LydVoice *voice = iter->data;
+      LydVM *voice = iter->data;
       if (voice->tag == tag)
         {
           iter = lyd->voices = slist_remove (lyd->voices, voice);
-          lyd_voice_free (voice);
+          lyd_vm_free (voice);
           goto again;
         }
     }
@@ -357,20 +357,20 @@ again:
 }
 
 void lyd_voice_kill (Lyd *lyd,
-                     LydVoice *voice)
+                     LydVM *voice)
 {
   LOCK ();
   if (slist_find (lyd->voices, voice))
     {
       lyd->voices = slist_remove (lyd->voices, voice);
-      lyd_voice_free (voice);
+      lyd_vm_free (voice);
     }
   UNLOCK ();
 }
 
 void
 lyd_voice_release (Lyd      *lyd,
-                   LydVoice *voice)
+                   LydVM *voice)
 {
   LOCK ();
   if (slist_find (lyd->voices, voice))
@@ -387,7 +387,7 @@ static LydVoice *lyd_voice_new_unlocked (Lyd       *lyd,
                                          int        tag)
 {
   LydVoice *voice;
-  voice     = lyd_voice_create (lyd, program);
+  voice = lyd_vm_create (lyd, program);
   voice->sample_rate = lyd->sample_rate;
   voice->i_sample_rate = 1.0/lyd->sample_rate;
   voice->tag = tag;
@@ -406,7 +406,7 @@ LydVoice *lyd_voice_new (Lyd       *lyd,
   return voice;
 }
 
-void lyd_voice_set_duration (Lyd *lyd, LydVoice *voice, double seconds)
+void lyd_voice_set_duration (Lyd *lyd, LydVM *voice, double seconds)
 {
   LOCK ();
   if (slist_find (lyd->voices, voice))
@@ -414,7 +414,7 @@ void lyd_voice_set_duration (Lyd *lyd, LydVoice *voice, double seconds)
   UNLOCK ();
 }
 
-void lyd_voice_set_delay (Lyd *lyd, LydVoice *voice, double seconds)
+void lyd_voice_set_delay (Lyd *lyd, LydVM *voice, double seconds)
 {
   LOCK ();
   if (slist_find (lyd->voices, voice))
@@ -466,7 +466,7 @@ void lyd_free (Lyd *lyd)
 }
 
 void lyd_voice_set_position (Lyd      *lyd,
-                             LydVoice *voice,
+                             LydVM *voice,
                              double    position)
 {
   LOCK ();
@@ -478,7 +478,7 @@ void lyd_voice_set_position (Lyd      *lyd,
 
 void
 lyd_voice_set_param (Lyd        *lyd,
-                     LydVoice   *voice,
+                     LydVM   *voice,
                      const char *param,
                      double      value)
 {
@@ -516,7 +516,7 @@ typedef struct _LydParam
 } LydParam;
 #define LYD_PARAM(a) ((LydParam*)(a))
 
-void lyd_voice_set_param_delayed (Lyd        *lyd,        LydVoice    *voice,
+void lyd_voice_set_param_delayed (Lyd        *lyd,        LydVM    *voice,
                                   const char *param_name, float        time,
                                   LydInterpolation interpolation, 
                                   float       value)
@@ -586,7 +586,7 @@ cubic (const float dx,
             ( - prev + next ) ) * dx + (j + j) ) / 2.0;
 }
 
-static void lyd_voice_update_params (LydVoice *voice,
+static void lyd_voice_update_params (LydVM *voice,
                                      int       samples)
 {
   SList *paramlist;
@@ -737,17 +737,17 @@ lyd_set_wave_handler (Lyd *lyd,
   UNLOCK ();
 }
 
-LydVoice   *lyd_filter_new      (Lyd *lyd, LydProgram *program)
+LydFilter  *lyd_filter_new      (Lyd *lyd, LydProgram *program)
 {
-  LydVoice *filter;
-  filter     = lyd_voice_create (lyd, program);
+  LydVM *filter;
+  filter     = lyd_vm_create (lyd, program);
   filter->sample_rate = lyd->sample_rate;
   filter->i_sample_rate = 1.0/lyd->sample_rate;
   return filter;
 }
 
 void
-lyd_filter_process (LydVoice   *filter,
+lyd_filter_process (LydVM   *filter,
                     LydSample  *input,
                     LydSample  *output,
                     int         samples)
@@ -774,14 +774,14 @@ lyd_filter_process (LydVoice   *filter,
       left -= chunk;
 
       lyd_voice_update_params (filter, chunk);
-      result = lyd_voice_compute (filter, chunk);
+      result = lyd_vm_compute (filter, chunk);
       for (i = 0; i< chunk; i++)
         output[pos+i] = result[i];
       pos += chunk;
     }
 }
 
-void lyd_filter_free (LydVoice *filter)
+void lyd_filter_free (LydVM *filter)
 {
-  lyd_voice_free (filter);
+  lyd_vm_free (filter);
 }

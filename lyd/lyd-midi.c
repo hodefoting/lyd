@@ -71,7 +71,7 @@ typedef struct LydMidiChannel         /* a MIDI channel */
    int new_volume;                    /* cached volume change */
    int new_pitch_bend;                /* cached pitch bend */
    int note_volume[MIDI_NOTES];       /* -1 == not playing */
-   LydVoice *note_voice[MIDI_NOTES];  /* NULL == not existing */
+   LydVM *note_voice[MIDI_NOTES];  /* NULL == not existing */
 } LydMidiChannel;
 
 typedef struct {
@@ -724,7 +724,7 @@ void lyd_midi_program    (LydMidi *midi, int channel, int preset)
 
 void lyd_midi_note_off (LydMidi *midi, int channel, int note)
 {
-  LydVoice *voice;
+  LydVM *voice;
 
   midi->channel[channel].note_volume[note] = -1; 
 
@@ -744,7 +744,7 @@ void lyd_midi_note_off (LydMidi *midi, int channel, int note)
 void lyd_midi_note_on (LydMidi *midi, int channel, int note, int vol)
 {
   int hashkey = gen_hash (channel, note);
-  LydVoice *voice;
+  LydVM *voice;
   int inst, bend, corrected_note;
 
   if (vol == 0 && midi->channel[channel].note_volume[note] >=0)

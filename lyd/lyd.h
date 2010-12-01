@@ -17,8 +17,10 @@
 #ifndef __LYD_H_
 #define __LYD_H_
 
-typedef struct _LydVoice   LydVoice;
-typedef struct _LydVoice   LydFilter;
+typedef struct _LydVM      LydVM;
+typedef struct _LydVM      LydFilter;
+typedef struct _LydVM      LydVoice;
+
 typedef struct _Lyd        Lyd;
 typedef struct _LydProgram LydProgram;
 
@@ -36,7 +38,6 @@ typedef enum {
 } LydInterpolation;
 
 Lyd        *lyd_new             (void);
-
 
 void        lyd_set_sample_rate (Lyd *lyd, int sample_rate);
 
@@ -70,10 +71,10 @@ void        lyd_voice_set_delay (Lyd *lyd, LydVoice *voice, double seconds);
 void        lyd_voice_set_duration (Lyd *lyd, LydVoice *voice, double duration);
 
 void        lyd_voice_set_param (Lyd        *lyd,   LydVoice *voice,
-                                 const char *param, double    value);
+                                 const char *param, double value);
 
-void        lyd_voice_set_param_delayed (Lyd        *lyd,   LydVoice  *voice,
-                                         const char *param, float      time,
+void        lyd_voice_set_param_delayed (Lyd        *lyd,   LydVoice *voice,
+                                         const char *param, float     time,
                                          LydInterpolation interpolation, 
                                          float       value); 
 
@@ -82,12 +83,12 @@ void        lyd_load_wave (Lyd *lyd, const char *name,
                           float *data);
 void        lyd_set_wave_handler (Lyd *lyd,
                                  int (*wave_handler) (Lyd *lyd, const char *wave,
-                                                     void *user_data),
+                                                      void *user_data),
                                  void *user_data);
 
-void        lyd_voice_set_position (Lyd         *lyd,
-                                    LydVoice    *voice,
-                                    double       position);
+void        lyd_voice_set_position (Lyd      *lyd,
+                                    LydVoice *voice,
+                                    double    position);
 
 
 /* Filters can be used to implement processing functions that
@@ -112,8 +113,8 @@ const char * lyd_get_patch (Lyd *lyd, int no);
 void         lyd_set_patch (Lyd *lyd, int no, const char *patch);
 
 /* play a single midi note */
-LydVoice    *lyd_note (Lyd *lyd, int patch, float hz, float volume, float duration);
-LydVoice    *lyd_note_full (Lyd *lyd, int patch, float hz, float volume,
+LydVoice *lyd_note (Lyd *lyd, int patch, float hz, float volume, float duration);
+LydVoice *lyd_note_full (Lyd *lyd, int patch, float hz, float volume,
                             float duration, float pan, int tag);
 
 /* available drivers depends on how lyd was compiled, pass in "auto" to make
@@ -129,8 +130,6 @@ void         lyd_midi_set_playing (Lyd *lyd, int playing);
 void         lyd_midi_out   (Lyd *lyd, unsigned char *data, int length);
 /* seek to a given position */
 void         lyd_midi_seek  (Lyd *lyd, float position);
-
-
 
 /* add a callback function to be called _before_ synthesizing the elapsed
  * segment of audio data, this can be used to drive tracker based playback,

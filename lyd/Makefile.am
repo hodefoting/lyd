@@ -14,7 +14,7 @@ AM_CFLAGS = $(MAINTAINER_CFLAGS) $(JACK_CFLAGS) -DNIH
 
 lib_LTLIBRARIES = liblyd-@LYD_API_VERSION@.la
 
-lyd.s: lyd-voice.c lyd-ops.inc lyd.c
+lyd.s: lyd-vm.c lyd-ops.inc lyd.c
 	gcc lyd.c -S $(CFLAGS) $(SSE_FLAGS) $(AM_CFLAGS)
 
 # please, keep the list sorted alphabetically
@@ -29,7 +29,7 @@ liblyd_@LYD_API_VERSION@_la_SOURCES = \
 
 BUILT_SOURCES = $(builddir)/general-midi.inc
 
-EXTRA_DIST = lyd-private.h lyd-voice.c biquad.c general-midi.txt
+EXTRA_DIST = lyd-private.h lyd-vm.c biquad.c general-midi.txt
 
 liblyd_@LYD_API_VERSION@_la_LIBADD = $(ALSA_LIBS) $(JACK_LIBS) -lm -lpthread
 liblyd_@LYD_API_VERSION@_la_LDFLAGS = $(ALSA_LT_LDFLAGS)  $(JACK_LT_LDFLAGS)

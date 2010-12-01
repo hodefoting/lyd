@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-/** voice computation **/
-
 #include "biquad.c"
 
 
@@ -24,10 +22,10 @@ LydChunk __attribute__ ((__aligned__(LYD_ALIGN)));
 
 #include <stdint.h>
 
-/* create a new voice from a program */
-static LydVoice * lyd_voice_create (Lyd *lyd, LydProgram *program)
+/* create a new vm from a program */
+static LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
 {
-  LydVoice *voice;
+  LydVM *vm;
   static LydSample nul = 0.0;
   int i, j;
   LydOpState *state;
@@ -41,19 +39,19 @@ static LydVoice * lyd_voice_create (Lyd *lyd, LydProgram *program)
   opcount++;
 
   codesize = sizeof (LydOpState) * opcount + sizeof (LydChunk) * arg_count;
-  voice = g_malloc0 (sizeof (LydVoice) + codesize + LYD_ALIGN);
-  voice->state = (LydOpState*)(((char *)voice) + sizeof (LydVoice));
+  vm = g_malloc0 (sizeof (LydVM) + codesize + LYD_ALIGN);
+  vm->state = (LydOpState*)(((char *)vm) + sizeof (LydVM));
 
   /* ensure 16 byte alignment of LydOpStates */
   {
-    char *tmp = (void*)voice->state;
+    char *tmp = (void*)vm->state;
     int offset = LYD_ALIGN - ((uintptr_t) tmp) % LYD_ALIGN;
     tmp += offset;
-    voice->state = (void*)tmp;
+    vm->state = (void*)tmp;
   }
 
-  voice->lyd = lyd;
-  state = voice->state;
+  vm->lyd = lyd;
+  state = vm->state;
 
   for (i = 0; program->commands[i].op; i++)
     {
@@ -98,20 +96,19 @@ static LydVoice * lyd_voice_create (Lyd *lyd, LydProgram *program)
         }
       state = state->next;
     }
-  voice->position = 0.0;
-  voice->sample = 1;  /* XXX: unsure why this is needed and
+  vm->position = 0.0;
+  vm->sample = 1;  /* XXX: unsure why this is needed and
                          it cannot just start at 0, some patches in the
                          GM set with patches example go silent without this.
                        */
-  return voice;
+  return vm;
 }
 
-
 static void
-lyd_voice_free (LydVoice *voice)
+lyd_vm_free (LydVM *vm)
 {
   LydOpState *state;
-  for (state = voice->state; state->op; state=state->next)
+  for (state = vm->state; state->op; state=state->next)
     if (state->data)
       switch (state->op)
         {
@@ -126,48 +123,48 @@ lyd_voice_free (LydVoice *voice)
         }
   {
     SList *l1, *l2;
-    for (l1 = voice->params; l1; l1 = l1->next)
+    for (l1 = vm->params; l1; l1 = l1->next)
       {
         for (l2 = l1->data; l2; l2 = l2->next)
           g_free (l2->data);
         slist_free (l1->data);
       }
-    slist_free (voice->params);
+    slist_free (vm->params);
   }
-  g_free (voice);
+  g_free (vm);
 }
 
-/* we store a phase incrementer in each voice, allowing us to change
+/* we store a phase incrementer in each op, allowing us to change
  * the hz of a signal generator on the fly without sudden phase shifts.
  */
-static inline float phase (LydVoice *voice, LydOpState *state, float hz)
+static inline float phase (LydVM *vm, LydOpState *state, float hz)
 {
   float old = state->phase;
-  float new = old + hz * voice->i_sample_rate;
+  float new = old + hz * vm->i_sample_rate;
   int newi = new;
   state->phase = new - newi;
   return old;
 }
 
 
-static inline float input_sample (LydVoice *voice)
+static inline float input_sample (LydVM *vm)
 {
   float ret = 0.0;
-  if (!voice->input_buf)
+  if (!vm->input_buf)
     return 0.0;
-  if (voice->input_pos < voice->input_buf_len)
-    ret = voice->input_buf[voice->input_pos];
-  voice->input_pos ++;
+  if (vm->input_pos < vm->input_buf_len)
+    ret = vm->input_buf[vm->input_pos];
+  vm->input_pos ++;
   return ret;
 }
 
 #define MIDDLE_C 261.625565
 
-static inline float wave_sample (LydVoice *voice, LydOpState *state, int no, float hz)
+static inline float wave_sample (LydVM *vm, LydOpState *state, int no, float hz)
 {
-  LydWave *wave = voice->lyd->wave[no];
+  LydWave *wave = vm->lyd->wave[no];
   float old = state->phase;
-  float delta = voice->i_sample_rate * (hz>0.001?hz/MIDDLE_C:1.0);
+  float delta = vm->i_sample_rate * (hz>0.001?hz/MIDDLE_C:1.0);
   float new = old + delta;
   int sample_pos = new * wave->sample_rate;
   state->phase = new;
@@ -176,11 +173,11 @@ static inline float wave_sample (LydVoice *voice, LydOpState *state, int no, flo
   return 0.0;
 }
 
-static inline float wave_sample_loop  (LydVoice *voice, LydOpState *state, int no, float hz)
+static inline float wave_sample_loop  (LydVM *vm, LydOpState *state, int no, float hz)
 {
-  LydWave *wave = voice->lyd->wave[no];
+  LydWave *wave = vm->lyd->wave[no];
   float old = state->phase;
-  float delta = voice->i_sample_rate * (hz>0.001?hz/MIDDLE_C:1.0);
+  float delta = vm->i_sample_rate * (hz>0.001?hz/MIDDLE_C:1.0);
   float new = old + delta;
   int sample_pos = new * wave->sample_rate;
   state->phase = new;
@@ -203,8 +200,10 @@ static inline float wave_sample_loop  (LydVoice *voice, LydOpState *state, int n
 
   /* Get, and advance the phase for an oscillator: uses ARG0 because the state
    * for phase is carried per sample in chunk buffer  */
-  #define PHASE_PEEK         state->phase
-  #define PHASE              phase(voice, state, ARG0(0))
+  #define PHASE_PEEK state->phase
+
+  /* increments, and returns current phase */
+  #define PHASE      phase(vm, state, ARG(0))
 
   /* pointer to data extension point */
   #define DATA               state->data
@@ -212,7 +211,7 @@ static inline float wave_sample_loop  (LydVoice *voice, LydOpState *state, int n
   /* macro used when defining ops, to indicate a callback function to
    * be used for processing
    */
-  #define OP_FUN(fun)        fun(voice, state, samples);
+  #define OP_FUN(fun)        fun(vm, state, samples);
 
   /* macro used to define looping code, this defines the variable i
    * used in some of the other macros.
@@ -242,26 +241,26 @@ static inline float wave_sample_loop  (LydVoice *voice, LydOpState *state, int n
    * a loop over the samples to work properly
    */
   /* The current sample being computed */
-  #define SAMPLE             (voice->sample + i)
+  #define SAMPLE             (vm->sample + i)
   /* get the current time in seconds */
-  #define TIME               (1.0 * SAMPLE * voice->i_sample_rate)
+  #define TIME               (1.0 * SAMPLE * vm->i_sample_rate)
   /* the output destination for the current sample */
 
 #ifndef ABS
   #define ABS(a)             ((a)>0?(a):-(a))
 #endif
 
-#define OP_ARGS LydVoice *voice, LydOpState *state, int samples
+#define OP_ARGS LydVM *vm, LydOpState *state, int samples
 
 static inline void op_filter (OP_ARGS)
 {
   ALIGNED_ARGS;
   int i = 0;
   if (G_UNLIKELY (!DATA))
-    DATA = BiQuad_new(state->op-LYD_LOW_PASS,ARG(0),ARG(1), voice->sample_rate, ARG(2));\
+    DATA = BiQuad_new(state->op-LYD_LOW_PASS,ARG(0),ARG(1), vm->sample_rate, ARG(2));\
   
   /* always updating the filter is expensive, so we do it once per chunk  */
-  BiQuad_update (DATA,state->op-LYD_LOW_PASS,ARG(0),ARG(1),voice->sample_rate,ARG(2));
+  BiQuad_update (DATA,state->op-LYD_LOW_PASS,ARG(0),ARG(1),vm->sample_rate,ARG(2));
   for (i=0; i<samples; i++)
     {
       OUT = BiQuad(ARG(3), DATA);
@@ -280,22 +279,22 @@ static inline void op_adsr (OP_ARGS)
                 s = ARG(2),
                 r = ARG(3);
 
-      if (voice->released)
+      if (vm->released)
         {
-          if (voice->released > r) /* after end of release */
+          if (vm->released > r) /* after end of release */
             {
               OUT = 0.0;
             }
           else
             {
               float released_val;
-              if ((SAMPLE - voice->released) <= a)     /* release in attack*/
-                released_val = ((voice->sample - voice->released) / a) * ((SAMPLE - voice->released) / a);
-              else if (SAMPLE - voice->released < (a+d))/*release in decay */
-                released_val = 1.0 + (s-1) * (((SAMPLE - voice->released) - a) / d);
+              if ((SAMPLE - vm->released) <= a)     /* release in attack*/
+                released_val = ((vm->sample - vm->released) / a) * ((SAMPLE - vm->released) / a);
+              else if (SAMPLE - vm->released < (a+d))/*release in decay */
+                released_val = 1.0 + (s-1) * (((SAMPLE - vm->released) - a) / d);
               else                                      /*release in sustain */
                 released_val = s;
-              OUT = released_val * (1.0 - (voice->released) / r);
+              OUT = released_val * (1.0 - (vm->released) / r);
             }
         }
       else if (SAMPLE <= a)                        /* in attack */
@@ -324,7 +323,7 @@ static inline void op_reverb (OP_ARGS)
       LydSample   reverb = ARG(0),
                   length = ARG(1),
                   sample = ARG(2);
-      int         size   = length * voice->sample_rate;
+      int         size   = length * vm->sample_rate;
 
       if (size <=0)
         return;
@@ -362,7 +361,7 @@ static inline void op_cycle (OP_ARGS)
       if(ARG(2) == 0.0) count --;
       if(ARG(1) == 0.0) count --;
 
-      pos   = fmod (freq * count * SAMPLE / voice->sample_rate, count);
+      pos   = fmod (freq * count * SAMPLE / vm->sample_rate, count);
 
       switch (1 + (pos+count) % count)
         {
@@ -422,11 +421,11 @@ static inline float noise (void)
  * samples in one go, a pointer to the result is returned.
  */
 static inline LydSample *
-lyd_voice_compute (LydVoice  *voice,
-                   int        samples)
+lyd_vm_compute (LydVM  *vm,
+                int     samples)
 {
   LydOpState *state, *last_state = NULL;
-  for (state = voice->state; state->op; last_state = state, state=state->next)
+  for (state = vm->state; state->op; last_state = state, state=state->next)
     switch (state->op)
       {
 	      case LYD_NONE: break;
@@ -438,6 +437,6 @@ lyd_voice_compute (LydVoice  *voice,
           */
         #undef LYD_OP
       }
-  voice->sample += samples;
+  vm->sample += samples;
   return last_state->out;
 }

@@ -44,7 +44,6 @@ typedef float LydSample;
 #define LYD_MIN_RELASE_TIME_DIVISOR    100   /* computed as samplerate/this */
 #define LYD_ALIGN                      16    /* needed for tree-vectorize SIMD*/
 
-/* The opcodes of lyds virtual machine */
 typedef enum
 {
 #define LYD_OP(NAME, OP_CODE, FOO, BAR, BAZ, QUX)  ,LYD_##OP_CODE
@@ -235,16 +234,21 @@ struct _Lyd
   void *cb_data[LYD_MAX_CBS];
 };
 
-struct _LydVoice
+
+/* LydVM is the datastructure representing a single voice,
+ * it contains meta data for managing the voice as well
+ * as the core execution engine.
+ */
+struct _LydVM
 {
   Lyd      *lyd;      /* backpointer to the lyd instance */
   LydSample position; /* 0.0 center -1.0 left 1.0 right */
   LydSample duration; /* how long the sample should last */
-  int   released; /* the number of samples we have been released, calling
-                       voice_release increments this and starts the release
-                       process */
-  long  sample;   /* position, negative values means queued for playback,
-                       controlled by lyd */
+  int   released;     /* the number of samples we have been released, calling
+                         voice_release increments this and starts the release
+                         process */
+  long  sample;       /* position, negative values means queued for playback,
+                         controlled by lyd */
   int   sample_rate;
   float i_sample_rate; /* 1.0/sample_rate */
 
@@ -254,16 +258,15 @@ struct _LydVoice
   void  (*complete_cb)(void *data); /* callback and data when voice is done*/
   void   *complete_data;             /* data for complete callback */
   
-  int    tag;
+  int        tag;
   LydSample *input_buf;
   int        input_pos;
   int        input_buf_len;
 
 
-  SList *params;        /* list of key-lists form params */
-  LydOpState *state;/* points to immediately (optionally with needed
-                       padding after the LydVoice struct in the
-                       same allocation */
+  SList *params;    /* list of key-lists form params */
+  LydOpState *state;/* points to immediately after the allocation
+                       of LydVM (padded for alignment). */
 };
 
 #ifdef NIH
