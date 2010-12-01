@@ -34,7 +34,8 @@ int main (int    argc,
       return -1;
     }
 
-  instrument = lyd_compile (lyd, "(sin(hz=440 + saw(20)*10)) * volume=1");
+  //instrument = lyd_compile (lyd, "(sin(hz=440 + saw(20)*10)) * volume=1");
+  instrument = lyd_compile (lyd, "sin(hz=440) * volume=1");
 
   voice = lyd_voice_new (lyd, instrument, 0);
   lyd_voice_set_param (lyd, voice, "volume", 1.2);
