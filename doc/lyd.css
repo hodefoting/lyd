@@ -3,11 +3,36 @@
   h3 {font-size: 100%; font-weight:bold; padding: 0.5em; margin:0;
       margin-left:-1em;margin-right:-1em;padding-left:1em;
       color:black;background:#aaa;margin-top:1em;
+      clear : both;
   }
+  .toc {font-size: 100%; padding: 0.5em; margin:0;
+      margin-left:-1em;
+      color:black;
+      float: left;
+      width: 40%;
+      max-width: 10em;
+  }
+  a.jump {
+    float: right;
+    padding-left: 2em;
+    padding-right: 1em;
+  }
+  a.jump:hover {
+    color: white;
+  }
+  .toc ul {display: block; padding:0;margin:0}
+  .toc ul li {display: block;}
+  .toc ul li a {display: block; padding-left: 0.2em;
+                padding-right: 0.2em; 
+                font-size: 90%; }
   img {border: 0px;}
   h3 a {color: black; text-decoration: none }
+  div.precontent {border: 3px;
+      max-width: 30em; margin-left: auto; margin-right: auto;
+      padding-left: 1em; padding-right: 1em;}
   div.content {border: 3px solid #000;background:white;
       max-width: 30em; margin-left: auto; margin-right: auto; padding: 1em}
   img#logo {position:relative; top: 23px;}
   tt {display: block; margin-top: 1em;margin-bottom: 1em; font-size: 100%;}
   span.foo {color:#555;}
+  audio { width: 100% };

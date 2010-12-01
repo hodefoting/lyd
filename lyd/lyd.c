@@ -24,7 +24,6 @@
 int lyd_op_argc[]=
 {
   0
-  //#define LYD_OP(name, OP_CODE, ARG_COUNT, CODE, DOC, ARG_DOC), 4 //ARG_COUNT 
   #define LYD_OP(name, OP_CODE, ARG_COUNT, CODE, DOC, ARG_DOC), ARG_COUNT 
   #include "lyd-ops.inc"
   #undef LYD_OP
