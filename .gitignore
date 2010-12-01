@@ -34,3 +34,8 @@ examples/midi-test
 examples/lyd-hi
 examples/interpolated-param
 examples/scale
+doc/reference
+doc/lyd-reference
+reference.html
+examples/wave-storm
+examples/sun-audio
