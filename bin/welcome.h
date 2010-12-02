@@ -21,11 +21,10 @@ void welcome (Lyd *lyd)
   program = lyd_compile (lyd, "reverb (0.1, 0.223, low_pass (0.1, hz=440.0, 0.01, pulse(200 + sin(190) * 1.4, square(8.0)) * adsr(0.12, 0.12, 0.8, 0.30))) * volume=1.0 * 0.1");
 
 #define Q(delay, duration, frequency, pos) \
-  voice = lyd_voice_new (lyd, program, 0);\
+  voice = lyd_voice_new (lyd, program, delay, 0);\
   lyd_voice_set_param (lyd, voice, "volume", 1.0);\
   lyd_voice_set_param (lyd, voice, "hz",     frequency);\
   lyd_voice_set_duration (lyd, voice, duration);\
-  lyd_voice_set_delay (lyd, voice, delay); \
   lyd_voice_set_position (lyd, voice, pos);
   Q(0.0, 0.3, 440.0, 0.0);
   Q(0.1, 0.2, 660.0, -1.0);

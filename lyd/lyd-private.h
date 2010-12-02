@@ -230,8 +230,10 @@ struct _Lyd
   LydSample  *buf;
   int         buf_len;
 
-  void (*cb[LYD_MAX_CBS])(Lyd *lyd, float elapsed, void *data);
-  void *cb_data[LYD_MAX_CBS];
+  void (*pre_cb[LYD_MAX_CBS])(Lyd *lyd, float elapsed, void *data);
+  void *pre_cb_data[LYD_MAX_CBS];
+  void (*post_cb[LYD_MAX_CBS])(Lyd *lyd, int len, void *stream, void *stream2, void *data);
+  void *post_cb_data[LYD_MAX_CBS];
 };
 
 

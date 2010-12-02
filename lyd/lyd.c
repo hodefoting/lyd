@@ -236,8 +236,8 @@ lyd_synthesize (Lyd  *lyd,
     float elapsed = lyd->previous_samples/(1.0 * lyd->sample_rate);
     lyd_midi_iterate (lyd, elapsed);
     for (i = 0; i < LYD_MAX_CBS; i++)
-      if (lyd->cb[i])
-        lyd->cb[i](lyd, elapsed, lyd->cb_data[i]);
+      if (lyd->pre_cb[i])
+        lyd->pre_cb[i](lyd, elapsed, lyd->pre_cb_data[i]);
   }
 
   if (lyd->buf_len < samples || lyd->buf == NULL)
@@ -331,6 +331,9 @@ lyd_synthesize (Lyd  *lyd,
   UNLOCK ();
 
   lyd->previous_samples = samples;
+  for (i = 0; i < LYD_MAX_CBS; i++)
+    if (lyd->post_cb[i])
+      lyd->post_cb[i](lyd, samples, stream, stream2, lyd->post_cb_data[i]);
   return lyd->sample_no;
 }
 
@@ -394,18 +397,20 @@ static LydVoice *lyd_voice_new_unlocked (Lyd       *lyd,
   return voice;
 }
 
-LydVoice *lyd_voice_new (Lyd       *lyd,
+LydVoice *lyd_voice_new (Lyd        *lyd,
                          LydProgram *program,
-                         int        tag)
+                         double      delay,
+                         int         tag)
 {
   LydVoice *voice;
   LOCK ();
   voice = lyd_voice_new_unlocked (lyd, program, tag);
+  voice->sample = - (delay * lyd->sample_rate);
   UNLOCK ();
   return voice;
 }
 
-void lyd_voice_set_duration (Lyd *lyd, LydVM *voice, double seconds)
+void lyd_voice_set_duration (Lyd *lyd, LydVoice *voice, double seconds)
 {
   LOCK ();
   if (slist_find (lyd->voices, voice))
@@ -413,7 +418,7 @@ void lyd_voice_set_duration (Lyd *lyd, LydVM *voice, double seconds)
   UNLOCK ();
 }
 
-void lyd_voice_set_delay (Lyd *lyd, LydVM *voice, double seconds)
+void lyd_voice_set_delay (Lyd *lyd, LydVoice *voice, double seconds)
 {
   LOCK ();
   if (slist_find (lyd->voices, voice))
@@ -465,7 +470,7 @@ void lyd_free (Lyd *lyd)
 }
 
 void lyd_voice_set_position (Lyd      *lyd,
-                             LydVM *voice,
+                             LydVoice *voice,
                              double    position)
 {
   LOCK ();
@@ -477,7 +482,7 @@ void lyd_voice_set_position (Lyd      *lyd,
 
 void
 lyd_voice_set_param (Lyd        *lyd,
-                     LydVM   *voice,
+                     LydVoice   *voice,
                      const char *param,
                      double      value)
 {
@@ -515,7 +520,7 @@ typedef struct _LydParam
 } LydParam;
 #define LYD_PARAM(a) ((LydParam*)(a))
 
-void lyd_voice_set_param_delayed (Lyd        *lyd,        LydVM    *voice,
+void lyd_voice_set_param_delayed (Lyd        *lyd,        LydVoice    *voice,
                                   const char *param_name, float        time,
                                   LydInterpolation interpolation, 
                                   float       value)
@@ -585,7 +590,7 @@ cubic (const float dx,
             ( - prev + next ) ) * dx + (j + j) ) / 2.0;
 }
 
-static void lyd_voice_update_params (LydVM *voice,
+static void lyd_voice_update_params (LydVoice *voice,
                                      int       samples)
 {
   SList *paramlist;
@@ -654,19 +659,19 @@ static void lyd_voice_update_params (LydVM *voice,
 }
 
 int
-lyd_add_cb (Lyd *lyd,
-            void (*cb)(Lyd *lyd, float elapsed, void *data),
-            void *data)
+lyd_add_pre_cb (Lyd *lyd,
+                void (*cb)(Lyd *lyd, float elapsed, void *data),
+                void *data)
 {
   int i = 0;
   LOCK ();
-  while (i<LYD_MAX_CBS && lyd->cb[i] != NULL)
+  while (i<LYD_MAX_CBS && lyd->pre_cb[i] != NULL)
     i++;
 
   if (i<LYD_MAX_CBS)
     {
-      lyd->cb[i] = cb;
-      lyd->cb_data[i] = data;
+      lyd->pre_cb[i] = cb;
+      lyd->pre_cb_data[i] = data;
       UNLOCK ();
       return i;
     }
@@ -674,12 +679,39 @@ lyd_add_cb (Lyd *lyd,
   return -1;
 }
 
+int
+lyd_add_post_cb     (Lyd *lyd,
+                     void (*cb)(Lyd *lyd, int samples,
+                                void *stream, void *stream2,
+                                void *data),
+                     void *data)
+{
+  int i = 0;
+  LOCK ();
+  while (i<LYD_MAX_CBS && lyd->post_cb[i] != NULL)
+    i++;
+
+  if (i<LYD_MAX_CBS)
+    {
+      lyd->post_cb[i] = cb;
+      lyd->post_cb_data[i] = data;
+      UNLOCK ();
+      return i + LYD_MAX_CBS;
+    }
+  UNLOCK ();
+}
+
 void
 lyd_remove_cb (Lyd *lyd, int id)
 {
   LOCK ();
   if (id >=0 && id < LYD_MAX_CBS)
-    lyd->cb[id] = NULL;
+    lyd->pre_cb[id] = NULL;
+  else {
+    id-=LYD_MAX_CBS;
+    if (id >=0 && id < LYD_MAX_CBS)
+      lyd->post_cb[id] = NULL;
+  }
   UNLOCK ();
 }
 
@@ -746,10 +778,10 @@ LydFilter  *lyd_filter_new      (Lyd *lyd, LydProgram *program)
 }
 
 void
-lyd_filter_process (LydVM   *filter,
-                    LydSample  *input,
-                    LydSample  *output,
-                    int         samples)
+lyd_filter_process (LydFilter *filter,
+                    LydSample *input,
+                    LydSample *output,
+                    int        samples)
 {
   int left = samples;
   int pos = 0;
@@ -780,7 +812,7 @@ lyd_filter_process (LydVM   *filter,
     }
 }
 
-void lyd_filter_free (LydVM *filter)
+void lyd_filter_free (LydFilter *filter)
 {
   lyd_vm_free (filter);
 }

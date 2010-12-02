@@ -105,11 +105,10 @@ int main (int    argc,
        LydVoice *voice;
        if (program)
          {
-           voice = lyd_voice_new (lyd, program, 0);
+           voice = lyd_voice_new (lyd, program, 0.0, 0);
            lyd_voice_set_param (lyd, voice, "volume", 1.0);
            lyd_voice_set_param (lyd, voice, "hz", 440.0);
            lyd_voice_set_duration (lyd, voice, 0.5);
-           lyd_voice_set_delay (lyd, voice, 0.0); 
            lyd_voice_set_position (lyd, voice, 0.0);
          }
 #endif
@@ -126,6 +125,7 @@ int main (int    argc,
 
 
 /* callback to load file on demand when compiling LydPrograms
+ * using libsndfile
  */
 static int
 wave_handler (Lyd *lyd, const char *wavename, void *user_data)

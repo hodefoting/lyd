@@ -38,11 +38,10 @@ int main (int    argc,
   instrument = lyd_compile (lyd, code);
 
 #define Q(delay, duration, frequency, pos) \
-  voice = lyd_voice_new (lyd, instrument, 0);\
+  voice = lyd_voice_new (lyd, instrument, delay, 0);\
   lyd_voice_set_param (lyd, voice, "volume", 1.0);\
   lyd_voice_set_param (lyd, voice, "hz",     frequency);\
   lyd_voice_set_duration (lyd, voice, duration);\
-  lyd_voice_set_delay (lyd, voice, delay); \
   lyd_voice_set_position (lyd, voice, pos);
   Q(0.0, 0.3, 440.0, 0.0);
   Q(0.1, 0.2, 660.0, -1.0);

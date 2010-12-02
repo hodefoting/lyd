@@ -28,10 +28,9 @@ static float midi2hz (int midinote)
 }
 
 #define NOTE(time, duration, halfnote) do{                         \
-  voice = lyd_voice_new (lyd, instrument, 0);                      \
+  voice = lyd_voice_new (lyd, instrument, time, 0);                \
   lyd_voice_set_param (lyd, voice, "hz",     midi2hz(halfnote+69));\
-  lyd_voice_set_duration (lyd, voice, duration);                   \
-  lyd_voice_set_delay (lyd, voice, time);                }while(0);\
+  lyd_voice_set_duration (lyd, voice, duration);         }while(0);
 
 static int scale[]={0,2,4,7,9,12,9,7,4,2,0};
 static unsigned char linear2ulaw(int sample);
