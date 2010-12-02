@@ -442,6 +442,16 @@ void lyd_set_sample_rate (Lyd *lyd, int sample_rate)
   lyd->sample_rate = sample_rate;
 }
 
+int lyd_get_sample_rate (Lyd *lyd)
+{
+  return lyd->sample_rate;
+}
+
+LydFormat lyd_get_format (Lyd *lyd)
+{
+  return lyd->format;
+}
+
 void lyd_set_format (Lyd *lyd, LydFormat format)
 {
   lyd->format = format;

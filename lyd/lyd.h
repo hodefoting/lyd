@@ -79,7 +79,7 @@ void        lyd_set_format      (Lyd *lyd, LydFormat format);
  *
  * Get the current sample format used by lyd engine.
  */
-LydFormat  *lyd_get_format      (Lyd *lyd);
+LydFormat   lyd_get_format      (Lyd *lyd);
 /**
  * lyd_audio_init:
  * @lyd: lyd engine

@@ -274,10 +274,10 @@ static inline void op_filter (OP_ARGS)
   ALIGNED_ARGS;
   int i = 0;
   if (G_UNLIKELY (!DATA))
-    DATA = BiQuad_new(state->op-LYD_LOW_PASS,ARG(0),ARG(1), vm->sample_rate, ARG(2));\
+    DATA = BiQuad_new(state->op-LYD_LOW_PASS,ARG0(0),ARG0(1), vm->sample_rate, ARG0(2));\
   
   /* always updating the filter is expensive, so we do it once per chunk  */
-  BiQuad_update (DATA,state->op-LYD_LOW_PASS,ARG(0),ARG(1),vm->sample_rate,ARG(2));
+  BiQuad_update (DATA,state->op-LYD_LOW_PASS,ARG0(0),ARG0(1),vm->sample_rate,ARG0(2));
   for (i=0; i<samples; i++)
     {
       OUT = BiQuad(ARG(3), DATA);

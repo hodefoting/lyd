@@ -20,6 +20,8 @@
 #include <string.h>
 #include "general-midi.inc"
 
+static LydProgram *midi_programs[128] = {NULL, };
+
 const char * lyd_get_patch (Lyd *lyd,
                             int no)
 {
@@ -31,6 +33,9 @@ void lyd_set_patch (Lyd *lyd,
                     const char *patch)
 {
   midi_patches[no] = strdup (patch); /* XXX: leaking */
+  if (midi_programs[no])
+    lyd_program_free (midi_programs[no]);
+  midi_programs[no] = lyd_compile (lyd, patch);
 }
 
 LydVM *lyd_note_full (Lyd  *lyd,
@@ -41,9 +46,12 @@ LydVM *lyd_note_full (Lyd  *lyd,
                       float pan,
                       int   hashkey)
 {
-  LydProgram *program = lyd_compile (lyd, lyd_get_patch (lyd, patch));
   LydVM *voice;
-  voice = lyd_voice_new (lyd, program, 0.0, hashkey);
+  if (!midi_programs[patch])
+    midi_programs[patch] = lyd_compile (lyd, midi_patches[patch]);
+  if (!midi_programs[patch])
+    return NULL;
+  voice = lyd_voice_new (lyd, midi_programs[patch], 0.0, hashkey);
 
   lyd_voice_set_param (lyd, voice, "volume", volume);
   lyd_voice_set_param (lyd, voice, "hz", hz);
