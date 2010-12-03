@@ -98,9 +98,8 @@ LYD_OP("square", SQUARE, 1,
        "Square wave oscillator equivalent to a pulse with pulse width 0.5, values varying between -1.0 and 1.0","(hz)")
 
 LYD_OP("triangle", TRIANGLE, 1,
-       OP_LOOP(OUT = PHASE < 0.25 ?
-                       0 + PHASE_PEEK *4 :
-                       PHASE_PEEK < 0.75 ? 2 - PHASE_PEEK : -4 + PHASE_PEEK;),
+       OP_LOOP(float p = PHASE;
+               OUT = p < 0.25 ?  0 + p *4 : p < 0.75 ? 2 - p * 4: -4 + p * 4;),
        "Triangle waveform","(hz)")
 
 LYD_OP("pulse", PULSE, 2,

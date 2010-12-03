@@ -114,10 +114,6 @@ static LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
       state = state->next;
     }
   vm->position = 0.0;
-  vm->sample = 1;  /* XXX: unsure why this is needed and
-                         it cannot just start at 0, some patches in the
-                         GM set with patches example go silent without this.
-                       */
   return vm;
 }
 
