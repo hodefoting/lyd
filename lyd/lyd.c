@@ -71,55 +71,56 @@ lyd_synthesize_voice (Lyd      *lyd,
       return;
     }
 
-  /* iterate voice catching output samples in buffers */
   {
     int first_sample = voice->sample<0?-voice->sample:0;
+    voice->sample += first_sample;
     
     lyd_voice_update_params (voice, samples - first_sample);
+    /* result is a direct pointer to the results in the last processing chain */
     result = lyd_vm_compute (voice, samples - first_sample);
 
     if (  (voice->duration != 0 && voice->sample >= voice->duration)
            || voice->released)
       voice->released += samples - first_sample;
-  }
 
-  /* do silence detection for released voices, to know when
-   * the voice itself can be automatically destroyed.
-   */
-  if (voice->released)
-    for (i=0;i<samples;i++)
+    /* do silence detection for released voices, to know when
+     * the voice itself can be automatically destroyed.
+     */
+    if (voice->released)
+      for (i=first_sample;i<samples;i++)
+        {
+          LydSample computed = result[i-first_sample];
+          voice->silence_max = (computed > voice->silence_max)
+           ?computed
+           :voice->silence_max * (1.0 - LYD_RELEASE_SILENCE_DAMPENING);
+          voice->silence_min = (computed < voice->silence_min)
+           ?computed
+           :voice->silence_min * (1.0 - LYD_RELEASE_SILENCE_DAMPENING);
+        }
+
+    /* simple stereo distribution of mix */
+    if (voice->position == 0.0)
       {
-        LydSample computed = result[i];
-        voice->silence_max = (computed > voice->silence_max)
-         ?computed
-         :voice->silence_max * (1.0 - LYD_RELEASE_SILENCE_DAMPENING);
-        voice->silence_min = (computed < voice->silence_min)
-         ?computed
-         :voice->silence_min * (1.0 - LYD_RELEASE_SILENCE_DAMPENING);
+        for (i=first_sample;i<samples;i++)
+          lyd->buf[pos+i] += result[i-first_sample];
+        for (i=0;i<samples;i++)
+          lyd->buf[pos+i+tot_samples] += result[i-first_sample];
       }
-
-  /* simple stereo distribution of mix */
-  if (voice->position == 0.0)
-    {
-      for (i=0;i<samples;i++)
-        lyd->buf[pos+i] += result[i];
-      for (i=0;i<samples;i++)
-        lyd->buf[pos+i+tot_samples] += result[i];
-    }
-  else if (voice->position > 0.0)
-    {
-      for (i=0;i<samples;i++)
-        lyd->buf[pos+i] += result[i] * (1.0-voice->position);
-      for (i=0;i<samples;i++)
-        lyd->buf[pos+i+tot_samples] += result[i];
-    }
-  else 
-    {
-      for (i=0;i<samples;i++)
-        lyd->buf[pos+i] += result[i];
-      for (i=0;i<samples;i++)
-        lyd->buf[pos+i+tot_samples] += result[i] * (1.0+voice->position);
-    }
+    else if (voice->position > 0.0)
+      {
+        for (i=first_sample;i<samples;i++)
+          lyd->buf[pos+i] += result[i-first_sample] * (1.0-voice->position);
+        for (i=first_sample;i<samples;i++)
+          lyd->buf[pos+i+tot_samples] += result[i-first_sample];
+      }
+    else 
+      {
+        for (i=first_sample;i<samples;i++)
+          lyd->buf[pos+i] += result[i - first_sample];
+        for (i=first_sample;i<samples;i++)
+          lyd->buf[pos+i+tot_samples] += result[i - first_sample] * (1.0+voice->position);
+      }
+  }
  
 }
 
