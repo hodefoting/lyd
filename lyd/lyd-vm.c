@@ -160,13 +160,14 @@ static inline float phase (LydVM *vm, LydOpState *state, float hz)
 }
 
 
-static inline float input_sample (LydVM *vm)
+static inline float input_sample (LydVM *vm,
+                                  int    no)
 {
   float ret = 0.0;
   if (!vm->input_buf)
     return 0.0;
   if (vm->input_pos < vm->input_buf_len)
-    ret = vm->input_buf[vm->input_pos];
+    ret = vm->input_buf[no][vm->input_pos];
   vm->input_pos ++;
   return ret;
 }

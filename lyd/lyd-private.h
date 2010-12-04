@@ -66,7 +66,7 @@ struct _LydProgram
 
 typedef struct _LydOpState  LydOpState;
 
-struct _LydOpState 
+struct _LydOpState
 {
   LydSample   out [LYD_CHUNK] __attribute__ ((aligned(LYD_ALIGN)));  
 
@@ -90,7 +90,7 @@ static inline float str2float (const char *str)
   int i;
   if (!str)
     return 0.0;
-  for (i=0;i<10 && str[i];i++) 
+  for (i=0;i<10 && str[i];i++)
     {
       ret += ((tolower(str[i])-'a')/30.0)*((1<<i)/100.0);
     }
@@ -261,7 +261,7 @@ struct _LydVM
   void   *complete_data;             /* data for complete callback */
   
   int        tag;
-  LydSample *input_buf;
+  LydSample *input_buf[LYD_MAX_ARGS];
   int        input_pos;
   int        input_buf_len;
 

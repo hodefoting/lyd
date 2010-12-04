@@ -110,9 +110,9 @@ LYD_OP("noise", NOISE, 0,
        OP_LOOP(OUT = noise ();),
        "Noise generator produces evenly distributed values in the range 0.0 to 1.0","()")
 
-LYD_OP("input", INPUT, 0,
-       OP_LOOP(OUT = input_sample (vm);),
-       "Used when implementing filters, acts as a signal source.", "()")
+LYD_OP("input", INPUT, 1,
+       OP_LOOP(OUT = input_sample (vm, ARG0(0));),
+       "Used when implementing filters, acts as a signal source", "(buffer_no)")
 
 LYD_OP("time", GTIME, 0,
        OP_LOOP(

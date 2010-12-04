@@ -313,7 +313,8 @@ LydFilter  *lyd_filter_new      (Lyd *lyd, LydProgram *program);
 /**
  * lyd_filter_process:
  * @filter: a filter handler
- * @input: input buffer
+ * @inputs: pointer to array of input buffer pointers
+ * @n_inputs: number of input buffers
  * @output: output buffer
  * @samples: number of samples in input/output buffers to process.
  *
@@ -324,7 +325,8 @@ LydFilter  *lyd_filter_new      (Lyd *lyd, LydProgram *program);
  * to output.
  */
 void        lyd_filter_process  (LydFilter *filter,
-                                 float     *input,
+                                 float    **inputs,
+                                 int        n_inputs,
                                  float     *output,
                                  int        samples);
 
