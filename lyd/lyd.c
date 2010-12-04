@@ -40,16 +40,16 @@ void lyd_midi_iterate (Lyd *lyd, float elapsed);
  */
 #include "lyd-vm.c"
 
-static void prepare_buffer (Lyd *lyd, int samples);
-static void pre_cb (Lyd *lyd, int samples);
+static void lyd_prepare_buffer (Lyd *lyd, int samples);
+static void lyd_pre_cb (Lyd *lyd, int samples);
 static SList *lyd_synthesize_voices (Lyd *lyd, int samples);
-static void apply_global_filter (Lyd *lyd, int samples);
-static void detect_level (Lyd *lyd, int samples);
-static void write_to_output (Lyd *lyd, int samples,
+static void lyd_apply_global_filter (Lyd *lyd, int samples);
+static void lyd_detect_level (Lyd *lyd, int samples);
+static void lyd_write_to_output (Lyd *lyd, int samples,
                              void *stream, void *stream2);
-static void kill_silent_voices (Lyd *lyd, SList *active);
-static void kill_excessive_voices (Lyd *lyd, SList *active);
-static void post_cb (Lyd *lyd, int samples, void *stream, void *stream2);
+static void lyd_kill_silent_voices (Lyd *lyd, SList *active);
+static void lyd_kill_excessive_voices (Lyd *lyd, SList *active);
+static void lyd_post_cb (Lyd *lyd, int samples, void *stream, void *stream2);
 
 long
 lyd_synthesize (Lyd  *lyd,
@@ -59,27 +59,27 @@ lyd_synthesize (Lyd  *lyd,
 {
   SList *active = NULL;
 
-  prepare_buffer (lyd, samples);
-  pre_cb (lyd, samples);
+  lyd_prepare_buffer (lyd, samples);
+  lyd_pre_cb (lyd, samples);
 
   LOCK ();
   active = lyd_synthesize_voices (lyd, samples);
-  apply_global_filter (lyd, samples);
-  detect_level (lyd, samples);
-  write_to_output (lyd, samples, stream, stream2);
-  kill_silent_voices (lyd, active);
-  kill_excessive_voices (lyd, active);
+  lyd_apply_global_filter (lyd, samples);
+  lyd_detect_level (lyd, samples);
+  lyd_write_to_output (lyd, samples, stream, stream2);
+  lyd_kill_silent_voices (lyd, active);
+  lyd_kill_excessive_voices (lyd, active);
 
   slist_free (active);
   lyd->sample_no += samples;
   UNLOCK ();
 
-  post_cb (lyd, samples, stream, stream2);
+  lyd_post_cb (lyd, samples, stream, stream2);
 
   return lyd->sample_no;
 }
 
-static void prepare_buffer (Lyd *lyd, int samples)
+static void lyd_prepare_buffer (Lyd *lyd, int samples)
 {
   if (lyd->buf_len < samples || lyd->buf == NULL)
     {
@@ -91,7 +91,7 @@ static void prepare_buffer (Lyd *lyd, int samples)
   memset (lyd->buf, 0, sizeof (LydSample) * samples * 2);
 }
 
-static void pre_cb (Lyd *lyd, int samples)
+static void lyd_pre_cb (Lyd *lyd, int samples)
 {
   float elapsed = lyd->previous_samples/(1.0 * lyd->sample_rate);
   int i;
@@ -102,11 +102,10 @@ static void pre_cb (Lyd *lyd, int samples)
   lyd->previous_samples = samples;
 }
 
-static void
-lyd_voice_release_handling (Lyd   *lyd,
-                            LydVM *voice,
-                            int    first_sample,
-                            int    samples)
+static void lyd_voice_release_handling (Lyd   *lyd,
+                                        LydVM *voice,
+                                        int    first_sample,
+                                        int    samples)
 {
   int i;
   LydSample * __restrict__ result = NULL;
@@ -129,7 +128,6 @@ lyd_voice_release_handling (Lyd   *lyd,
          :voice->silence_min * (1.0 - LYD_RELEASE_SILENCE_DAMPENING);
       }
 }
-
 
 static void
 lyd_voice_spatialize (Lyd   *lyd,
@@ -236,7 +234,7 @@ static SList *lyd_synthesize_voices (Lyd *lyd, int samples)
   return active;
 }
 
-static void apply_global_filter (Lyd *lyd, int samples)
+static void lyd_apply_global_filter (Lyd *lyd, int samples)
 {
   int i;
   LydSample *inputs[]={lyd->buf};
@@ -247,7 +245,7 @@ static void apply_global_filter (Lyd *lyd, int samples)
     lyd_filter_process (lyd->global_filter[1], inputs, 1, lyd->buf + samples, samples);
 }
 
-static void detect_level (Lyd *lyd, int samples)
+static void lyd_detect_level (Lyd *lyd, int samples)
 {
   int i;
   for (i=0;i<samples;i++)
@@ -274,8 +272,8 @@ static void detect_level (Lyd *lyd, int samples)
     }
 }
 
-static void write_to_output (Lyd *lyd, int samples,
-                             void *stream, void *stream2)
+static void lyd_write_to_output (Lyd *lyd, int samples,
+                                 void *stream, void *stream2)
 {
   int i;
   LydSample * __restrict__ buf   = (void*)stream;
@@ -302,9 +300,7 @@ static void write_to_output (Lyd *lyd, int samples,
     }
 }
 
-
-
-static void kill_silent_voices (Lyd *lyd, SList *active)
+static void lyd_kill_silent_voices (Lyd *lyd, SList *active)
 {
   SList *iter;
   lyd->active = 0;
@@ -328,7 +324,7 @@ static void kill_silent_voices (Lyd *lyd, SList *active)
     }
 }
 
-static void kill_excessive_voices (Lyd *lyd, SList *active)
+static void lyd_kill_excessive_voices (Lyd *lyd, SList *active)
 {
   SList *iter;
   while (lyd->active > lyd->max_active)
@@ -369,9 +365,7 @@ static void kill_excessive_voices (Lyd *lyd, SList *active)
     }
 }
 
-
-
-static void post_cb (Lyd *lyd, int samples, void *stream, void *stream2)
+static void lyd_post_cb (Lyd *lyd, int samples, void *stream, void *stream2)
 {
   int i;
   for (i = 0; i < LYD_MAX_CBS; i++)
@@ -379,15 +373,14 @@ static void post_cb (Lyd *lyd, int samples, void *stream, void *stream2)
       lyd->post_cb[i](lyd, samples, stream, stream2, lyd->post_cb_data[i]);
 }
 
-
 void
 lyd_kill (Lyd *lyd,
           int  tag)
 {
   SList *iter;
   LOCK ();
- 
-again: 
+
+again:
   for (iter = lyd->voices; iter; iter=iter->next)
     {
       LydVM *voice = iter->data;
@@ -612,7 +605,7 @@ typedef struct _LydParam
 
 void lyd_voice_set_param_delayed (Lyd        *lyd,        LydVoice    *voice,
                                   const char *param_name, float        time,
-                                  LydInterpolation interpolation, 
+                                  LydInterpolation interpolation,
                                   float       value)
 {
   LydParam *param = g_new0 (LydParam, 1);
@@ -826,7 +819,7 @@ lyd_load_wave (Lyd *lyd, const char *name,
     }
 
   if (data == NULL || samples == 0)
-    { 
+    {
       UNLOCK ();
       return;
     }
@@ -861,7 +854,7 @@ lyd_set_wave_handler (Lyd *lyd,
 LydFilter  *lyd_filter_new      (Lyd *lyd, LydProgram *program)
 {
   LydVM *filter;
-  filter     = lyd_vm_create (lyd, program);
+  filter = lyd_vm_create (lyd, program);
   filter->sample_rate = lyd->sample_rate;
   filter->i_sample_rate = 1.0/lyd->sample_rate;
   return filter;

@@ -61,7 +61,7 @@ static LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
           (LydOpState*)(((char *)state) +
                         sizeof (LydOpState) +
                         (sizeof (LydChunk)) * lyd_op_argc[state->op]);
-      
+
       for (j = 0; j < lyd_op_argc[state->op]; j++)
         {
           int offset  = program->commands[i].arg[j];
