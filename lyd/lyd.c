@@ -19,6 +19,7 @@
 #include <string.h>
 #include <math.h>
 #include <assert.h>
+#include <unistd.h>
 #include "lyd-private.h"
 
 
@@ -42,9 +43,13 @@ void lyd_midi_iterate (Lyd *lyd, float elapsed);
 
 static void lyd_prepare_buffer (Lyd *lyd, int samples);
 static void lyd_pre_cb (Lyd *lyd, int samples);
-static SList *lyd_synthesize_voices (Lyd *lyd, int samples);
+static SList *lyd_queue_voices (Lyd *lyd, int samples);
+static void lyd_thread_render_voices (Lyd *lyd, int samples, int thread_no);
+static void lyd_collapse_threads (Lyd *lyd, int samples);
 static void lyd_apply_global_filter (Lyd *lyd, int samples);
+#ifdef DEBUG_CLIPPING
 static void lyd_detect_level (Lyd *lyd, int samples);
+#endif
 static void lyd_write_to_output (Lyd *lyd, int samples,
                              void *stream, void *stream2);
 static void lyd_kill_silent_voices (Lyd *lyd, SList *active);
@@ -58,14 +63,39 @@ lyd_synthesize (Lyd  *lyd,
                 void *stream2)
 {
   SList *active = NULL;
+  int i;
 
   lyd_prepare_buffer (lyd, samples);
   lyd_pre_cb (lyd, samples);
 
   LOCK ();
-  active = lyd_synthesize_voices (lyd, samples);
+
+  active = lyd_queue_voices (lyd, samples);
+#ifdef LYD_THREADED
+  for (i = 1; i < lyd->threads; i++)
+    {
+      lyd->hasit[i]=1;
+      pthread_mutex_unlock (&lyd->tmutex[i]);
+      pthread_cond_signal (&lyd->tcond[i]);
+    }
+#endif
+  lyd_thread_render_voices (lyd, samples, 0);
+#ifdef LYD_THREADED
+  for (i = 1; i < lyd->threads; i++)
+    {
+      pthread_mutex_lock (&lyd->tmutex[i]);
+      while (lyd->hasit[i])
+        {
+          pthread_cond_wait (&lyd->tcond[i], &lyd->tmutex[i]);
+        }
+    }
+  lyd_collapse_threads (lyd, samples);
+#endif
+
   lyd_apply_global_filter (lyd, samples);
+#ifdef DEBUG_CLIPPING
   lyd_detect_level (lyd, samples);
+#endif
   lyd_write_to_output (lyd, samples, stream, stream2);
   lyd_kill_silent_voices (lyd, active);
   lyd_kill_excessive_voices (lyd, active);
@@ -79,16 +109,85 @@ lyd_synthesize (Lyd  *lyd,
   return lyd->sample_no;
 }
 
+#ifdef LYD_THREADED
+typedef struct ThreadData {Lyd *lyd; int thread_no;} ThreadData;
+
+static void *render_thread (void *aux)
+{
+  ThreadData *tdata = aux;
+  Lyd *lyd = tdata->lyd;
+  int thread_no = tdata->thread_no;
+  g_free (aux);
+
+  for (;;)
+    {
+      pthread_mutex_lock(&lyd->tmutex[thread_no]);
+
+      while (!lyd->hasit[thread_no])
+        pthread_cond_wait(&lyd->tcond[thread_no], &lyd->tmutex[thread_no]);
+
+      lyd_thread_render_voices (lyd, lyd->tsamples, thread_no);
+      lyd->hasit[thread_no]=0;
+      pthread_mutex_unlock(&lyd->tmutex[thread_no]);
+      pthread_cond_signal (&lyd->tcond[thread_no]);
+    }
+  return NULL;
+}
+
+static int lyd_get_num_cores (void)
+{
+/* XXX: works only for Linux, Solaris, AIX */
+  return sysconf (_SC_NPROCESSORS_ONLN);
+}
+
+static void worker_threads_init (Lyd *lyd)
+{
+  static int done = 0;
+  int i;
+  if (done)
+    return;
+
+  lyd->threads = lyd_get_num_cores ();
+  if (lyd->threads > LYD_MAX_THREADS)
+    lyd->threads = LYD_MAX_THREADS;
+
+  done = 1;
+  for (i = 1;i < lyd->threads; i++)
+    {
+      ThreadData *tdata = g_new0 (ThreadData, 1);
+      tdata->lyd = lyd;
+      tdata->thread_no = i;
+      pthread_mutex_init (&lyd->tmutex[i], NULL);
+      pthread_cond_init  (&lyd->tcond[i], NULL);
+      pthread_mutex_lock(&lyd->tmutex[i]);
+      pthread_create (&lyd->tids[i], NULL, render_thread, tdata);
+    }
+}
+#endif
+
 static void lyd_prepare_buffer (Lyd *lyd, int samples)
 {
-  if (lyd->buf_len < samples || lyd->buf == NULL)
+  int i;
+  if (lyd->buf_len < samples || lyd->buf[0] == NULL)
     {
-      if (lyd->buf)
-        g_free (lyd->buf);
-      lyd->buf = g_malloc0 (sizeof (LydSample) * samples * 2);
+#ifdef LYD_THREADED
+      for (i = 0; i < lyd->threads; i++)
+#else
+      i=0;
+#endif
+        {
+          if (lyd->buf[i])
+            g_free (lyd->buf[i]);
+          lyd->buf[i] = g_malloc0 (sizeof (LydSample) * samples * 2);
+        }
       lyd->buf_len = samples;
     }
-  memset (lyd->buf, 0, sizeof (LydSample) * samples * 2);
+#ifdef LYD_THREADED
+  for (i = 0; i < lyd->threads; i++)
+#else
+  i=0;
+#endif
+    memset (lyd->buf[i], 0, sizeof (LydSample) * samples * 2);
 }
 
 static void lyd_pre_cb (Lyd *lyd, int samples)
@@ -105,10 +204,10 @@ static void lyd_pre_cb (Lyd *lyd, int samples)
 static void lyd_voice_release_handling (Lyd   *lyd,
                                         LydVM *voice,
                                         int    first_sample,
-                                        int    samples)
+                                        int    samples,
+                                        LydSample * __restrict__ result)
 {
   int i;
-  LydSample * __restrict__ result = NULL;
   if (  (voice->duration != 0 && voice->sample >= voice->duration)
          || voice->released)
     voice->released += samples - first_sample;
@@ -132,40 +231,42 @@ static void lyd_voice_release_handling (Lyd   *lyd,
 static void
 lyd_voice_spatialize (Lyd   *lyd,
                       LydVM *voice,
+                      int    thread_no,
                       int    first_sample,
                       int    samples,
                       int    tot_samples,
-                      int    pos)
+                      int    pos,
+                      LydSample * __restrict__ result)
 {
   int i;
-  LydSample * __restrict__ result = NULL;
   /* simple stereo spatialization */
   if (voice->position == 0.0)
     {
       for (i=first_sample;i<samples;i++)
-        lyd->buf[pos+i] += result[i-first_sample];
-      for (i=0;i<samples;i++)
-        lyd->buf[pos+i+tot_samples] += result[i-first_sample];
+        lyd->buf[thread_no][pos+i] += result[i-first_sample];
+      for (i=first_sample;i<samples;i++)
+        lyd->buf[thread_no][pos+i+tot_samples] += result[i-first_sample];
     }
   else if (voice->position > 0.0)
     {
       for (i=first_sample;i<samples;i++)
-        lyd->buf[pos+i] += result[i-first_sample] * (1.0-voice->position);
+        lyd->buf[thread_no][pos+i] += result[i-first_sample] * (1.0-voice->position);
       for (i=first_sample;i<samples;i++)
-        lyd->buf[pos+i+tot_samples] += result[i-first_sample];
+        lyd->buf[thread_no][pos+i+tot_samples] += result[i-first_sample];
     }
   else
     {
       for (i=first_sample;i<samples;i++)
-        lyd->buf[pos+i] += result[i - first_sample];
+        lyd->buf[thread_no][pos+i] += result[i - first_sample];
       for (i=first_sample;i<samples;i++)
-        lyd->buf[pos+i+tot_samples] += result[i - first_sample] * (1.0+voice->position);
+        lyd->buf[thread_no][pos+i+tot_samples] += result[i - first_sample] * (1.0+voice->position);
     }
 }
 
 static void
 lyd_synthesize_voice (Lyd   *lyd,
                       LydVM *voice,
+                      int    thread_no,
                       int    samples,
                       int    tot_samples,
                       int    pos)
@@ -174,19 +275,11 @@ lyd_synthesize_voice (Lyd   *lyd,
   LydSample * __restrict__ result = NULL;
   int first_sample = voice->sample<0?-voice->sample:0;
 
-  /* the accumulation buffer is temporary.. and shared between all voices
-   * we keep one around and grow it if it isn't large enough.. might need
-   * to keep an accum- buffer per voice instead..
-   *
-   * if there were remainder samples from previous rendering, they should
-   * be inserted at the start of the accumbuf,.. and perhaps the accumbuf
-   * start should be adjusted to fulfil SIMD requirements?
-   */
-
   /* blanking accumulation buffer... */
   assert (samples <= LYD_CHUNK);
 
-  /* skip voices that are not yet playing */
+  /* skip voices that are not yet playing,
+   * they will be active later in the current batch */
   if (voice->sample + samples <0)
     {
       voice->sample += samples;
@@ -197,80 +290,118 @@ lyd_synthesize_voice (Lyd   *lyd,
 
   voice->sample++;
   lyd_voice_update_params (voice, samples - first_sample);
+
   /* result is a direct pointer to the results in the last processing chain */
   result = lyd_vm_compute (voice, samples - first_sample);
+  lyd_voice_spatialize (lyd, voice, thread_no, first_sample, samples, tot_samples, pos, result);
   voice->sample--;
 
-  lyd_voice_release_handling  (lyd, voice, first_sample, samples);
-  lyd_voice_spatialize (lyd, voice, first_sample, samples, tot_samples, pos);
+  lyd_voice_release_handling  (lyd, voice, first_sample, samples, result);
 }
 
-static SList *lyd_synthesize_voices (Lyd *lyd, int samples)
+
+static SList *lyd_queue_voices (Lyd *lyd, int samples)
 {
   SList *active, *iter = NULL;
+  int thread_no = 0;
+#ifdef LYD_THREADED
+
+  lyd->tsamples = samples;
+#endif
 
   for (iter = lyd->voices; iter; iter=iter->next)
     {
       LydVM *voice = iter->data;
       if (voice->sample + samples >=0)
         {
-          int left = samples;
-          int pos = 0;
-          while (left > 0) /* break processing up in sizes of size LYD_CHUNK or smaller */
-            {
-              int chunk = LYD_CHUNK;
-              if (chunk > left)
-                chunk = left;
-              left -= chunk;
-              lyd_synthesize_voice (lyd, voice, chunk, samples, pos);
-              pos += chunk;
-            }
-
-          active = slist_prepend (active, iter->data);
+          lyd->queued_voices[thread_no] = slist_prepend (lyd->queued_voices[thread_no], voice);
+          active = slist_prepend (active, voice);
         }
       else
         voice->sample += samples;
+#ifdef LYD_THREADED
+      thread_no++;
+      if (thread_no >= lyd->threads)
+        thread_no = 0;
+#endif
     }
   return active;
 }
 
-static void lyd_apply_global_filter (Lyd *lyd, int samples)
+
+static void lyd_thread_render_voices (Lyd *lyd, int samples, int thread_no)
 {
-  int i;
-  LydSample *inputs[]={lyd->buf};
-  if (lyd->global_filter[0])
-    lyd_filter_process (lyd->global_filter[0], inputs, 1, lyd->buf, samples);
-  inputs[0] = lyd->buf + samples;
-  if (lyd->global_filter[1])
-    lyd_filter_process (lyd->global_filter[1], inputs, 1, lyd->buf + samples, samples);
+  SList *iter = NULL;
+
+  if (!lyd->queued_voices[thread_no])
+    return;
+  for (iter = lyd->queued_voices[thread_no]; iter; iter = iter->next)
+    {
+      LydVM *voice = iter->data;
+      int left = samples;
+      int pos = 0;
+      while (left > 0) /* break processing up in sizes of size LYD_CHUNK or smaller */
+        {
+          int chunk = LYD_CHUNK;
+          if (chunk > left)
+            chunk = left;
+          left -= chunk;
+          lyd_synthesize_voice (lyd, voice, thread_no, chunk, samples, pos);
+          pos += chunk;
+        }
+    }
+  slist_free (lyd->queued_voices[thread_no]);
+  lyd->queued_voices[thread_no] = NULL;
 }
 
+#ifdef LYD_THREADED
+
+static void lyd_collapse_threads (Lyd *lyd, int samples)
+{
+  int i;
+  for (i = 1; i < lyd->threads; i++)
+    {
+      int j;
+      for (j = 0; j < samples * 2; j++)
+        lyd->buf[0][j] += lyd->buf[i][j];
+    }
+}
+#endif
+
+static void lyd_apply_global_filter (Lyd *lyd, int samples)
+{
+  LydSample *inputs[]={lyd->buf[0]};
+  if (lyd->global_filter[0])
+    lyd_filter_process (lyd->global_filter[0], inputs, 1, lyd->buf[0], samples);
+  inputs[0] = lyd->buf[0] + samples;
+  if (lyd->global_filter[1])
+    lyd_filter_process (lyd->global_filter[1], inputs, 1, lyd->buf[0] + samples, samples);
+}
+
+#ifdef DEBUG_CLIPPING
 static void lyd_detect_level (Lyd *lyd, int samples)
 {
   int i;
   for (i=0;i<samples;i++)
     {
       LydSample value[2];
-      value[0] = lyd->buf[i];
-      value[1] = lyd->buf[i+samples];
+      value[0] = lyd->buf[0][i];
+      value[1] = lyd->buf[0][i+samples];
       {
         LydSample nlevel = fabs(value[0]);
         if (nlevel > lyd->level)
           lyd->level = nlevel;
-#ifdef DEBUG_CLIPPING
         if (nlevel > 1.0)
           printf ("clipping\n");
-#endif
         nlevel = fabs(value[1]);
         if (nlevel > lyd->level)
           lyd->level = nlevel;
-#ifdef DEBUG_CLIPPING
         if (nlevel > 1.0)
           printf ("clipping\n");
-#endif
       }
     }
 }
+#endif
 
 static void lyd_write_to_output (Lyd *lyd, int samples,
                                  void *stream, void *stream2)
@@ -284,19 +415,19 @@ static void lyd_write_to_output (Lyd *lyd, int samples,
     {
       case LYD_f32:
         for (i=0;i<samples;i++)
-          buf[i] = (lyd->buf[i] + lyd->buf[i+samples])/2 * LYD_VOICE_VOLUME ;
+          buf[i] = (lyd->buf[0][i] + lyd->buf[0][i+samples])/2 * LYD_VOICE_VOLUME ;
         break;
       case LYD_f32S:
         for (i=0;i<samples;i++)
-          buf[i] = lyd->buf[i] * LYD_VOICE_VOLUME;
+          buf[i] = lyd->buf[0][i] * LYD_VOICE_VOLUME;
         for (i=0;i<samples;i++)
-          buf2[i] = lyd->buf[i+samples] * LYD_VOICE_VOLUME;
+          buf2[i] = lyd->buf[0][i+samples] * LYD_VOICE_VOLUME;
         break;
       case LYD_s16S:
         for (i=0;i<samples;i++)
-          buf16[i*2]  = (lyd->buf[i] * 32767 * LYD_VOICE_VOLUME);
+          buf16[i*2]  = (lyd->buf[0][i] * 32767 * LYD_VOICE_VOLUME);
         for (i=0;i<samples;i++)
-          buf16[i*2+1] = (lyd->buf[i+samples] * 32767 * LYD_VOICE_VOLUME);
+          buf16[i*2+1] = (lyd->buf[0][i+samples] * 32767 * LYD_VOICE_VOLUME);
     }
 }
 
@@ -501,12 +632,20 @@ void lyd_voice_set_delay (Lyd *lyd, LydVoice *voice, double seconds)
 
 void lyd_init_lookup_tables (void);
 
+
+
 Lyd * lyd_new (void)
 {
   Lyd *lyd = g_new0 (Lyd, 1);
+  int i;
   pthread_mutex_init(&lyd->mutex, NULL);
-  lyd->max_active = 2000;
+  lyd->max_active = 4000;
   lyd_init_lookup_tables ();
+
+#ifdef LYD_THREADED
+  worker_threads_init (lyd);
+#endif
+
   return lyd;
 }
 

@@ -16,7 +16,6 @@
 
 #include "biquad.c"
 
-
 typedef union { LydSample v[LYD_CHUNK]; }
 LydChunk __attribute__ ((__aligned__(LYD_ALIGN)));
 
@@ -399,7 +398,7 @@ static inline void op_reverb (OP_ARGS)
           data->size = size;
           data->old = (void*)((  ((char*)(data)) + sizeof (ReverbData)));
         }
-      
+
       sample = sample + data->old[data->pos] * reverb;
       data->old[data->pos++] = sample / (1.0 + reverb);
       if (G_UNLIKELY (data->pos >= size))
@@ -489,7 +488,7 @@ lyd_vm_compute (LydVM  *vm,
   for (state = vm->state; state->op; last_state = state, state=state->next)
     switch (state->op)
       {
-	      case LYD_NONE: break;
+        case LYD_NONE: break;
 #define LYD_OP(name, OP_CODE, ARGC, CODE, DOC, BAZ) \
         case LYD_##OP_CODE: asm("#====LYDOPCODE " name);{ CODE } ; asm("#=====OPCODE END " name); break;
         #include "lyd-ops.inc"

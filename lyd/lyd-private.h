@@ -30,19 +30,34 @@ typedef float LydSample;
 
 // #define DEBUG_CLIPPING
 
-#define LYD_CHUNK                      128
-#define LYD_MAX_ELEMENTS               128
+#define LYD_CHUNK                      128 /* maximum number of samples
+                                              to do in one go for an
+                                              opcode.
+                                              */
+#define LYD_MAX_ELEMENTS               128 /* largest compiled program */
 #define LYD_MAX_ARGS                   8
-
 #define LYD_MAX_VARIABLES              16
 #define LYD_MAX_CBS                    16
-#define LYD_VOICE_VOLUME               0.05f
+
+#define LYD_MIX_NUM_VOICES             20 /* with more than this number
+                                             of concurrent voices,
+                                             clipping might occur.
+                                             */
+
+#define LYD_VOICE_VOLUME               (1.0/LYD_MIX_NUM_VOICES)
+
 #define LYD_MAX_WAVE                   128
 #define LYD_MAX_REVERB_SIZE            48000
 #define LYD_RELEASE_SILENCE_DAMPENING  0.001
-#define LYD_RELEASE_THRESHOLD          0.01
+#define LYD_RELEASE_THRESHOLD          0.01  /* time average amplitude
+                                              * at which released 
+                                              * voices are killed
+                                              */
 #define LYD_MIN_RELASE_TIME_DIVISOR    100   /* computed as samplerate/this */
+
 #define LYD_ALIGN                      16    /* needed for tree-vectorize SIMD*/
+#define LYD_THREADED /* comment out to disabled threading */
+#define LYD_MAX_THREADS                4
 
 typedef enum
 {
@@ -75,7 +90,6 @@ struct _LydOpState
   LydOpState *next;               /* 4 bytes */
   LydSample   phase;              /* 4 bytes */
   LydSample  *arg[LYD_MAX_ARGS];  /* ? bytes */
-  
   LydSample   literal[] __attribute__ ((aligned(LYD_ALIGN)));
 };
 
@@ -227,8 +241,22 @@ struct _Lyd
                                    one instance for each channel
                                 */
 
-  LydSample  *buf;
-  int         buf_len;
+#ifdef LYD_THREADED
+  int             threads;
+  int             tsamples;
+  pthread_t       tids[LYD_MAX_THREADS];
+  pthread_mutex_t tmutex[LYD_MAX_THREADS];
+  pthread_cond_t  tcond[LYD_MAX_THREADS];
+
+  LydSample      *buf[LYD_MAX_THREADS];
+  int             hasit[LYD_MAX_THREADS];
+#else
+  LydSample      *buf[1];
+#endif
+
+  SList          *queued_voices[LYD_MAX_THREADS];
+
+  int             buf_len;
 
   void (*pre_cb[LYD_MAX_CBS])(Lyd *lyd, float elapsed, void *data);
   void *pre_cb_data[LYD_MAX_CBS];
