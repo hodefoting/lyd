@@ -34,5 +34,6 @@
       max-width: 30em; margin-left: auto; margin-right: auto; padding: 1em}
   img#logo {position:relative; top: 23px;}
   tt {display: block; margin-top: 1em;margin-bottom: 1em; font-size: 100%;}
+  pre {overflow: auto; display: block; margin-top: 1em;margin-bottom: 1em; font-size: 100%;}
   span.foo {color:#555;}
   audio { width: 100% };

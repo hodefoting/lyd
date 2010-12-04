@@ -75,9 +75,11 @@ lyd_synthesize_voice (Lyd      *lyd,
     int first_sample = voice->sample<0?-voice->sample:0;
     voice->sample += first_sample;
     
+    voice->sample++;
     lyd_voice_update_params (voice, samples - first_sample);
     /* result is a direct pointer to the results in the last processing chain */
     result = lyd_vm_compute (voice, samples - first_sample);
+    voice->sample--;
 
     if (  (voice->duration != 0 && voice->sample >= voice->duration)
            || voice->released)
