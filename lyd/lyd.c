@@ -33,15 +33,137 @@ int lyd_op_argc[]=
 
 static void lyd_voice_update_params (LydVM *voice,
                                      int       samples);
-
+void lyd_midi_iterate (Lyd *lyd, float elapsed);
 
 /* we include the voice directly to make the mixing and the vm 
  * a single compilation unit
  */
 #include "lyd-vm.c"
 
-void lyd_midi_iterate (Lyd *lyd, float elapsed); 
+static void prepare_buffer (Lyd *lyd, int samples);
+static void pre_cb (Lyd *lyd, int samples);
+static SList *lyd_synthesize_voices (Lyd *lyd, int samples);
+static void apply_global_filter (Lyd *lyd, int samples);
+static void detect_level (Lyd *lyd, int samples);
+static void write_to_output (Lyd *lyd, int samples,
+                             void *stream, void *stream2);
+static void kill_silent_voices (Lyd *lyd, SList *active);
+static void kill_excessive_voices (Lyd *lyd, SList *active);
+static void post_cb (Lyd *lyd, int samples, void *stream, void *stream2);
 
+long
+lyd_synthesize (Lyd  *lyd,
+                int   samples,
+                void *stream,
+                void *stream2)
+{
+  SList *active = NULL;
+
+  prepare_buffer (lyd, samples);
+  pre_cb (lyd, samples);
+
+  LOCK ();
+  active = lyd_synthesize_voices (lyd, samples);
+  apply_global_filter (lyd, samples);
+  detect_level (lyd, samples);
+  write_to_output (lyd, samples, stream, stream2);
+  kill_silent_voices (lyd, active);
+  kill_excessive_voices (lyd, active);
+
+  slist_free (active);
+  lyd->sample_no += samples;
+  UNLOCK ();
+
+  post_cb (lyd, samples, stream, stream2);
+
+  return lyd->sample_no;
+}
+
+static void prepare_buffer (Lyd *lyd, int samples)
+{
+  if (lyd->buf_len < samples || lyd->buf == NULL)
+    {
+      if (lyd->buf)
+        g_free (lyd->buf);
+      lyd->buf = g_malloc0 (sizeof (LydSample) * samples * 2);
+      lyd->buf_len = samples;
+    }
+  memset (lyd->buf, 0, sizeof (LydSample) * samples * 2);
+}
+
+static void pre_cb (Lyd *lyd, int samples)
+{
+  float elapsed = lyd->previous_samples/(1.0 * lyd->sample_rate);
+  int i;
+  lyd_midi_iterate (lyd, elapsed);
+  for (i = 0; i < LYD_MAX_CBS; i++)
+    if (lyd->pre_cb[i])
+      lyd->pre_cb[i](lyd, elapsed, lyd->pre_cb_data[i]);
+  lyd->previous_samples = samples;
+}
+
+static void
+lyd_voice_release_handling (Lyd   *lyd,
+                            LydVM *voice,
+                            int    first_sample,
+                            int    samples)
+{
+  int i;
+  LydSample * __restrict__ result = NULL;
+  if (  (voice->duration != 0 && voice->sample >= voice->duration)
+         || voice->released)
+    voice->released += samples - first_sample;
+
+  /* do silence detection for released voices, to know when
+   * the voice itself can be automatically destroyed.
+   */
+  if (voice->released)
+    for (i=first_sample;i<samples;i++)
+      {
+        LydSample computed = result[i-first_sample];
+        voice->silence_max = (computed > voice->silence_max)
+         ?computed
+         :voice->silence_max * (1.0 - LYD_RELEASE_SILENCE_DAMPENING);
+        voice->silence_min = (computed < voice->silence_min)
+         ?computed
+         :voice->silence_min * (1.0 - LYD_RELEASE_SILENCE_DAMPENING);
+      }
+}
+
+
+static void
+lyd_voice_spatialize (Lyd   *lyd,
+                      LydVM *voice,
+                      int    first_sample,
+                      int    samples,
+                      int    tot_samples,
+                      int    pos)
+{
+  int i;
+  LydSample * __restrict__ result = NULL;
+  /* simple stereo spatialization */
+  if (voice->position == 0.0)
+    {
+      for (i=first_sample;i<samples;i++)
+        lyd->buf[pos+i] += result[i-first_sample];
+      for (i=0;i<samples;i++)
+        lyd->buf[pos+i+tot_samples] += result[i-first_sample];
+    }
+  else if (voice->position > 0.0)
+    {
+      for (i=first_sample;i<samples;i++)
+        lyd->buf[pos+i] += result[i-first_sample] * (1.0-voice->position);
+      for (i=first_sample;i<samples;i++)
+        lyd->buf[pos+i+tot_samples] += result[i-first_sample];
+    }
+  else
+    {
+      for (i=first_sample;i<samples;i++)
+        lyd->buf[pos+i] += result[i - first_sample];
+      for (i=first_sample;i<samples;i++)
+        lyd->buf[pos+i+tot_samples] += result[i - first_sample] * (1.0+voice->position);
+    }
+}
 
 static void
 lyd_synthesize_voice (Lyd   *lyd,
@@ -52,6 +174,7 @@ lyd_synthesize_voice (Lyd   *lyd,
 {
   int        i;
   LydSample * __restrict__ result = NULL;
+  int first_sample = voice->sample<0?-voice->sample:0;
 
   /* the accumulation buffer is temporary.. and shared between all voices
    * we keep one around and grow it if it isn't large enough.. might need
@@ -72,61 +195,19 @@ lyd_synthesize_voice (Lyd   *lyd,
       return;
     }
 
-  {
-    int first_sample = voice->sample<0?-voice->sample:0;
-    voice->sample += first_sample;
+  voice->sample += first_sample;
 
-    voice->sample++;
-    lyd_voice_update_params (voice, samples - first_sample);
-    /* result is a direct pointer to the results in the last processing chain */
-    result = lyd_vm_compute (voice, samples - first_sample);
-    voice->sample--;
+  voice->sample++;
+  lyd_voice_update_params (voice, samples - first_sample);
+  /* result is a direct pointer to the results in the last processing chain */
+  result = lyd_vm_compute (voice, samples - first_sample);
+  voice->sample--;
 
-    if (  (voice->duration != 0 && voice->sample >= voice->duration)
-           || voice->released)
-      voice->released += samples - first_sample;
-
-    /* do silence detection for released voices, to know when
-     * the voice itself can be automatically destroyed.
-     */
-    if (voice->released)
-      for (i=first_sample;i<samples;i++)
-        {
-          LydSample computed = result[i-first_sample];
-          voice->silence_max = (computed > voice->silence_max)
-           ?computed
-           :voice->silence_max * (1.0 - LYD_RELEASE_SILENCE_DAMPENING);
-          voice->silence_min = (computed < voice->silence_min)
-           ?computed
-           :voice->silence_min * (1.0 - LYD_RELEASE_SILENCE_DAMPENING);
-        }
-
-    /* simple stereo distribution of mix */
-    if (voice->position == 0.0)
-      {
-        for (i=first_sample;i<samples;i++)
-          lyd->buf[pos+i] += result[i-first_sample];
-        for (i=0;i<samples;i++)
-          lyd->buf[pos+i+tot_samples] += result[i-first_sample];
-      }
-    else if (voice->position > 0.0)
-      {
-        for (i=first_sample;i<samples;i++)
-          lyd->buf[pos+i] += result[i-first_sample] * (1.0-voice->position);
-        for (i=first_sample;i<samples;i++)
-          lyd->buf[pos+i+tot_samples] += result[i-first_sample];
-      }
-    else
-      {
-        for (i=first_sample;i<samples;i++)
-          lyd->buf[pos+i] += result[i - first_sample];
-        for (i=first_sample;i<samples;i++)
-          lyd->buf[pos+i+tot_samples] += result[i - first_sample] * (1.0+voice->position);
-      }
-  }
+  lyd_voice_release_handling  (lyd, voice, first_sample, samples);
+  lyd_voice_spatialize (lyd, voice, first_sample, samples, tot_samples, pos);
 }
 
-static SList *lyd_synthesize_active_voices (Lyd *lyd, int samples)
+static SList *lyd_synthesize_voices (Lyd *lyd, int samples)
 {
   SList *active, *iter = NULL;
 
@@ -153,104 +234,6 @@ static SList *lyd_synthesize_active_voices (Lyd *lyd, int samples)
         voice->sample += samples;
     }
   return active;
-}
-
-
-/* should only be called after the sample rate has been set
- * on lyd, the global filter could be extended into a
- * generic posprocessing and stereo dispatch program.
- *
- * With separate processing pipeline statements all in a
- * single lyd source.  * With multiple statements specifying
- * and carrying out the assignment to output buffers would be
- * needed in programs (autodetecting and expanding the
- * single expression case would be good.)
- *
- * For now it is most useful for postprocessing, adding dither
- * with "input(0) + (noise()-0.5) * (1./065536)"
- */
-void lyd_set_global_filter (Lyd *lyd, LydProgram *program)
-{
-  int i;
-  if (!program)
-    {
-      for (i = 0; i< 2; i++)
-        {
-          if (lyd->global_filter[i])
-            lyd_filter_free (lyd->global_filter[i]);
-          lyd->global_filter[i] = NULL;
-        }
-      return;
-    }
-  for (i = 0; i< 2; i++)
-    {
-      if (lyd->global_filter[i])
-        lyd_filter_free (lyd->global_filter[i]);
-      if (program)
-        lyd->global_filter[i] = lyd_filter_new (lyd, program);
-      else
-        lyd->global_filter[i] = NULL;
-    }
-}
-
-static void kill_silent_voices (Lyd *lyd, SList *active)
-{
-  SList *iter;
-  lyd->active = 0;
-  for (iter=active; iter; iter=iter->next)
-    {                                  /* remove released and silent voices */
-      LydVM *voice = iter->data;
-      if (voice->released > voice->sample_rate / LYD_MIN_RELASE_TIME_DIVISOR
-       && (voice->silence_max -
-           voice->silence_min < LYD_RELEASE_THRESHOLD ||
-           voice->released > voice->sample_rate * 15.0)
-          )
-        {
-          lyd->voices = slist_remove (lyd->voices, voice);
-          if (voice->complete_cb)
-            (voice->complete_cb) (voice->complete_data);
-          lyd_vm_free (voice);
-          iter->data = NULL;
-        }
-      else
-        lyd->active ++;
-    }
-  while (lyd->active > lyd->max_active)
-    {
-      SList    *weakest_link = NULL;
-      LydVM *weakest = NULL;
-      float     best_score = 0;
-      for (iter=active; iter; iter=iter->next)
-        {
-          LydVM *voice = iter->data;
-          float score = 0;
-          if (!voice)
-            continue;
-          if (voice->released)
-            {
-              score += voice->released * 10;
-              score += voice->sample * 0.01;
-            }
-          else
-              score = voice->sample * 0.1;
-          if (score > best_score)
-            {
-              best_score = score;
-              weakest = voice;
-              weakest_link = iter;
-            }
-        }
-      if (weakest){
-        lyd->voices = slist_remove (lyd->voices, weakest);
-        if (weakest->complete_cb)
-          (weakest->complete_cb) (weakest->complete_data);
-        lyd_vm_free (weakest);
-        weakest_link->data = NULL;
-        lyd->active--;
-      }
-      else
-        break;
-    }
 }
 
 static void apply_global_filter (Lyd *lyd, int samples)
@@ -319,6 +302,75 @@ static void write_to_output (Lyd *lyd, int samples,
     }
 }
 
+
+
+static void kill_silent_voices (Lyd *lyd, SList *active)
+{
+  SList *iter;
+  lyd->active = 0;
+  for (iter=active; iter; iter=iter->next)
+    {                                  /* remove released and silent voices */
+      LydVM *voice = iter->data;
+      if (voice->released > voice->sample_rate / LYD_MIN_RELASE_TIME_DIVISOR
+       && (voice->silence_max -
+           voice->silence_min < LYD_RELEASE_THRESHOLD ||
+           voice->released > voice->sample_rate * 15.0)
+          )
+        {
+          lyd->voices = slist_remove (lyd->voices, voice);
+          if (voice->complete_cb)
+            (voice->complete_cb) (voice->complete_data);
+          lyd_vm_free (voice);
+          iter->data = NULL;
+        }
+      else
+        lyd->active ++;
+    }
+}
+
+static void kill_excessive_voices (Lyd *lyd, SList *active)
+{
+  SList *iter;
+  while (lyd->active > lyd->max_active)
+    {
+      SList    *weakest_link = NULL;
+      LydVM *weakest = NULL;
+      float     best_score = 0;
+      for (iter=active; iter; iter=iter->next)
+        {
+          LydVM *voice = iter->data;
+          float score = 0;
+          if (!voice)
+            continue;
+          if (voice->released)
+            {
+              score += voice->released * 10;
+              score += voice->sample * 0.01;
+            }
+          else
+              score = voice->sample * 0.1;
+          if (score > best_score)
+            {
+              best_score = score;
+              weakest = voice;
+              weakest_link = iter;
+            }
+        }
+      if (weakest){
+        lyd->voices = slist_remove (lyd->voices, weakest);
+        if (weakest->complete_cb)
+          (weakest->complete_cb) (weakest->complete_data);
+        lyd_vm_free (weakest);
+        weakest_link->data = NULL;
+        lyd->active--;
+      }
+      else
+        break;
+    }
+}
+
+
+
 static void post_cb (Lyd *lyd, int samples, void *stream, void *stream2)
 {
   int i;
@@ -327,57 +379,6 @@ static void post_cb (Lyd *lyd, int samples, void *stream, void *stream2)
       lyd->post_cb[i](lyd, samples, stream, stream2, lyd->post_cb_data[i]);
 }
 
-static void pre_cb (Lyd *lyd, int samples)
-{ 
-  float elapsed = lyd->previous_samples/(1.0 * lyd->sample_rate);
-  int i;
-  lyd_midi_iterate (lyd, elapsed);
-  for (i = 0; i < LYD_MAX_CBS; i++)
-    if (lyd->pre_cb[i])
-      lyd->pre_cb[i](lyd, elapsed, lyd->pre_cb_data[i]);
-  lyd->previous_samples = samples;
-}
-
-long
-lyd_synthesize (Lyd  *lyd,
-                int   samples,
-                void *stream,
-                void *stream2)
-{
-  SList *active = NULL;
-
-  if (lyd->buf_len < samples || lyd->buf == NULL)
-    {
-      if (lyd->buf)
-        g_free (lyd->buf);
-      lyd->buf = g_malloc0 (sizeof (LydSample) * samples * 2);
-      lyd->buf_len = samples;
-    }
-  memset (lyd->buf, 0, sizeof (LydSample) * samples * 2);
-
-  pre_cb (lyd, samples); /* XXX: revisit whether this should happen under lock,
-                          *      perhaps not doing it and relying on lyd itself
-                          *      to do so is best.
-                          */
-  LOCK ();
-  active = lyd_synthesize_active_voices (lyd, samples);
-
-  apply_global_filter (lyd, samples);
-
-  detect_level (lyd, samples);
-
-  write_to_output (lyd, samples, stream, stream2);
-
-  kill_silent_voices (lyd, active);
-
-  slist_free (active);
-  lyd->sample_no += samples;
-  UNLOCK ();
-
-  post_cb (lyd, samples, stream, stream2);
-
-  return lyd->sample_no;
-}
 
 void
 lyd_kill (Lyd *lyd,
@@ -424,6 +425,43 @@ lyd_voice_release (Lyd      *lyd,
       voice->silence_max = 100;
     }
   UNLOCK ();
+}
+
+/* should only be called after the sample rate has been set
+ * on lyd, the global filter could be extended into a
+ * generic posprocessing and stereo dispatch program.
+ *
+ * With separate processing pipeline statements all in a
+ * single lyd source.  * With multiple statements specifying
+ * and carrying out the assignment to output buffers would be
+ * needed in programs (autodetecting and expanding the
+ * single expression case would be good.)
+ *
+ * For now it is most useful for postprocessing, adding dither
+ * with "input(0) + (noise()-0.5) * (1./065536)"
+ */
+void lyd_set_global_filter (Lyd *lyd, LydProgram *program)
+{
+  int i;
+  if (!program)
+    {
+      for (i = 0; i< 2; i++)
+        {
+          if (lyd->global_filter[i])
+            lyd_filter_free (lyd->global_filter[i]);
+          lyd->global_filter[i] = NULL;
+        }
+      return;
+    }
+  for (i = 0; i< 2; i++)
+    {
+      if (lyd->global_filter[i])
+        lyd_filter_free (lyd->global_filter[i]);
+      if (program)
+        lyd->global_filter[i] = lyd_filter_new (lyd, program);
+      else
+        lyd->global_filter[i] = NULL;
+    }
 }
 
 static LydVoice *lyd_voice_new_unlocked (Lyd       *lyd,
