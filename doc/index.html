@@ -35,14 +35,14 @@
     <h3>
       <a class='jump' href='#top' title='jump to top'>⇡</a><a name='does' href='#does'>What lyd does</a></h3>
     <ul>
-         <li>32bit float processing</li>
+         <li>32bit float, SIMD multi core processing</li>
          <li>language binding friendly <a href='http://pippin.gimp.org/git/lyd/tree/lyd/lyd.h'>C API</a></li>
          <li><a href='reference.html'>audio synthesis language</a> providing
          <em>audio-shaders</em> or "GLSL for audio", lyd uses a language but
          the vm could just as easily support nodes.</li>
          <li>Extendable virtual machine.</li>
          <li>Accurate queuing of voices and control of interpolated variables.</li>
-         <li>Loading of PCM data from wav (using callback handlers and libsndfile)</li>
+         <li>Loading of PCM data from wav (using callback handlers)</li>
     </ul>
 
     <ul>
@@ -163,6 +163,49 @@
     <!--(note to self: would be good to allowing interpolation of real-time specified variables
     to avoid artifacts)-->.
 
+    <h4>performance</h4>
+    <p>Running under Fedora 13, with Intel(R) Core(TM)2 Duo CPU L9400 @
+    1.86GHz, lyd is able to render the following number of concurrent voices
+    for the following programs. Respectively with ALSA and with ALSA through
+    pulse-audio, both of them using the only period size ALSA seems to
+    accept with my soundcard.</p>
+    <table>
+      <tr><th>alsa</th><th>pulseaudio</th><th>code</th></tr>
+
+      <tr><td valign='top'>194</td><td valign='top'>
+          198</td><td>
+          sin(hz) * adsr(0.5, 0.10, 0.4, 0.30) + sin(hz=440*1.3) * adsr(0.5, 0.10, 0.4, 0.30)  + sin(hz) * adsr(0.5, 0.10, 0.4, 0.30)  + sin(hz*3.4) * adsr(0.5, 0.10, 0.4, 0.30) + sin(hz*8) * adsr(0.5, 0.10, 0.4, 0.30) + sin(hz*7) * adsr(0.5, 0.10, 0.4, 0.30) + sin(hz*4) * adsr(0.5, 0.10, 0.4, 0.30) + sin(hz*5) * adsr(0.5, 0.10, 0.4, 0.30) + noise() * ddadsr(0.2,0.4,0.4,0.1,0.4)
+  </td></tr>
+
+      <tr><td valign='top'>284</td><td valign='top'>
+          261
+      </td><td>(saw(sin(hz=440.0 + reverb(1.0,0.2,sin(20 + 2 * (noise() - 0.5)))))+ square(hz*3) / triangle(hz*2)) * adsr(0.5, 0.10, 0.4, 0.30)</td></tr>
+      <tr><td valign='top'>432</td><td valign='top'>
+          389
+      </td><td>(sin(hz=440.0 + sin(20))+ square(hz*3) / triangle(hz*2)) * adsr(0.5, 0.10, 0.4, 0.30)</td>
+      <tr><td valign='top'>753</td><td valign='top'>
+          672
+      </td><td>low_pass (1.0, 600.0, 1.0, reverb (0.8, 0.2, square(hz=440) * adsr(0.5, 0.10, 0.4, 0.30)))</td>
+      <tr><td valign='top'>959</td><td valign='top'>
+         819
+      </td><td>reverb (0.8, 0.2, square(hz=440) * adsr(0.5, 0.10, 0.4, 0.30))</td>
+      <tr><td valign='top'>971</td><td valign='top'>
+         902
+      </td><td>low_pass (1.0, 600.0, 1.0, square(hz=440) * adsr(0.5, 0.10, 0.4, 0.30))</td>
+
+      <tr><td valign='top'>1286</td><td valign='top'>
+         1186
+      </td><td>noise() * adsr(0.5, 0.10, 0.4, 0.30) </td>
+
+      <tr><td valign='top'>1423</td><td valign='top'>
+         1250
+       </td><td>sin(hz=440) * adsr(0.5, 0.10, 0.4, 0.30) </td>
+
+      <tr><td valign='top'>1622</td><td valign='top'>
+         1555
+       </td><td>wave_loop('/tmp/foo.wav', hz=440) * adsr(0.5, 0.10, 0.4, 0.30)</td>
+    </table>
+
     <h3><a class='jump' href='#top' title='jump to top'>⇡</a>
         <a name='comp-sci' href='#comp-sci'>Lyd for computer scientists</a></h3>
 
@@ -218,6 +261,10 @@
     and the and the <a href='reference.html'>language reference</a>.
     </p>
 
+    <p>Each render thread operates has it's own queue of voices to compute and
+    an associated mutex and condition to manage execution flow without any busy
+    waiting.
+    </p>
 
     <h3><a class='jump' href='#top' title='jump to top'>⇡</a>
       <a name='plans' href='#plans'>Roadmap/plans/todo/bugs <span class='foo'>(contributions welcome)</span></a></h3>
