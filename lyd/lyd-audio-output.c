@@ -32,6 +32,11 @@ extern int lyd_dead;
 #include <stdlib.h>
 #include <unistd.h>
 
+/* This is what my sound card gives me when using ALSA directly,
+ * and it is what gives the best performance when using pulseaudio.
+ */
+#define LYD_DESIRED_PERIOD_SIZE 1024
+
 static snd_pcm_t *alsa_open(char *dev, int rate, int channels)
 {
    snd_pcm_hw_params_t *hwp;
@@ -61,11 +66,10 @@ static snd_pcm_t *alsa_open(char *dev, int rate, int channels)
    dir = 0;
    snd_pcm_hw_params_get_period_size_max(hwp, &period_size_max, &dir);
 
-   period_size = 1024;
+   period_size = LYD_DESIRED_PERIOD_SIZE;
 
    dir = 0;
    r = snd_pcm_hw_params_set_period_size_near(h, hwp, &period_size, &dir);
-   dir = 0;
    r = snd_pcm_hw_params_get_period_size(hwp, &period_size, &dir);
    buffer_size = period_size * 4;
    r = snd_pcm_hw_params_set_buffer_size_near(h, hwp, &buffer_size);
@@ -77,6 +81,7 @@ static snd_pcm_t *alsa_open(char *dev, int rate, int channels)
    snd_pcm_sw_params_set_start_threshold(h, swp, 0);
    r = snd_pcm_sw_params(h, swp);
    r = snd_pcm_prepare(h);
+
    return h;
 }
 
@@ -112,6 +117,11 @@ static void *alsa_audio_start(void *aux)
        lyd_synthesize (lyd, c, data, NULL);
        snd_pcm_writei(h, data, c);
     } else {
+      if (getenv("LYD_FATAL_UNDERRUNS"))
+        {
+          printf ("%i", lyd->active);
+          exit(0);
+        }
       fprintf (stderr, "alsa underun %d voices\n", lyd->active);
       //exit(0);
     }
