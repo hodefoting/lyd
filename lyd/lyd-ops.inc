@@ -67,20 +67,6 @@ LYD_OP("neg", NEG, 1,
 
 /* oscillators */
 
-LYD_OP("adsr", ADSR, 4,
-       OP_FUN (op_adsr),
-       "ADSR Envelope - provides values in range 0.0-1.0 if oscillators are"
-       " multiplied with an ADSR the amplitude will sink to 0.0 after release"
-       " and the voice will be automatically freed after release when it no "
-       " longer makes audio, <tt>sin(120)*adsr(0.3,0.3,0.8,1.5)</tt>",
-       "(attack, decay, sustain, release)")
-
-LYD_OP("ddadsr", DDADSR, 6,
-       OP_FUN (op_ddadsr),
-       "DDADSR Envelope - like ADSR, but with delay and duration first",
-       "(delay, duration, atack, decay, sustain, release)")
-
-
 LYD_OP("sin", SIN, 1,
        OP_LOOP(OUT = sine (PHASE * M_PI * 2);),
        "Sine wave osicllator","(hz)")
@@ -107,27 +93,26 @@ LYD_OP("pulse", PULSE, 2,
        "Pulse oscillator to simulate square wave use a width of 0.5","(hz, width)")
 
 LYD_OP("noise", NOISE, 0,
-       OP_LOOP(OUT = noise ();),
+       OP_FUN(op_noise),
        "Noise generator produces evenly distributed values in the range 0.0 to 1.0","()")
 
 LYD_OP("input", INPUT, 1,
-       OP_LOOP(OUT = input_sample (vm, ARG0(0));),
+       OP_FUN(op_input),
        "Used when implementing filters, acts as a signal source", "(buffer_no)")
 
 LYD_OP("time", GTIME, 0,
-       OP_LOOP(
-         OUT = TIME;),
+       OP_LOOP(OUT = TIME;),
        "current time of sample running, in seconds","()")
 
 LYD_OP("wave", WAVE, 2,
-       OP_LOOP(OUT = wave_sample (vm, state, ARG0(0), ARG0(1));),
+       OP_FUN(op_wave),
        "PCM data oscillator, first argument is a string, second argument if"
        " present is gives pitch deviation determined by desired playback hz"
        " assuming sample recorded is middle-C, wave('test.wav') or"
        " wave('test.wav', 440.0)","('wave-identifier'[, hz])")
 
 LYD_OP("wave_loop", WAVELOOP, 2,
-       OP_LOOP(OUT = wave_sample_loop (vm, state, ARG0(0), ARG0(1));),
+       OP_FUN(op_wave_loop),
        "Like wave() but loops the given sample, needs to be scaled with an adsr"
        " to be silenced.","('test.wav', hz)")
 
@@ -153,6 +138,19 @@ LYD_OP("evenpossin", EVENPOSSIN, 1,
        OP_LOOP(OUT = PHASE < 0.5 ? fabs (sine (2 * PHASE_PEEK * M_PI * 2)) : 0.0;),
        "OPL3 oscillator","(hz)")
 
+LYD_OP("adsr", ADSR, 4,
+       OP_FUN (op_adsr),
+       "ADSR Envelope - provides values in range 0.0-1.0 if oscillators are"
+       " multiplied with an ADSR the amplitude will sink to 0.0 after release"
+       " and the voice will be automatically freed after release when it no "
+       " longer makes audio, <tt>sin(120)*adsr(0.3,0.3,0.8,1.5)</tt>",
+       "(attack, decay, sustain, release)")
+
+LYD_OP("ddadsr", DDADSR, 6,
+       OP_FUN (op_ddadsr),
+       "DDADSR Envelope - like ADSR, but with delay and duration first",
+       "(delay, duration, atack, decay, sustain, release)")
+
 LYD_OP("reverb", REVERB, 3,
        OP_FUN (op_reverb),
        "Reverb filter", "(amount, delay, signal)")
@@ -160,7 +158,7 @@ LYD_OP("reverb", REVERB, 3,
 /* biquad based frequency filters */
 LYD_OP("low_pass", LOW_PASS, 4,
        OP_FUN (op_filter),
-       "Low pass filter, for performance reasons the parameters of filters are not varying with sample accurate precision but vary per chunk of processed audio (at least for each 256 samples).",
+       "Low pass filter, for performance reasons the parameters of filters are not varying with sample accurate precision but vary per chunk of processed audio (at least for each 128 samples).",
        "(gain, hz, bandwidth, signal)")
 
 LYD_OP("high_pass", HIGH_PASS, 4,

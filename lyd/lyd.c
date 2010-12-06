@@ -23,18 +23,8 @@
 #include "lyd-private.h"
 
 
-int lyd_op_argc[]=
-{
-  0
-  #define LYD_OP(name, OP_CODE, ARG_COUNT, CODE, DOC, ARG_DOC), ARG_COUNT
-  #include "lyd-ops.inc"
-  #undef LYD_OP
-  , -1
-};
-
 static void lyd_voice_update_params (LydVM *voice,
                                      int       samples);
-void lyd_midi_iterate (Lyd *lyd, float elapsed);
 
 /* we include the voice directly to make the mixing and the vm 
  * a single compilation unit
@@ -74,7 +64,7 @@ lyd_synthesize (Lyd  *lyd,
 #ifdef LYD_THREADED
   for (i = 1; i < lyd->threads; i++)
     {
-      lyd->hasit[i]=1;
+      lyd->pending_data[i]=1;
       pthread_mutex_unlock (&lyd->tmutex[i]);
       pthread_cond_signal (&lyd->tcond[i]);
     }
@@ -84,7 +74,7 @@ lyd_synthesize (Lyd  *lyd,
   for (i = 1; i < lyd->threads; i++)
     {
       pthread_mutex_lock (&lyd->tmutex[i]);
-      while (lyd->hasit[i])
+      while (lyd->pending_data[i])
         {
           pthread_cond_wait (&lyd->tcond[i], &lyd->tmutex[i]);
         }
@@ -123,11 +113,11 @@ static void *render_thread (void *aux)
     {
       pthread_mutex_lock(&lyd->tmutex[thread_no]);
 
-      while (!lyd->hasit[thread_no])
+      while (!lyd->pending_data[thread_no])
         pthread_cond_wait(&lyd->tcond[thread_no], &lyd->tmutex[thread_no]);
 
       lyd_thread_render_voices (lyd, lyd->tsamples, thread_no);
-      lyd->hasit[thread_no]=0;
+      lyd->pending_data[thread_no]=0;
       pthread_mutex_unlock(&lyd->tmutex[thread_no]);
       pthread_cond_signal (&lyd->tcond[thread_no]);
     }
@@ -194,7 +184,6 @@ static void lyd_pre_cb (Lyd *lyd, int samples)
 {
   float elapsed = lyd->previous_samples/(1.0 * lyd->sample_rate);
   int i;
-  lyd_midi_iterate (lyd, elapsed);
   for (i = 0; i < LYD_MAX_CBS; i++)
     if (lyd->pre_cb[i])
       lyd->pre_cb[i](lyd, elapsed, lyd->pre_cb_data[i]);
@@ -632,7 +621,7 @@ void lyd_voice_set_delay (Lyd *lyd, LydVoice *voice, double seconds)
 
 void lyd_init_lookup_tables (void);
 
-
+void lyd_midi_iterate (Lyd *lyd, float elapsed);
 
 Lyd * lyd_new (void)
 {
@@ -645,6 +634,8 @@ Lyd * lyd_new (void)
 #ifdef LYD_THREADED
   worker_threads_init (lyd);
 #endif
+
+  lyd_add_pre_cb (lyd, (void*)lyd_midi_iterate, NULL);
 
   return lyd;
 }
@@ -701,6 +692,7 @@ void lyd_voice_set_position (Lyd      *lyd,
   UNLOCK ();
 }
 
+#define STREQUAL(str1,str2) (fabs((str1)-(str2))<0.0000001)
 
 void
 lyd_voice_set_param (Lyd        *lyd,
@@ -988,54 +980,4 @@ lyd_set_wave_handler (Lyd *lyd,
   lyd->wave_handler = wave_handler;
   lyd->wave_handler_data = user_data;
   UNLOCK ();
-}
-
-LydFilter  *lyd_filter_new      (Lyd *lyd, LydProgram *program)
-{
-  LydVM *filter;
-  filter = lyd_vm_create (lyd, program);
-  filter->sample_rate = lyd->sample_rate;
-  filter->i_sample_rate = 1.0/lyd->sample_rate;
-  return filter;
-}
-
-void
-lyd_filter_process (LydFilter  *filter,
-                    LydSample **inputs,
-                    int         n_inputs,
-                    LydSample  *output,
-                    int         samples)
-{
-  int left = samples;
-  int pos = 0;
-
-  filter->sample_rate = filter->lyd->sample_rate;
-  filter->i_sample_rate = 1.0/filter->lyd->sample_rate;
-  if (n_inputs > 1 && inputs)
-    {
-      filter->input_buf[0] = inputs[0];
-      filter->input_pos = 0;
-      filter->input_buf_len = samples;
-    }
-
-  while (left)
-    {
-      int i;
-      LydSample *result = NULL;
-      int chunk = LYD_CHUNK;
-      if (chunk > left)
-        chunk = left;
-      left -= chunk;
-
-      lyd_voice_update_params (filter, chunk);
-      result = lyd_vm_compute (filter, chunk);
-      for (i = 0; i< chunk; i++)
-        output[pos+i] = result[i];
-      pos += chunk;
-    }
-}
-
-void lyd_filter_free (LydFilter *filter)
-{
-  lyd_vm_free (filter);
 }

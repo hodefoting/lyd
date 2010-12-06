@@ -65,7 +65,28 @@ typedef enum
   LYD_NONE = 0
 #include "lyd-ops.inc"
 #undef LYD_OP
+  ,LydLastOp
 } LydOpCode;
+
+typedef struct _LydOpState  LydOpState;
+
+struct _LydOpState
+{
+  LydOpCode   op;                 /* 4 bytes */
+  void       *data;               /* 4 bytes */
+  int         argc;               /* 4 bytes */
+  LydSample   phase;              /* 4 bytes */
+  LydOpState *next;               /* 4 bytes */
+  int         pad[3];             /* decrement this when
+                                   * inserting data, as long as LYD_MAX_ARGC
+                                   * doesnt change this should keep the
+                                   * layout constant.
+                                   */
+  LydSample  *arg[LYD_MAX_ARGC];  /* ? bytes */
+  LydSample   out[LYD_CHUNK] __attribute__ ((aligned(LYD_ALIGN)));
+  LydSample   literal[] __attribute__ ((aligned(LYD_ALIGN)));
+};
+
 
 struct _LydOp
 {
@@ -77,27 +98,6 @@ struct _LydOp
 struct _LydProgram
 {
   LydOp commands[LYD_MAX_ELEMENTS];
-};
-
-
-typedef struct _LydOpState  LydOpState;
-
-struct _LydOpState
-{
-  LydOpCode   op;                 /* 4 bytes */
-  void       *data;               /* 4 bytes */
-  int         argc;               /* 4 bytes */
-  LydSample   phase;              /* 4 bytes */
-  LydOpState *next;               /* 4 bytes */
-  /* private */
-  int         pad[3];             /* decrement this when
-                                   * inserting data, as long as LYD_MAX_ARGC
-                                   * doesnt change this should keep the
-                                   * layout constant.
-                                   */
-  LydSample  *arg[LYD_MAX_ARGC];  /* ? bytes */
-  LydSample   out[LYD_CHUNK] __attribute__ ((aligned(LYD_ALIGN)));
-  LydSample   literal[] __attribute__ ((aligned(LYD_ALIGN)));
 };
 
 
@@ -117,24 +117,20 @@ static inline float str2float (const char *str)
   return ret;
 }
 
-#define STREQUAL(str1,str2) (fabs((str1)-(str2))<0.0000001)
 
 /*** lyd is written with an independently recoded on demand
  * minimal glib like core for single linked lists and memory management
  */
 #ifdef NIH
-
-#undef g_new0
-#undef G_UNLIKELY
-
+#undef  g_new0
+#undef  G_UNLIKELY
 #define TRUE  1
 #define FALSE 0
-#define G_UNLIKELY(arg)  arg
-#define g_malloc0(size)  calloc (1, size)
-#define g_new0(type, n)  calloc (n, sizeof(type))
-#define g_free(buf)      free (buf)
-#define g_random_double_range(min,max) (((rand()%100000)/100000.0)*(max-min)+min)
-#define g_strdup(a)        strdup(a)
+#define G_UNLIKELY(arg)     arg
+#define g_malloc0(size)     calloc (1, size)
+#define g_new0(type, n)     calloc (n, sizeof(type))
+#define g_free(buf)         free (buf)
+#define g_strdup(a)         strdup(a)
 #define g_ascii_strtod(a,b) strtod(a,b)
 
 /* independent reimplementation of singly linked list, with same API as
@@ -201,6 +197,8 @@ static inline SList *slist_find (SList *list, void *data)
   return list;
 }
 
+#define LOCK()    pthread_mutex_lock(&lyd->mutex)
+#define UNLOCK()  pthread_mutex_unlock(&lyd->mutex)
 
 #else
 
@@ -254,14 +252,13 @@ struct _Lyd
   pthread_mutex_t tmutex[LYD_MAX_THREADS];
   pthread_cond_t  tcond[LYD_MAX_THREADS];
 
+  int             pending_data[LYD_MAX_THREADS];
   LydSample      *buf[LYD_MAX_THREADS];
-  int             hasit[LYD_MAX_THREADS];
+  SList          *queued_voices[LYD_MAX_THREADS];
 #else
+  SList          *queued_voices[1];
   LydSample      *buf[1];
 #endif
-
-  SList          *queued_voices[LYD_MAX_THREADS];
-
   int             buf_len;
 
   void (*pre_cb[LYD_MAX_CBS])(Lyd *lyd, float elapsed, void *data);
@@ -280,7 +277,7 @@ struct _LydVM
   Lyd      *lyd;      /* backpointer to the lyd instance */
   LydSample position; /* 0.0 center -1.0 left 1.0 right */
   LydSample duration; /* how long the sample should last */
-  int   released;     /* the number of samples we have been released, calling
+  int       released; /* the number of samples we have been released, calling
                          voice_release increments this and starts the release
                          process */
   long  sample;       /* position, negative values means queued for playback,
@@ -292,7 +289,7 @@ struct _LydVM
   LydSample silence_max; /* (after release) */
 
   void  (*complete_cb)(void *data); /* callback and data when voice is done*/
-  void   *complete_data;             /* data for complete callback */
+  void   *complete_data;            /* data for complete callback */
   
   int        tag;
   LydSample *input_buf[LYD_MAX_ARGC];
@@ -305,16 +302,11 @@ struct _LydVM
                        of LydVM (padded for alignment). */
 };
 
-#ifdef NIH
-#define LOCK()    pthread_mutex_lock(&lyd->mutex)
-#define UNLOCK()  pthread_mutex_unlock(&lyd->mutex)
-#endif
 
 /* get duration of loaded midi file in seconds */
 float        lyd_midi_get_duration (Lyd *lyd);
 /* set loop positions (also enables looping)  */
 void         lyd_midi_set_repeat (Lyd *lyd, float start, float end);
-
 
 void         lyd_add_op      (Lyd *lyd, const char *name, int args,
                               void (*process) (LydVM *vm, LydOpState *state, int samples));
