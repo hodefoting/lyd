@@ -75,7 +75,7 @@ struct _LydToken {
   int            command_no;
   LydToken      *first;
   LydToken      *second;
-  LydToken      *args[LYD_MAX_ARGS]; 
+  LydToken      *args[LYD_MAX_ARGC]; 
 };
 
 struct _LydParser  {
@@ -158,7 +158,7 @@ static LydToken *led_lparen (LydParser *parser, LydToken *this, LydToken *left)
   if (strcmp (parser->token->str, ")"))
     {
       int i;
-      for (i=0; i< LYD_MAX_ARGS; i++)
+      for (i=0; i< LYD_MAX_ARGC; i++)
         {
           this->args[i] = parser_expression (parser, 0);
           if (strcmp (parser->token->str, ","))
@@ -519,7 +519,7 @@ static int tcount (LydParser *parser, LydToken *t, int *cnt)
         t->command_no = *cnt;
 
         (*cnt)++;
-        for (i=0;i< LYD_MAX_ARGS;i++)
+        for (i=0;i< LYD_MAX_ARGC;i++)
           if (t->args[i])
             tcount (parser, t->args[i], cnt);
         break;
@@ -549,7 +549,7 @@ static void tfree (LydToken *t)
       case function:
         break;
       case args:
-        for (i=0;i< LYD_MAX_ARGS;i++)
+        for (i=0;i< LYD_MAX_ARGC;i++)
           if (t->args[i])
             tfree (t->args[i]);
         /* fallthrough */
@@ -593,7 +593,7 @@ static void sexp (LydToken *t)
         break;
       case args:
         printf ("(%s", t->first->str);
-        for (i=0;i< LYD_MAX_ARGS;i++)
+        for (i=0;i< LYD_MAX_ARGC;i++)
           if (t->args[i]) sexp (t->args[i]);
         printf (")");
         break;
@@ -660,7 +660,7 @@ static void compile (LydParser  *parser,
 
           /* set the type of the function oursevles */
           program->commands[POS(t)].op = str2opcode (t->first->str);
-          for (i=0;i< LYD_MAX_ARGS;i++)
+          for (i=0;i< LYD_MAX_ARGC;i++)
             if (t->args[i])
               {
                 program->commands[POS(t)].argc++;

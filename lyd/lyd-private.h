@@ -35,7 +35,7 @@ typedef float LydSample;
                                               opcode.
                                               */
 #define LYD_MAX_ELEMENTS               128 /* largest compiled program */
-#define LYD_MAX_ARGS                   8
+#define LYD_MAX_ARGC                   8
 #define LYD_MAX_VARIABLES              16
 #define LYD_MAX_CBS                    16
 
@@ -71,7 +71,7 @@ struct _LydOp
 {
   LydOpCode op;                /* The operation to execute */
   int       argc;              /* argument count */
-  float     arg[LYD_MAX_ARGS]; /* arguments to operation */
+  float     arg[LYD_MAX_ARGC]; /* arguments to operation */
 };
 
 struct _LydProgram
@@ -84,17 +84,21 @@ typedef struct _LydOpState  LydOpState;
 
 struct _LydOpState
 {
-  LydSample   out [LYD_CHUNK] __attribute__ ((aligned(LYD_ALIGN)));  
-
   LydOpCode   op;                 /* 4 bytes */
   void       *data;               /* 4 bytes */
-  LydOpState *next;               /* 4 bytes */
-  LydSample   phase;              /* 4 bytes */
   int         argc;               /* 4 bytes */
-  LydSample  *arg[LYD_MAX_ARGS];  /* ? bytes */
+  LydSample   phase;              /* 4 bytes */
+  LydOpState *next;               /* 4 bytes */
+  /* private */
+  int         pad[3];             /* decrement this when
+                                   * inserting data, as long as LYD_MAX_ARGC
+                                   * doesnt change this should keep the
+                                   * layout constant.
+                                   */
+  LydSample  *arg[LYD_MAX_ARGC];  /* ? bytes */
+  LydSample   out[LYD_CHUNK] __attribute__ ((aligned(LYD_ALIGN)));
   LydSample   literal[] __attribute__ ((aligned(LYD_ALIGN)));
 };
-
 
 
 /* "hashing to floating point number
@@ -291,7 +295,7 @@ struct _LydVM
   void   *complete_data;             /* data for complete callback */
   
   int        tag;
-  LydSample *input_buf[LYD_MAX_ARGS];
+  LydSample *input_buf[LYD_MAX_ARGC];
   int        input_pos;
   int        input_buf_len;
 
@@ -310,5 +314,9 @@ struct _LydVM
 float        lyd_midi_get_duration (Lyd *lyd);
 /* set loop positions (also enables looping)  */
 void         lyd_midi_set_repeat (Lyd *lyd, float start, float end);
+
+
+void         lyd_add_op      (Lyd *lyd, const char *name, int args,
+                              void (*process) (LydVM *vm, LydOpState *state, int samples));
 
 #endif

@@ -193,23 +193,15 @@ LYD_OP("high_shelf", HIGH_SHELF, 4,
        "high shelf filter",
        "(gain, hz, bandwidth, signal)")
 
-LYD_OP("mix", MIX, 2,
-       OP_LOOP(OUT = (ARG(0) + ARG(1))/2;),
-       "Mixes two inputs averaging down amplitude", "(a,b)") /* should perhaps be made generic like cycle */
+LYD_OP("mix", MIX, LYD_MAX_ARGC,
+       OP_FUN (op_mix),
+       "Mixes inputs averaging down amplitude", "(expr1,expr2[, ... expr8])")
 
-LYD_OP("mix3", MIX3, 3,
-       OP_LOOP(OUT = (ARG(0) + ARG(1) + ARG(2))/3;),
-       "Mixes three inputs evenly", "(a,b,c)")
-
-LYD_OP("mix4", MIX4, 4,
-       OP_LOOP(OUT = (ARG(0) + ARG(1) + ARG(2) + ARG(3))/4;),
-       "Mixes four inputs evenly", "(a,b,c,d)")
-
-LYD_OP("cycle", CYCLE, LYD_MAX_ARGS,
+LYD_OP("cycle", CYCLE, LYD_MAX_ARGC,
        OP_FUN (op_cycle),
        "Cycles between provided input streams first argument gives frequency of source hopping.","(frequency, expr1, expr2[, ... expr7])")
 
 LYD_OP("nop", NOP, 2,
        OP_LOOP(OUT = state->literal[0 * LYD_CHUNK + i];),
-       "used internally for scalars, outputs the literal value supplied.","")
+       "returns the first of it's arguments used by the compiler to implement variables", "(value)")
 

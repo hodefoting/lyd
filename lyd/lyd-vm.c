@@ -159,7 +159,6 @@ static inline float phase (LydVM *vm, LydOpState *state, float hz)
   return old;
 }
 
-
 static inline float input_sample (LydVM *vm,
                                   int    no)
 {
@@ -271,17 +270,18 @@ static inline void op_filter (OP_ARGS)
   ALIGNED_ARGS;
   int i = 0;
   if (G_UNLIKELY (!DATA))
-    DATA = BiQuad_new(state->op-LYD_LOW_PASS,ARG0(0),ARG0(1), vm->sample_rate, ARG0(2));\
-  
+    DATA = BiQuad_new(state->op-LYD_LOW_PASS,/* compute the right biquad-enum */
+                      ARG0(0),ARG0(1), vm->sample_rate, ARG0(2));
+
   /* always updating the filter is expensive, so we do it once per chunk  */
-  BiQuad_update (DATA,state->op-LYD_LOW_PASS,ARG0(0),ARG0(1),vm->sample_rate,ARG0(2));
+  BiQuad_update (DATA,state->op-LYD_LOW_PASS,/* compute the right biquad-enum */
+                 ARG0(0),ARG0(1), vm->sample_rate,ARG0(2));
   for (i=0; i<samples; i++)
     {
       OUT = BiQuad(ARG(3), DATA);
     }
   ALIGNED_ARGS_SILENCE;
 }
-
 
 static inline void op_ddadsr (OP_ARGS)
 {
@@ -409,6 +409,40 @@ static inline void op_reverb (OP_ARGS)
   ALIGNED_ARGS_SILENCE;
 }
 
+
+static inline void op_mix (OP_ARGS)
+{
+  int i;
+  ALIGNED_ARGS;
+
+  switch (state->argc)
+    {
+      case 0: for (i = 0; i < samples; i++)
+         OUT = 0; break;
+      case 1: for (i = 0; i < samples; i++)
+         OUT = ARG(0); break;
+      case 2: for (i = 0; i < samples; i++)
+         OUT = (ARG(0) + ARG(1))/2; break;
+      case 3: for (i = 0; i < samples; i++)
+         OUT = (ARG(0) + ARG(1) + ARG(2))/3; break;
+      case 4: for (i = 0; i < samples; i++)
+         OUT = (ARG(0) + ARG(1) + ARG(2) + ARG(3))/4; break;
+      case 5: for (i = 0; i < samples; i++)
+         OUT = (ARG(0) + ARG(1) + ARG(2) + ARG(3) +
+                ARG(4))/5; break;
+      case 6: for (i = 0; i < samples; i++)
+         OUT = (ARG(0) + ARG(1) + ARG(2) + ARG(3) +
+                ARG(4) + ARG(5))/6; break;
+      case 7: for (i = 0; i < samples; i++)
+         OUT = (ARG(0) + ARG(1) + ARG(2) + ARG(3) +
+                ARG(4) + ARG(5) + ARG(6))/7; break;
+      case 8: for (i = 0; i < samples; i++)
+         OUT = (ARG(0) + ARG(1) + ARG(2) + ARG(3) +
+                ARG(4) + ARG(5) + ARG(6) + ARG(7))/8; break;
+    }
+  ALIGNED_ARGS_SILENCE;
+}
+
 static inline void op_cycle (OP_ARGS)
 {
   ALIGNED_ARGS;
@@ -417,7 +451,8 @@ static inline void op_cycle (OP_ARGS)
 
   if (state->argc < 2)
     {
-      OUT = 0;
+      for (i = 0; i < samples; i++)
+        OUT = 0;
       return;
     }
 
@@ -425,7 +460,7 @@ static inline void op_cycle (OP_ARGS)
 
   for (i = 0; i < samples; i++)
     {
-      pos   = fmod (freq * count * SAMPLE / vm->sample_rate, count);
+      pos = fmod (freq * count * SAMPLE / vm->sample_rate, count);
 
       switch (1 + (pos+count) % count)
         {
@@ -438,6 +473,7 @@ static inline void op_cycle (OP_ARGS)
           case 7: OUT = ARG(7); break;
         }
     }
+  ALIGNED_ARGS_SILENCE;
 }
 
 #define LOOKUP_BITS   11   /* configuration of size of lookup-table */
