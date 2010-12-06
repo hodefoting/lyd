@@ -56,6 +56,7 @@ static LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
     {
       states[i] = state;
       state->op = program->commands[i].op;
+      state->argc = program->commands[i].argc;
       state->next = 
           (LydOpState*)(((char *)state) +
                         sizeof (LydOpState) +
@@ -411,16 +412,19 @@ static inline void op_reverb (OP_ARGS)
 static inline void op_cycle (OP_ARGS)
 {
   ALIGNED_ARGS;
-  int i;
+  int i, pos, count;
   LydSample freq = ARG0(0);
+
+  if (state->argc < 2)
+    {
+      OUT = 0;
+      return;
+    }
+
+  count = state->argc - 1;
+
   for (i = 0; i < samples; i++)
     {
-      int      count = lyd_op_argc [state->op], pos;
-
-      if(ARG(3) == 0.0) count --;
-      if(ARG(2) == 0.0) count --;
-      if(ARG(1) == 0.0) count --;
-
       pos   = fmod (freq * count * SAMPLE / vm->sample_rate, count);
 
       switch (1 + (pos+count) % count)
@@ -428,6 +432,10 @@ static inline void op_cycle (OP_ARGS)
           case 1: OUT = ARG(1); break;
           case 2: OUT = ARG(2); break;
           case 3: OUT = ARG(3); break;
+          case 4: OUT = ARG(4); break;
+          case 5: OUT = ARG(5); break;
+          case 6: OUT = ARG(6); break;
+          case 7: OUT = ARG(7); break;
         }
     }
 }

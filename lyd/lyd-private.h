@@ -70,6 +70,7 @@ typedef enum
 struct _LydOp
 {
   LydOpCode op;                /* The operation to execute */
+  int       argc;              /* argument count */
   float     arg[LYD_MAX_ARGS]; /* arguments to operation */
 };
 
@@ -89,6 +90,7 @@ struct _LydOpState
   void       *data;               /* 4 bytes */
   LydOpState *next;               /* 4 bytes */
   LydSample   phase;              /* 4 bytes */
+  int         argc;               /* 4 bytes */
   LydSample  *arg[LYD_MAX_ARGS];  /* ? bytes */
   LydSample   literal[] __attribute__ ((aligned(LYD_ALIGN)));
 };

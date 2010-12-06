@@ -205,11 +205,9 @@ LYD_OP("mix4", MIX4, 4,
        OP_LOOP(OUT = (ARG(0) + ARG(1) + ARG(2) + ARG(3))/4;),
        "Mixes four inputs evenly", "(a,b,c,d)")
 
-LYD_OP("cycle", CYCLE, 4,  /* XXX: should perhaps be extended to allow more
-                            *      streams to cycle between
-                            */
+LYD_OP("cycle", CYCLE, LYD_MAX_ARGS,
        OP_FUN (op_cycle),
-       "Cycles between provided input streams first argument gives frequency of source hopping.","(frequency, expr1, expr2[, expr3])")
+       "Cycles between provided input streams first argument gives frequency of source hopping.","(frequency, expr1, expr2[, ... expr7])")
 
 LYD_OP("nop", NOP, 2,
        OP_LOOP(OUT = state->literal[0 * LYD_CHUNK + i];),

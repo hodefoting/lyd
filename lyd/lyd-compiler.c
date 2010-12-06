@@ -662,7 +662,10 @@ static void compile (LydParser  *parser,
           program->commands[POS(t)].op = str2opcode (t->first->str);
           for (i=0;i< LYD_MAX_ARGS;i++)
             if (t->args[i])
-              compile (parser, t->args[i], program, totcmds, POS(t), i);
+              {
+                program->commands[POS(t)].argc++;
+                compile (parser, t->args[i], program, totcmds, POS(t), i);
+              }
         }
         break;
       case unary: 
