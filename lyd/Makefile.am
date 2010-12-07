@@ -36,7 +36,7 @@ liblyd_@LYD_API_VERSION@_la_LDFLAGS = $(ALSA_LT_LDFLAGS)  $(JACK_LT_LDFLAGS)
 
 lydheadersdir = $(includedir)/lyd-@LYD_API_VERSION@/lyd
 
-lydheaders_HEADERS = $(top_srcdir)/lyd/lyd.h 
+lydheaders_HEADERS = $(top_srcdir)/lyd/lyd.h $(top_srcdir)/lyd/lyd-extend.h
 
 $(builddir)/general-midi.inc: $(srcdir)/general-midi.txt
 	echo "static char *midi_patches[256]={" > $@

@@ -20,19 +20,14 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <pthread.h>
-#include "lyd.h"
 
 typedef struct _LydOp LydOp;
-typedef float LydSample;
 
 // #define DEBUG_CLIPPING
 
-#define LYD_CHUNK                      128 /* maximum number of samples
-                                              to do in one go for an
-                                              opcode.
-                                              */
+/* LYD_MAX_ARGC                        8    is defined in lyd-extend.h */
+/* #define LYD_CHUNK                   128  defined in lyd-extend.h */
 #define LYD_MAX_ELEMENTS               128 /* largest compiled program */
-#define LYD_MAX_ARGC                   8   /* maximum number of arguments */
 #define LYD_MAX_VARIABLES              16  /* maximum number of variables
                                               per voice */
 #define LYD_MAX_CBS                    16  /* maximum number of registered
@@ -56,6 +51,7 @@ typedef float LydSample;
 #define LYD_THREADED       /* workload distribution in threads */
 #define LYD_MAX_THREADS                4
 
+
 typedef enum
 {
 #define LYD_OP(NAME, OP_CODE, ARGC, CODE, INIT, FREE, DOC, ARGDOC)  ,LYD_##OP_CODE
@@ -65,30 +61,9 @@ typedef enum
   ,LydLastOp
 } LydOpCode;
 
-typedef struct _LydOpState  LydOpState;
+#include "lyd.h"
+#include "lyd-extend.h"
 
-#ifdef LYD_EXTENDABLE
-typedef struct _LydOpInfo  LydOpInfo;
-#endif
-
-struct _LydOpState
-{
-  int         op;     /* the opcode used */
-  void       *data;   /* hook for ops to add their own data structures */
-  int         argc;   /* number of arguments actually passed */
-  LydSample   phase;  /* phase, used by oscillator ops */
-  LydOpState *next;   /* op to run after this one */
-#ifdef LYD_EXTENDABLE
-  LydOpInfo  *info;
-#endif
-  LydSample  *out;               /* the buffers pointed to are 16 byte aligned */
-  LydSample  *arg[LYD_MAX_ARGC]; /* points either to own literals, or other op
-                                    outputs */
-  LydSample  *literal[LYD_MAX_ARGC];
-};
-
-typedef union { LydSample v[LYD_CHUNK]; }
-LydChunk __attribute__ ((__aligned__(LYD_ALIGN)));
 
 static LydSample *lyd_chunk_new  (Lyd *lyd);
 static void       lyd_chunk_free (Lyd *lyd, LydSample *chunk);
@@ -112,11 +87,14 @@ struct _LydOpInfo  /* structure describing an extension to lyd
   const char *name;     /* function name */
   int         argc;     /* argument count */
 
-  /* C function to execute ... */
-  void (*process) (LydVM *vm, LydOpState *state, int samples);
-
-  /* ... or program to be executed  */
+  /* Program to be executed, or ..  */
   LydProgram *program; 
+
+  /* .. C implementation  */
+  void (*process) (LydVM *vm, LydOpState *state, int samples);
+  void (*init)    (LydVM *vm, LydOpState *state);
+  void (*free)    (LydVM *vm, LydOpState *state);
+
 };
 #endif
 
@@ -341,8 +319,7 @@ float        lyd_midi_get_duration (Lyd *lyd);
 /* set loop positions (also enables looping)  */
 void         lyd_midi_set_repeat (Lyd *lyd, float start, float end);
 
-void         lyd_add_op         (Lyd *lyd, const char *name, int args,
-                                 void (*process) (LydVM *vm, LydOpState *state, int samples));
+
 
 
 #endif

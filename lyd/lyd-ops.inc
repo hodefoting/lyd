@@ -156,7 +156,7 @@ LYD_OP("reverb", REVERB, 3,
        op_reverb_free(state);,
        "Reverb filter", "(amount, delay, signal)")
 
-/* biquad based frequency filters */
+/* biquad frequency filters */
 LYD_OP("low_pass", LOW_PASS, 4,
        OP_FUN (op_filter),,op_filter_free(state);,
        "Low pass filter, for performance reasons the parameters of filters are not varying with sample accurate precision but vary per chunk of processed audio (at least for each 128 samples).",
@@ -198,7 +198,8 @@ LYD_OP("mix", MIX, LYD_MAX_ARGC,
 
 LYD_OP("cycle", CYCLE, LYD_MAX_ARGC,
        OP_FUN (op_cycle),,,
-       "Cycles between provided input streams first argument gives frequency of source hopping.","(frequency, expr1, expr2[, ... expr7])")
+       "Cycles between provided input streams first argument gives frequency of source hopping.",
+       "(frequency, expr1, expr2[, ... expr7])")
 
 LYD_OP("nop", NOP, 2,
        OP_LOOP(OUT = state->literal[0][i];),,,

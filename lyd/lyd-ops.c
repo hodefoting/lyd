@@ -148,7 +148,9 @@ static inline float input_sample (LydVM *vm,
     return 0.0;
   if (vm->input_pos[no] < vm->input_buf_len)
     ret = vm->input_buf[no][vm->input_pos[no]];
-  vm->input_pos[no] ++;
+  vm->input_pos[no] ++; /* this should not happen here, this 
+                           makes multiple concurrent uses of the
+                           same input impossible */
   return ret;
 }
 
@@ -205,9 +207,8 @@ typedef struct _ReverbData
 
 static inline void op_mix (OP_ARGS)
 {
-  int i;
   ALIGNED_ARGS;
-
+  int i;
   switch (state->argc)
     {
       case 0: for (i = 0; i < samples; i++)
@@ -308,5 +309,3 @@ static inline void op_cycle (OP_ARGS)
     }
   ALIGNED_ARGS_SILENCE;
 }
-
-

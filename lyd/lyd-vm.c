@@ -18,91 +18,6 @@
  * from it exporting a small set of symbols.
  */
 
-  /* Shortcut code used for implementing ops, keeping them short concise
-   * and reabable. They assume that local variables arg0 to arg07 contain
-   * aligned memory arrays, LydChunks.
-   */
-
-
-  /* macro used when defining ops, to indicate a callback function to
-   * be used for processing
-   */
-  #define OP_FUN(fun)        fun(vm, state, samples);
-
-  /* define a loop with all it's needed variables running the code provided
-   * as an argument
-   */
-  #define OP_LOOP(CODE) \
-    ALIGNED_ARGS \
-    register int i;\
-    for (i = 0; i < samples; i++) { CODE } ; \
-    ALIGNED_ARGS_SILENCE;
-
-  #define OP_LYD(LYD_CODE)\
-  {\
-    static LydFilter  *filter = NULL;\
-    if (!filter)\
-      {\
-        LydProgram *program = lyd_compile (vm->lyd, LYD_CODE);\
-        if (!program)\
-          break;\
-        filter = lyd_filter_new (vm->lyd, program);\
-        lyd_program_free (program);\
-      }\
-    lyd_filter_process (filter, state->arg, lyd_op_argca[state->op], state->out, samples);\
-  }
-
-  #define ARG0(no) arg##no->v[0]
-
-  /* Get, and advance the phase for an oscillator: uses ARG0 because the state
-   * for phase is carried per sample in chunk buffer  */
-  #define PHASE_PEEK state->phase
-
-  /* increments, and returns current phase */
-  #define PHASE      phase(vm, state, ARG(0))
-
-  /* macros depending on i pointing to right index to work, needs
-   * a loop over the samples to work properly
-   */
-  /* The output sample */
-  #define OUT      out->v[i]
-
-  /* the current value of an input stream  */
-  #define ARG(no)  arg##no->v[i]
-
-  /* pointer to data extension point */
-  #define DATA               state->data
-
-  /* The current sample being computed */
-  #define SAMPLE   (vm->sample + i)
-  /* get the current time in seconds */
-  #define TIME     (1.0 * SAMPLE * vm->i_sample_rate)
-  /* the output destination for the current sample */
-
-  /* Macro that expands to the local arrays expected to exist
-   * for the macros from the LydState
-   */
-  #define ALIGNED_ARGS \
-    LydChunk * __restrict__ arg0 = (void*)(state->arg[0]);\
-    LydChunk * __restrict__ arg1 = (void*)(state->arg[1]);\
-    LydChunk * __restrict__ arg2 = (void*)(state->arg[2]);\
-    LydChunk * __restrict__ arg3 = (void*)(state->arg[3]);\
-    LydChunk * __restrict__ arg4 = (void*)(state->arg[4]);\
-    LydChunk * __restrict__ arg5 = (void*)(state->arg[5]);\
-    LydChunk * __restrict__ arg6 = (void*)(state->arg[6]);\
-    LydChunk * __restrict__ arg7 = (void*)(state->arg[7]);\
-    LydChunk * __restrict__ out  = (void*)(state->out);\
-  /* to remove warnings about unused vars, gcc optimizes this away for us */
-  #define ALIGNED_ARGS_SILENCE \
-    arg0=arg1=arg2=arg3=arg4=arg5=arg6=arg7
-
-#ifndef ABS
-  #define ABS(a)             ((a)>0?(a):-(a))
-#endif
-
- /* define with the expected arguments to OP_FUN functions,
-  * makes other uses terse and allows changing it in one place */
-#define OP_ARGS LydVM *vm, LydOpState *state, int samples
 
 #include <stdint.h>
 
@@ -252,10 +167,12 @@ static LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
     }
   vm->position = 0.0;
 
-  if (state->info &&
-      state->info->program)
+  if (state->info)
     {
-      state->data = lyd_filter_new (vm->lyd, state->info->program);
+      if (state->info->program)
+        state->data = lyd_filter_new (vm->lyd, state->info->program);
+      else if (state->info->init)
+        state->info->init (vm, state);
     }
   return vm;
 }
@@ -288,11 +205,10 @@ lyd_vm_free (LydVM *vm)
             #include "lyd-ops.inc"
 #undef LYD_OP
           default:
-          if (state->info->program)
-            {
-              if (state->data)
-                lyd_filter_free (state->data);
-            }
+            if (state->info->program)
+              lyd_filter_free (state->data);
+            else if (state->info->free)
+              state->info->free (vm, state);
             break;
           }
     }

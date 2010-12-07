@@ -939,13 +939,17 @@ static void lyd_chunk_free (Lyd *lyd, LydSample *chunk)
 }
 
 #ifdef LYD_EXTENDABLE
-void lyd_add_op (Lyd *lyd, const char *name, int argc,
-                 void (*process) (LydVM *vm, LydOpState *state, int samples))
+void         lyd_add_op         (Lyd *lyd, const char *name, int argc,
+                                 void (*process) (LydVM *vm, LydOpState *state, int samples),
+                                 void (*init) (LydVM *vm, LydOpState *state),
+                                 void (*free) (LydVM *vm, LydOpState *state))
 {
   LydOpInfo *info = g_new0 (LydOpInfo, 1);
   info->name = g_strdup (name);
   info->argc = argc;
   info->process = process;
+  info->init = init;
+  info->free = free;
   info->op = lyd->last_op++;
   lyd->op_info = slist_prepend (lyd->op_info, info);
 }
