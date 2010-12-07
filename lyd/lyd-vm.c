@@ -40,6 +40,19 @@ LydChunk __attribute__ ((__aligned__(LYD_ALIGN)));
     for (i = 0; i < samples; i++) { CODE } ; \
     ALIGNED_ARGS_SILENCE;
 
+  #define OP_LYD(LYD_CODE)\
+  {\
+    static LydFilter  *filter = NULL;\
+    if (!filter)\
+      {\
+        LydProgram *program = lyd_compile (vm->lyd, LYD_CODE);\
+        if (!program)\
+          break;\
+        filter = lyd_filter_new (vm->lyd, program);\
+        lyd_program_free (program);\
+      }\
+    lyd_filter_process (filter, state->arg, lyd_op_argca[state->op], state->out, samples);\
+  }
 
   #define ARG0(no) arg##no->v[0]
 
@@ -97,7 +110,7 @@ LydChunk __attribute__ ((__aligned__(LYD_ALIGN)));
 
 #include <stdint.h>
 
-static int lyd_op_argc[]=
+static int lyd_op_argca[]=
 {
   0
   #define LYD_OP(name, OP_CODE, ARG_COUNT, CODE, DOC, ARG_DOC), ARG_COUNT
@@ -105,6 +118,35 @@ static int lyd_op_argc[]=
   #undef LYD_OP
   , -1
 };
+
+#ifdef LYD_EXTENDABLE
+static LydOpInfo *lyd_op_info (Lyd *lyd, int op)
+{
+  SList *iter;
+  for (iter = lyd->op_info; iter; iter = iter->next)
+    {
+      LydOpInfo *info = iter->data;
+      if (info->op == op)
+        return info;
+    }
+  return NULL;
+}
+#endif
+
+static int
+lyd_op_argc (Lyd *lyd, int op)
+{
+  if (op < LydLastOp)
+    return lyd_op_argca[op];
+#ifdef LYD_EXTENDABLE
+  {
+    LydOpInfo *info = lyd_op_info (lyd, op);
+    if (info)
+      return info->argc;
+  }
+#endif
+  return 0;
+}
 
 /* create a new vm from a program */
 static LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
@@ -120,7 +162,7 @@ static LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
   int arg_count = 0;
   int codesize;
   for (opcount = 0; program->commands[opcount].op; opcount++)
-    arg_count += lyd_op_argc[program->commands[opcount].op];
+    arg_count += lyd_op_argc (lyd, program->commands[opcount].op);
   opcount++;
   codesize = sizeof (LydOpState) * opcount + sizeof (LydChunk) * arg_count;
 
@@ -143,15 +185,19 @@ static LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
    * everything needed to start running the vm */
   for (i = 0; program->commands[i].op; i++)
     {
+      int argc;
       states[i] = state;
       state->op = program->commands[i].op;
       state->argc = program->commands[i].argc;
-      state->next = 
-          (LydOpState*)(((char *)state) +
-                        sizeof (LydOpState) +
-                        (sizeof (LydChunk)) * lyd_op_argc[state->op]);
+      state->info = lyd_op_info (lyd, state->op);
+      /* these argc's might differ, if we want stricter checking it
+       * should happen foremost in the compiler
+       */
+      argc = lyd_op_argc (lyd, state->op);
+      state->next = (LydOpState*)(((char *)state) +
+                        sizeof (LydOpState) + (sizeof (LydChunk)) * argc);
 
-      for (j = 0; j < lyd_op_argc[state->op]; j++)
+      for (j = 0; j < argc; j++)
         {
           int offset  = program->commands[i].arg[j];
           int k;
@@ -238,21 +284,26 @@ lyd_vm_free (LydVM *vm)
 
 /* sine function lookup function, not very precise at the moment */
 
-#define LOOKUP_BITS   11   /* configuration of size of lookup-table */
-#define LOOKUP_SIZE   (1<<11)
+#define LOOKUP_BITS   13   /* simulated number of entires, lookuptable uses
+                            * only 25% of the full size, 13 bits is 8192
+                            * simulated entries, which would make the sine
+                            * exact down to oscillators of 5.85hz for 48khz,
+                            * with slower oscillations there would be repeated
+                            * values.
+                            */
+#define LOOKUP_SIZE   (1<<LOOKUP_BITS)
+#define LOOKUP_SIZE_REAL   (1<<(LOOKUP_BITS-2))
 #define LOOKUP_MASK   (LOOKUP_SIZE-1)
 
 static float lookup_inv_step;
-static float sin_lookup[LOOKUP_SIZE];
+static float sin_lookup[LOOKUP_SIZE_REAL];
 
 void lyd_init_lookup_tables (void)
 {
   static int done = 0;
-
   if (done)
     return;
   done = 1;
-
   {
     unsigned int i;
     float step;
@@ -260,17 +311,26 @@ void lyd_init_lookup_tables (void)
     step = M_PI * 2.0f / (float)LOOKUP_SIZE;
     lookup_inv_step = 1.0f / step;
 
-    for (i = 0; i <= LOOKUP_SIZE; i++, f += step)
+    for (i = 0; i <= LOOKUP_SIZE_REAL; i++, f += step)
       sin_lookup[i] = sinf(f);
   }
 }
-/* inline lookuptable based versions version */
+
+/* inline lookuptable based sine function  */
 static inline float sine (float a)
 {
-  /* reduce size of sin lookup table by folding/mirroring the index value
-   * with further arithmetic exploiting symmetry.
-   */
-  return sin_lookup [((int)(a * lookup_inv_step)) & LOOKUP_MASK];
+  int index = (((int)(a * lookup_inv_step)) & LOOKUP_MASK);
+  /* reduce index down to first quarter */
+  if (index >= LOOKUP_SIZE/2)
+    {
+      index = index & ((LOOKUP_SIZE/2)-1);
+      if (index >= LOOKUP_SIZE/4)
+        index = LOOKUP_SIZE/2-index;
+      return -sin_lookup [index];
+    }
+  if (index >= LOOKUP_SIZE/4)
+    index = LOOKUP_SIZE/2-index;
+  return sin_lookup [index];
 }
 
 static inline float phase (LydVM *vm, LydOpState *state, float hz)
@@ -299,12 +359,29 @@ lyd_vm_compute (LydVM  *vm,
       {
         case LYD_NONE: break;
 #define LYD_OP(name, OP_CODE, ARGC, CODE, DOC, BAZ) \
-        case LYD_##OP_CODE: asm("#====LYDOPCODE " name);{ CODE } ; asm("#=====OPCODE END " name); break;
+        case LYD_##OP_CODE: asm("#====LYDOPCODE " name);\
+          { CODE } ;        asm("#====OPCODE END " name); \
+          break;
         #include "lyd-ops.inc"
         /* the include expands into cases for opcodes and the code to
          * run when the opcode is invoked.
          */
         #undef LYD_OP
+        break;
+        default:
+#ifdef LYD_EXTENDABLE
+          if (state->info)
+            { /* this lookup is terribly inefficient, a reference to the
+             * opinfo should be stored in the state
+             */
+            if (state->info->process)
+              state->info->process (vm, state, samples);
+            else if (state->info->filter)
+              lyd_filter_process (state->info->filter, state->arg,
+                                  state->info->argc, state->out, samples);
+          }
+#endif
+          break;
       }
   vm->sample += samples;
   return last_state->out;
@@ -335,7 +412,6 @@ lyd_vm_set_param (LydVM      *vm,
     }
 }
 
-
 typedef struct _LydParam
 {
   LydSample        param_name;   /* string hashed to float */
@@ -346,13 +422,14 @@ typedef struct _LydParam
 } LydParam;
 #define LYD_PARAM(a) ((LydParam*)(a))
 
-
 void lyd_vm_set_param_delayed (LydVM *vm,
                                const char *param_name, float        time,
                                LydInterpolation interpolation,
                                float       value)
 {
   LydParam *param = g_new0 (LydParam, 1);
+  int i;
+  LydOpState *state;
 
   /* this should perhaps be different for standalone vms */
   param->sample_no = vm->lyd->sample_no + vm->sample_rate * time;
@@ -360,8 +437,7 @@ void lyd_vm_set_param_delayed (LydVM *vm,
   param->param_name = str2float (param_name);
   param->value = value;
   param->interpolation = interpolation;
-  int i;
-  LydOpState *state;
+
   for (state = vm->state; state->op == LYD_NOP; state = state->next)
     if (STREQUAL (state->literal[LYD_CHUNK * 1], param->param_name))
       {
@@ -480,10 +556,7 @@ static void lyd_vm_update_params (LydVM *vm,
     }
 }
 
-
-
-
-LydFilter  *lyd_filter_new      (Lyd *lyd, LydProgram *program)
+LydFilter  *lyd_filter_new (Lyd *lyd, LydProgram *program)
 {
   LydVM *filter;
   filter = lyd_vm_create (lyd, program);
@@ -504,10 +577,16 @@ lyd_filter_process (LydFilter  *filter,
 
   filter->sample_rate = filter->lyd->sample_rate;
   filter->i_sample_rate = 1.0/filter->lyd->sample_rate;
+  if (n_inputs > LYD_MAX_ARGC)
+    n_inputs = LYD_MAX_ARGC;
   if (n_inputs > 0 && inputs)
     {
-      filter->input_buf[0] = inputs[0];
-      filter->input_pos = 0;
+      int i;
+      for (i = 0; i < n_inputs; i++)
+        {
+          filter->input_buf[i] = inputs[i];
+          filter->input_pos[i] = 0;
+        }
       filter->input_buf_len = samples;
     }
 

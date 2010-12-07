@@ -201,12 +201,21 @@ static LydToken *parser_lookup (LydParser *parser,
   return NULL;
 }
 
-static LydOpCode str2opcode (const char *str)
+static LydOpCode str2opcode (Lyd *lyd, const char *str)
 {
   int i;
+  SList *iter;
   for (i=0 ; i < N_ELEMENTS (op_lexicon); i++)
     if (!strcmp(str, op_lexicon[i].str))
       return op_lexicon[i].op;
+#ifdef LYD_EXTENDABLE
+  for (iter = lyd->op_info; iter; iter = iter->next)
+    {
+      LydOpInfo *info = iter->data;
+      if (!strcmp (str, info->name))
+        return info->op;
+    }
+#endif
   return 0;
 }
 
@@ -218,7 +227,7 @@ static float str2constant (const char *str)
       return constant_lexicon[i].value;
   return 0.0;
 }
-#define is_op(str)       (str2opcode (str)!=0)
+#define is_op(str)       (str2opcode (lyd, str)!=0)
 #define is_constant(str) (str2constant (str)!=0.0)
 
 static int oneof (char needle, char *haystack)
@@ -368,6 +377,7 @@ parser_advance (LydParser *parser, const char *expected)
 {
   LydToken *newtok;
   LydToken *t;
+  Lyd      *lyd = parser->lyd;
 
   if (expected && strcmp (parser->token->str, expected))
     {
@@ -612,6 +622,7 @@ static void compile (LydParser  *parser,
                      int         command,
                      int         argno)
 {
+  Lyd *lyd = parser->lyd;
   if (!t)
     {
       printf ("assemble passed NULL");
@@ -631,7 +642,7 @@ static void compile (LydParser  *parser,
               program->commands[command].arg[argno] = POS(t) - command;
             }
           /* set the type of oursevles */
-          program->commands[POS(t)].op = str2opcode (t->str);
+          program->commands[POS(t)].op = str2opcode (lyd, t->str);
           compile (parser, t->first, program, totcmds, POS(t), 0);
           compile (parser, t->second, program, totcmds, POS(t), 1);
         }
@@ -659,7 +670,7 @@ static void compile (LydParser  *parser,
             }
 
           /* set the type of the function oursevles */
-          program->commands[POS(t)].op = str2opcode (t->first->str);
+          program->commands[POS(t)].op = str2opcode (lyd, t->first->str);
           for (i=0;i< LYD_MAX_ARGC;i++)
             if (t->args[i])
               {
@@ -679,7 +690,7 @@ static void compile (LydParser  *parser,
               program->commands[command].arg[argno] = POS(t) - command;
             }
           /* set the type of oursevles */
-          program->commands[POS(t)].op = str2opcode ("neg");
+          program->commands[POS(t)].op = str2opcode (lyd, "neg");
           compile (parser, t->first, program, totcmds, POS(t), 0);
         }
         break;
@@ -734,7 +745,7 @@ LydProgram *lyd_compile (Lyd *lyd, const char *source)
            commands+parser->variables-1, 0);
   for (i=0; i<parser->variables; i++)
     {
-      program->commands[i].op = str2opcode ("nop");
+      program->commands[i].op = str2opcode (lyd, "nop");
       program->commands[i].arg[0] = parser->var_default[i];
       program->commands[i].arg[1] = parser->variable[i];
     }

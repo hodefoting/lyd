@@ -289,8 +289,8 @@ void        lyd_voice_set_param_delayed (Lyd        *lyd,   LydVoice *voice,
  * wave_loop('wavename').
  */
 void        lyd_load_wave (Lyd *lyd, const char *wavename,
-                          int  samples, int sample_rate,
-                          float *data);
+                           int  samples, int sample_rate,
+                           float *data);
 /**
  * lyd_set_wave_handler:
  * @lyd: lyd engine
@@ -305,9 +305,9 @@ void        lyd_load_wave (Lyd *lyd, const char *wavename,
  * programs are compiled.
  */
 void        lyd_set_wave_handler (Lyd *lyd,
-                                 int (*wave_handler) (Lyd *lyd, const char *wave,
-                                                      void *user_data),
-                                 void *user_data);
+                                  int (*wave_handler) (Lyd *lyd, const char *wave,
+                                                       void *user_data),
+                                  void *user_data);
 
 /**
  * LydFilter:
@@ -499,8 +499,6 @@ void         lyd_midi_out   (Lyd *lyd, unsigned char *data, int length);
  * Seek the position of the midi decoding engine to the given position.
  */
 void         lyd_midi_seek  (Lyd *lyd, float position);
-
-
 
 
 #endif

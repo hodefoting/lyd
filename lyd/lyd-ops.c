@@ -50,7 +50,7 @@ static inline void op_adsr (OP_ARGS)
       else if (SAMPLE < a + d)                     /* in decay */
         OUT = 1.0 + (s-1) * ((SAMPLE - a) / d);
       else                                         /* in sustain */
-        OUT = s;                               
+        OUT = s;
     }
 }
 
@@ -96,7 +96,7 @@ static inline void op_ddadsr (OP_ARGS)
       else if (sample < a + d)                     /* in decay */
         OUT = 1.0 + (s-1) * ((sample - a) / d);
       else                                         /* in sustain */
-        OUT = s; 
+        OUT = s;
     }
 }
 
@@ -141,9 +141,9 @@ static inline float input_sample (LydVM *vm,
   float ret = 0.0;
   if (!vm->input_buf)
     return 0.0;
-  if (vm->input_pos < vm->input_buf_len)
-    ret = vm->input_buf[no][vm->input_pos];
-  vm->input_pos ++;
+  if (vm->input_pos[no] < vm->input_buf_len)
+    ret = vm->input_buf[no][vm->input_pos[no]];
+  vm->input_pos[no] ++;
   return ret;
 }
 
@@ -298,3 +298,5 @@ static inline void op_cycle (OP_ARGS)
     }
   ALIGNED_ARGS_SILENCE;
 }
+
+

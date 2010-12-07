@@ -626,6 +626,9 @@ Lyd * lyd_new (void)
   int i;
   pthread_mutex_init(&lyd->mutex, NULL);
   lyd->max_active = 4000;
+#ifdef LYD_EXTENDABLE
+  lyd->last_op = LydLastOp;
+#endif
   lyd_init_lookup_tables ();
 
 #ifdef LYD_THREADED
@@ -635,9 +638,17 @@ Lyd * lyd_new (void)
   lyd_add_pre_cb (lyd, (void*)lyd_midi_iterate, NULL);
   lyd_set_voice_count (lyd, 5);
 
+  /*
   {
     LydProgram *program = lyd_compile (lyd, "low_pass (1, 15000, 1, input(0))");
     lyd_set_global_filter (lyd, program);
+    lyd_program_free (program);
+  }*/
+
+
+  if (0){
+    LydProgram *program = lyd_compile (lyd, "square(440 + sin (10) * 220)");
+    lyd_add_op_program (lyd, "foo", 0, program);
     lyd_program_free (program);
   }
 
@@ -846,3 +857,28 @@ int lyd_get_voice_count (Lyd *lyd)
 {
   return lyd->voice_count;
 }
+
+#ifdef LYD_EXTENDABLE
+void lyd_add_op (Lyd *lyd, const char *name, int argc,
+                 void (*process) (LydVM *vm, LydOpState *state, int samples))
+{
+  LydOpInfo *info = g_new0 (LydOpInfo, 1);
+  info->name = g_strdup (name);
+  info->argc = argc;
+  info->process = process;
+  info->op = lyd->last_op++;
+  lyd->op_info = slist_prepend (lyd->op_info, info);
+}
+
+void lyd_add_op_program (Lyd *lyd, const char *name, int argc,
+                         LydProgram *program)
+{
+  LydOpInfo *info = g_new0 (LydOpInfo, 1);
+  info->name = g_strdup (name);
+  info->argc = argc;
+  info->program = program;
+  info->filter = lyd_filter_new (lyd, program);
+  info->op = lyd->last_op++;
+  lyd->op_info = slist_prepend (lyd->op_info, info);
+}
+#endif

@@ -48,7 +48,12 @@ typedef float LydSample;
 #define LYD_MIN_RELASE_TIME_DIVISOR    100   /* computed as samplerate/this */
 
 #define LYD_ALIGN                      16    /* needed for tree-vectorize SIMD*/
-#define LYD_THREADED /* comment out to disabled threading */
+
+
+/* The following features can be disabled by commenting them out */
+#define LYD_EXTENDABLE     /* whether lyd_add_op is compiled (and support
+                              for dynamic ops elsewhere */
+#define LYD_THREADED       /* workload distribution in threads */
 #define LYD_MAX_THREADS                4
 
 typedef enum
@@ -62,14 +67,23 @@ typedef enum
 
 typedef struct _LydOpState  LydOpState;
 
+#ifdef LYD_EXTENDABLE
+typedef struct _LydOpInfo  LydOpInfo;
+#endif
+
 struct _LydOpState
 {
-  LydOpCode   op;                 /* 4 bytes */
+  int         op;                 /* 4 bytes */
   void       *data;               /* 4 bytes */
   int         argc;               /* 4 bytes */
   LydSample   phase;              /* 4 bytes */
   LydOpState *next;               /* 4 bytes */
-  int         pad[3];             /* decrement this when
+#ifdef LYD_EXTENDABLE
+  LydOpInfo  *info;
+#else
+  int         pad2[1];
+#endif
+  int         pad[2];             /* decrement this when
                                    * inserting data, as long as LYD_MAX_ARGC
                                    * doesnt change this should keep the
                                    * layout constant.
@@ -86,6 +100,18 @@ struct _LydOp
   int       argc;              /* argument count */
   float     arg[LYD_MAX_ARGC]; /* arguments to operation */
 };
+
+#ifdef LYD_EXTENDABLE
+struct _LydOpInfo
+{
+  LydOpCode   op;
+  const char *name;
+  int         argc;
+  LydProgram *program;
+  LydFilter  *filter;
+  void (*process) (LydVM *vm, LydOpState *state, int samples);
+};
+#endif
 
 struct _LydProgram
 {
@@ -223,6 +249,11 @@ struct _Lyd
   unsigned int previous_samples; /* number of samples previously computed */
   unsigned long sample_no; /* counter for global sample no */
   SList    *voices;        /* list of currently playing voices */
+#ifdef LYD_EXTENDABLE
+  SList    *op_info;  /* it would be better if this lived in an array for
+                         both built in and extended ops */
+  int       last_op;
+#endif
   LydWave  *wave[LYD_MAX_WAVE];
 
   int     (*wave_handler) (Lyd *lyd, const char *name,
@@ -289,11 +320,11 @@ struct _LydVM
   
   int        tag;
   LydSample *input_buf[LYD_MAX_ARGC];
-  int        input_pos;
+  int        input_pos[LYD_MAX_ARGC];
   int        input_buf_len;
 
 
-  SList *params;    /* list of key-lists form params */
+  SList *params;    /* list of key-lists variable interpolation params */
   LydOpState *state;/* points to immediately after the allocation
                        of LydVM (padded for alignment). */
 };
@@ -304,7 +335,10 @@ float        lyd_midi_get_duration (Lyd *lyd);
 /* set loop positions (also enables looping)  */
 void         lyd_midi_set_repeat (Lyd *lyd, float start, float end);
 
-void         lyd_add_op      (Lyd *lyd, const char *name, int args,
-                              void (*process) (LydVM *vm, LydOpState *state, int samples));
+void         lyd_add_op         (Lyd *lyd, const char *name, int args,
+                                 void (*process) (LydVM *vm, LydOpState *state, int samples));
+
+void         lyd_add_op_program (Lyd *lyd, const char *name, int argc,
+                                 LydProgram *program);
 
 #endif

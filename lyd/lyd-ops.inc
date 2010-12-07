@@ -203,3 +203,5 @@ LYD_OP("nop", NOP, 2,
        OP_LOOP(OUT = state->literal[0 * LYD_CHUNK + i];),
        "returns the first of it's arguments used by the compiler to implement variables", "(value)")
 
+LYD_OP("bar", BAR, 2,
+       OP_LYD("square(input(0)) + sin(input(1))"), "", "(freq1, freq2)")
