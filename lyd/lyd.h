@@ -500,5 +500,17 @@ void         lyd_midi_out   (Lyd *lyd, unsigned char *data, int length);
  */
 void         lyd_midi_seek  (Lyd *lyd, float position);
 
+/**
+ * lyd_add_op_program:
+ * @lyd: lyd engine
+ * @name: function name
+ * @argc: number of arguments
+ * @program: a LydProgram
+ *
+ * Adds program as a new op-code / language primitive. This allows
+ * extending lyd with lyd.
+ */
+void         lyd_add_op_program (Lyd *lyd, const char *name, int argc,
+                                 LydProgram *program);
 
 #endif

@@ -201,7 +201,7 @@ LYD_OP("cycle", CYCLE, LYD_MAX_ARGC,
        "Cycles between provided input streams first argument gives frequency of source hopping.","(frequency, expr1, expr2[, ... expr7])")
 
 LYD_OP("nop", NOP, 2,
-       OP_LOOP(OUT = state->literal[0 * LYD_CHUNK + i];),,,
+       OP_LOOP(OUT = state->literal[0][i];),,,
        "returns the first of it's arguments used by the compiler to implement variables", "(value)")
 
 LYD_OP("bar", BAR, 2,

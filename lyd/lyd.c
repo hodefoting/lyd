@@ -645,7 +645,6 @@ Lyd * lyd_new (void)
     lyd_program_free (program);
   }*/
 
-
   if (0){
     LydProgram *program = lyd_compile (lyd, "square(440 + sin (10) * 220)");
     lyd_add_op_program (lyd, "foo", 0, program);
@@ -688,12 +687,15 @@ lyd_wave_free (LydWave *wave)
 void lyd_free (Lyd *lyd)
 {
   int i;
+  lyd_dead = 1;
   for (i = 0; i < LYD_MAX_WAVE; i++)
     if (lyd->wave[i])
       lyd_wave_free (lyd->wave[i]);
 
   /* XXX: shutdown properly */
-  lyd_dead = 1;
+  /* XXX: free per thread render bufs */
+  /* XXX: free still active voices */
+  /* XXX: free chunk pools */
   g_free (lyd);
 }
 
@@ -759,11 +761,11 @@ lyd_add_pre_cb (Lyd *lyd,
 }
 
 int
-lyd_add_post_cb     (Lyd *lyd,
-                     void (*cb)(Lyd *lyd, int samples,
-                                void *stream, void *stream2,
-                                void *data),
-                     void *data)
+lyd_add_post_cb (Lyd *lyd,
+                 void (*cb)(Lyd *lyd, int samples,
+                            void *stream, void *stream2,
+                            void *data),
+                 void *data)
 {
   int i = 0;
   LOCK ();
@@ -858,6 +860,84 @@ int lyd_get_voice_count (Lyd *lyd)
   return lyd->voice_count;
 }
 
+#define POOL_SIZE   48
+#define FULL_POOL   0xffffff
+typedef struct AllocPool
+{
+  void      *alloc;
+  LydSample *mem;
+  long       used;  /* bitmask of used bufs */
+} AllocPool;
+
+static LydSample *lyd_chunk_new (Lyd *lyd)
+{
+  AllocPool *pool = lyd->chunk_pools?lyd->chunk_pools->data:NULL;
+  int no;
+  if (!pool || pool->used == FULL_POOL)
+    {
+      SList *iter;
+      for (iter = lyd->chunk_pools; iter; iter=iter->next)
+        {
+          pool = iter->data;
+          if (pool->used != FULL_POOL)
+            break;
+          pool = NULL;
+        }
+      if (!pool)
+        {
+          pool = g_new0 (AllocPool, 1);
+          lyd->chunk_pools = slist_prepend (lyd->chunk_pools, pool);
+          pool->alloc = g_malloc0 (sizeof (LydSample) * LYD_CHUNK * POOL_SIZE + LYD_ALIGN);
+          /* align memory */
+          pool->mem = (void*)(((char*)pool->alloc) + ((int)((char *)pool->alloc)) % LYD_ALIGN);
+        }
+    }
+  for (no = 0; no < POOL_SIZE; no++)
+    {
+      int bitmask = 1 << no;
+      if (!(pool->used & bitmask))
+        {
+          pool->used |= bitmask;
+          return (LydSample*) &pool->mem[LYD_CHUNK * no];
+        }
+    }
+  return NULL;
+}
+
+static void lyd_chunk_free (Lyd *lyd, LydSample *chunk)
+{
+  SList *iter, *prev = NULL;
+  for (iter = lyd->chunk_pools; iter; prev = iter, iter = iter->next)
+    {
+      AllocPool *pool = iter->data;
+      if ((char*)(chunk) - (char*)(pool->mem) <
+          POOL_SIZE * sizeof (LydSample) * LYD_CHUNK)
+        {
+          int no = (int)((char*)(chunk) - (char*)(pool->mem)) / (LYD_CHUNK * sizeof (LydSample));
+
+          if (pool->used & (1 << no))
+            {
+              pool->used ^= (1 << no);
+            }
+            if (pool->used == 0)
+              {
+                if (lyd->chunk_pools == iter)
+                  lyd->chunk_pools = iter->next;
+                if (prev)
+                  prev->next = iter->next;
+                g_free (pool);
+                iter->next = NULL;
+                slist_free (iter);
+                /* the pool with freed item should perhaps move to the start of
+                 * the list to facilitate reuse as well as speeding up of
+                 * subsequent frees, overkill with lyds access patterns though
+                 */
+              }
+          return;
+        }
+    }
+}
+
 #ifdef LYD_EXTENDABLE
 void lyd_add_op (Lyd *lyd, const char *name, int argc,
                  void (*process) (LydVM *vm, LydOpState *state, int samples))
@@ -877,7 +957,6 @@ void lyd_add_op_program (Lyd *lyd, const char *name, int argc,
   info->name = g_strdup (name);
   info->argc = argc;
   info->program = program;
-  info->filter = lyd_filter_new (lyd, program);
   info->op = lyd->last_op++;
   lyd->op_info = slist_prepend (lyd->op_info, info);
 }

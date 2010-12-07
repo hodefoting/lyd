@@ -73,33 +73,28 @@ typedef struct _LydOpInfo  LydOpInfo;
 
 struct _LydOpState
 {
-  int         op;                 /* 4 bytes */
-  void       *data;               /* 4 bytes */
-  int         argc;               /* 4 bytes */
-  LydSample   phase;              /* 4 bytes */
-  LydOpState *next;               /* 4 bytes */
+  int         op;     /* the opcode used */
+  void       *data;   /* hook for ops to add their own data structures */
+  int         argc;   /* number of arguments actually passed */
+  LydSample   phase;  /* phase, used by oscillator ops */
+  LydOpState *next;   /* op to run after this one */
 #ifdef LYD_EXTENDABLE
   LydOpInfo  *info;
-#else
-  int         pad2[1];
 #endif
-  int         pad[2];             /* decrement this when
-                                   * inserting data, as long as LYD_MAX_ARGC
-                                   * doesnt change this should keep the
-                                   * layout constant.
-                                   */
-  LydSample  *out2;                /* it would be better to use a buffer pool...
-                                      and easier to ensure alignment with that ...*/
-  LydSample  *arg[LYD_MAX_ARGC];  /* ? bytes */
-  LydSample   out[LYD_CHUNK] __attribute__ ((aligned(LYD_ALIGN)));
-  LydSample   literal[] __attribute__ ((aligned(LYD_ALIGN)));
+  LydSample  *out;               /* the buffers pointed to are 16 byte aligned */
+  LydSample  *arg[LYD_MAX_ARGC]; /* points either to own literals, or other op
+                                    outputs */
+  LydSample  *literal[LYD_MAX_ARGC];
 };
 
 typedef union { LydSample v[LYD_CHUNK]; }
 LydChunk __attribute__ ((__aligned__(LYD_ALIGN)));
 
-static LydChunk *lyd_chunk_new (Lyd *lyd);
-void             lyd_chunk_free (Lyd *lyd, LydChunk *chunk);
+static LydSample *lyd_chunk_new  (Lyd *lyd);
+static void       lyd_chunk_free (Lyd *lyd, LydSample *chunk);
+
+static LydSample *lyd_vm_chunk_new (LydVM *vm);
+static void       lyd_vm_chunk_free (LydVM *vm, LydSample *chunk);
 
 struct _LydOp
 {
@@ -109,14 +104,19 @@ struct _LydOp
 };
 
 #ifdef LYD_EXTENDABLE
-struct _LydOpInfo
+struct _LydOpInfo  /* structure describing an extension to lyd
+                    * language/vm 
+                    */
 {
-  LydOpCode   op;
-  const char *name;
-  int         argc;
-  LydProgram *program;
-  LydFilter  *filter;
+  LydOpCode   op;       /* opcode */
+  const char *name;     /* function name */
+  int         argc;     /* argument count */
+
+  /* C function to execute ... */
   void (*process) (LydVM *vm, LydOpState *state, int samples);
+
+  /* ... or program to be executed  */
+  LydProgram *program; 
 };
 #endif
 
@@ -294,6 +294,8 @@ struct _Lyd
 #endif
   int             buf_len;
 
+  SList          *chunk_pools;
+
   void (*pre_cb[LYD_MAX_CBS])(Lyd *lyd, float elapsed, void *data);
   void *pre_cb_data[LYD_MAX_CBS];
   void (*post_cb[LYD_MAX_CBS])(Lyd *lyd, int len, void *stream, void *stream2, void *data);
@@ -318,24 +320,21 @@ struct _LydVM
   int   sample_rate;
   float i_sample_rate; /* 1.0/sample_rate */
 
-
   LydSample silence_min; /* Silence detection */
   LydSample silence_max; /* (after release) */
 
   void  (*complete_cb)(void *data); /* callback and data when voice is done*/
   void   *complete_data;            /* data for complete callback */
-  
+
   int        tag;
   LydSample *input_buf[LYD_MAX_ARGC];
   int        input_pos[LYD_MAX_ARGC];
   int        input_buf_len;
 
-
-  SList *params;    /* list of key-lists variable interpolation params */
-  LydOpState *state;/* points to immediately after the allocation
-                       of LydVM (padded for alignment). */
+  SList      *params;  /* list of key-lists variable interpolation params */
+  LydOpState *state;   /* points to immediately after the allocation
+                          of LydVM (padded for alignment). */
 };
-
 
 /* get duration of loaded midi file in seconds */
 float        lyd_midi_get_duration (Lyd *lyd);
@@ -345,7 +344,5 @@ void         lyd_midi_set_repeat (Lyd *lyd, float start, float end);
 void         lyd_add_op         (Lyd *lyd, const char *name, int args,
                                  void (*process) (LydVM *vm, LydOpState *state, int samples));
 
-void         lyd_add_op_program (Lyd *lyd, const char *name, int argc,
-                                 LydProgram *program);
 
 #endif

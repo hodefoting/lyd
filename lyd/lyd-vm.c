@@ -96,8 +96,6 @@
   #define ALIGNED_ARGS_SILENCE \
     arg0=arg1=arg2=arg3=arg4=arg5=arg6=arg7
 
-
-
 #ifndef ABS
   #define ABS(a)             ((a)>0?(a):-(a))
 #endif
@@ -162,21 +160,12 @@ static LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
   for (opcount = 0; program->commands[opcount].op; opcount++)
     arg_count += lyd_op_argc (lyd, program->commands[opcount].op);
   opcount++;
-  codesize = sizeof (LydOpState) * opcount + sizeof (LydChunk) * arg_count;
+  codesize = sizeof (LydOpState) * opcount;
 
   /* allocate memory */
-  vm = g_malloc0 (sizeof (LydVM) + codesize + LYD_ALIGN);
-  vm->state = (LydOpState*)(((char *)vm) + sizeof (LydVM));
-
-  /* ensure 16 byte alignment of LydOpState array */
-  {
-    char *tmp = (void*)vm->state;
-    int offset = LYD_ALIGN - ((uintptr_t) tmp) % LYD_ALIGN;
-    tmp += offset;
-    vm->state = (void*)tmp;
-  }
-
+  vm = g_malloc0 (sizeof (LydVM) + codesize);
   vm->lyd = lyd;
+  vm->state = (LydOpState*)(((char *)vm) + sizeof (LydVM));
   state = vm->state;
 
   /* fill in opstate from program, initializing
@@ -184,6 +173,11 @@ static LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
   for (i = 0; program->commands[i].op; i++)
     {
       int argc;
+      int outarg = -1;   /* if positive, it is the input argument buffer
+                            we will reuse as output. Double frees are ignored
+                            by the lyd allocator, making the aliasing not
+                            be a problem as long as the related chunks are
+                            freed in one go */
       states[i] = state;
       state->op = program->commands[i].op;
       state->argc = program->commands[i].argc;
@@ -192,30 +186,40 @@ static LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
        * should happen foremost in the compiler
        */
       argc = lyd_op_argc (lyd, state->op);
-      state->next = (LydOpState*)(((char *)state) +
-                        sizeof (LydOpState) + (sizeof (LydChunk)) * argc);
+
+      state->next = (LydOpState*)(((char *)state) + sizeof (LydOpState));
 
       for (j = 0; j < argc; j++)
         {
           int offset  = program->commands[i].arg[j];
           int k;
 
+          state->literal[j] = lyd_vm_chunk_new (vm);
+
           for (k = 0; k < LYD_CHUNK; k++)
-            state->literal[j * LYD_CHUNK + k] = program->commands[i].arg[j];
+            state->literal[j][k] = program->commands[i].arg[j];
+
           if (offset >= 0) /* direct pointer */
-            {
-              state->arg[j] = &state->literal[j * LYD_CHUNK];
-              for (k = 0; k < LYD_CHUNK; k++)
-                state->out[k] = state->arg[j][0];
-            }
+            state->arg[j] = &state->literal[j][0];
+
           else if (i + offset >= 0)
             {
+              /* avoid reusing LYD_NOP bufs, since variables can be used
+               * by multiple ops, and thus should not be
+               * overwritten
+               */
+              if (outarg<0 && states[i + offset]->op != LYD_NOP)
+                outarg = j;
               state->arg[j] = &states[i + offset]->out[0];
             }
           else
-            state->arg[j] = &nul;
-          assert (state->arg[j]);
+            assert(0);
         }
+
+      if (outarg>=0) /* reusing input buf as output */
+        state->out = state->literal[outarg];
+      else
+        state->out = lyd_vm_chunk_new (vm);
 
       switch (program->commands[i].op)
         {
@@ -224,9 +228,9 @@ static LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
             int k;
             for (k = 0; k < LYD_CHUNK; k++)
               {
-                state->literal[0 * LYD_CHUNK + k] *= lyd->sample_rate;
-                state->literal[1 * LYD_CHUNK + k] *= lyd->sample_rate;
-                state->literal[3 * LYD_CHUNK + k] *= lyd->sample_rate;
+                state->literal[0][k] *= lyd->sample_rate;
+                state->literal[1][k] *= lyd->sample_rate;
+                state->literal[3][k] *= lyd->sample_rate;
               }
             break;
           }
@@ -235,11 +239,11 @@ static LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
             int k;
             for (k = 0; k < LYD_CHUNK; k++)
               {
-                state->literal[0 * LYD_CHUNK + k] *= lyd->sample_rate;
-                state->literal[1 * LYD_CHUNK + k] *= lyd->sample_rate;
-                state->literal[2 * LYD_CHUNK + k] *= lyd->sample_rate;
-                state->literal[3 * LYD_CHUNK + k] *= lyd->sample_rate;
-                state->literal[5 * LYD_CHUNK + k] *= lyd->sample_rate;
+                state->literal[0][k] *= lyd->sample_rate;
+                state->literal[1][k] *= lyd->sample_rate;
+                state->literal[3][k] *= lyd->sample_rate;
+                state->literal[2][k] *= lyd->sample_rate;
+                state->literal[5][k] *= lyd->sample_rate;
               }
             break;
           }
@@ -247,6 +251,12 @@ static LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
       state = state->next;
     }
   vm->position = 0.0;
+
+  if (state->info &&
+      state->info->program)
+    {
+      state->data = lyd_filter_new (vm->lyd, state->info->program);
+    }
   return vm;
 }
 
@@ -258,25 +268,34 @@ static void
 lyd_vm_free (LydVM *vm)
 {
   LydOpState *state;
+
   for (state = vm->state; state->op; state=state->next)
-    if (state->data)
-      switch (state->op)
-        {
-        case LYD_NONE: break;
+    {
+      int i;
+      int argc = lyd_op_argc (vm->lyd, state->op);
+      lyd_vm_chunk_free (vm, state->out);
+      state->out = NULL;
+
+      for (i = 0; i< argc; i++)
+        lyd_vm_chunk_free (vm, state->literal[i]);
+
+      if (state->data)
+        switch (state->op)
+          {
+            case LYD_NONE: break;
 #define LYD_OP(name, OP_CODE, ARGC, CODE, INIT, FREE, DOC, BAZ) \
-        case LYD_##OP_CODE: { FREE }; break;
-        #include "lyd-ops.inc"
-        /* the include expands into cases for opcodes and the code to
-         * run when the opcode is invoked.
-         */
-        #undef LYD_OP
-        break;
-           // free (state->data);
-            //break;
-          //case LYD_REVERB:
+            case LYD_##OP_CODE: { FREE }; break;
+            #include "lyd-ops.inc"
+#undef LYD_OP
           default:
-            g_free (state->data);
-        }
+          if (state->info->program)
+            {
+              if (state->data)
+                lyd_filter_free (state->data);
+            }
+            break;
+          }
+    }
 
   /* free unused parameter slots */
   {
@@ -383,8 +402,8 @@ lyd_vm_compute (LydVM  *vm,
              */
             if (state->info->process)
               state->info->process (vm, state, samples);
-            else if (state->info->filter)
-              lyd_filter_process (state->info->filter, state->arg,
+            else if (state->info->program)
+              lyd_filter_process (state->data, state->arg,
                                   state->info->argc, state->out, samples);
           }
 #endif
@@ -408,12 +427,12 @@ lyd_vm_set_param (LydVM      *vm,
    */
   for (state=vm->state; state->op == LYD_NOP; state = state->next)
     {
-      if (STREQUAL(state->literal[1 * LYD_CHUNK], hash))
+      if (STREQUAL(state->literal[1][0], hash))
         {
           int k;
           for (k = 0; k < LYD_CHUNK; k++)
-            state->literal[k] = value;/* could set the out directly,
-                                         and make nops be true no-ops? */
+            state->literal[0][k] = value;/* could set the out directly,
+                                            and make nops be true no-ops? */
           break;
         }
     }
@@ -446,9 +465,9 @@ void lyd_vm_set_param_delayed (LydVM *vm,
   param->interpolation = interpolation;
 
   for (state = vm->state; state->op == LYD_NOP; state = state->next)
-    if (STREQUAL (state->literal[LYD_CHUNK * 1], param->param_name))
+    if (STREQUAL (state->literal[1][0], param->param_name))
       {
-        param->ptr = &(state->literal[0]);
+        param->ptr = &(state->literal[0][0]);
         break;
       }
 
@@ -617,4 +636,13 @@ lyd_filter_process (LydFilter  *filter,
 void lyd_filter_free (LydFilter *filter)
 {
   lyd_vm_free (filter);
+}
+
+static LydSample *lyd_vm_chunk_new (LydVM *vm)
+{
+  return lyd_chunk_new (vm->lyd);
+}
+static void lyd_vm_chunk_free (LydVM *vm, LydSample *chunk)
+{
+  lyd_chunk_free (vm->lyd, chunk);
 }
