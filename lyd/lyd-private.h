@@ -58,7 +58,7 @@ typedef float LydSample;
 
 typedef enum
 {
-#define LYD_OP(NAME, OP_CODE, FOO, BAR, BAZ, QUX)  ,LYD_##OP_CODE
+#define LYD_OP(NAME, OP_CODE, ARGC, CODE, INIT, FREE, DOC, ARGDOC)  ,LYD_##OP_CODE
   LYD_NONE = 0
 #include "lyd-ops.inc"
 #undef LYD_OP
@@ -88,11 +88,18 @@ struct _LydOpState
                                    * doesnt change this should keep the
                                    * layout constant.
                                    */
+  LydSample  *out2;                /* it would be better to use a buffer pool...
+                                      and easier to ensure alignment with that ...*/
   LydSample  *arg[LYD_MAX_ARGC];  /* ? bytes */
   LydSample   out[LYD_CHUNK] __attribute__ ((aligned(LYD_ALIGN)));
   LydSample   literal[] __attribute__ ((aligned(LYD_ALIGN)));
 };
 
+typedef union { LydSample v[LYD_CHUNK]; }
+LydChunk __attribute__ ((__aligned__(LYD_ALIGN)));
+
+static LydChunk *lyd_chunk_new (Lyd *lyd);
+void             lyd_chunk_free (Lyd *lyd, LydChunk *chunk);
 
 struct _LydOp
 {

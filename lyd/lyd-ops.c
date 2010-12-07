@@ -102,6 +102,11 @@ static inline void op_ddadsr (OP_ARGS)
 
 #include "biquad.c"
 
+static inline void op_filter_free (LydOpState *state)
+{
+  free (state->data);
+}
+
 static inline void op_filter (OP_ARGS)
 {
   ALIGNED_ARGS;
@@ -264,6 +269,11 @@ static inline void op_reverb (OP_ARGS)
       OUT = sample;
     }
   ALIGNED_ARGS_SILENCE;
+}
+
+static inline void op_reverb_free (LydOpState *state)
+{
+  g_free (state->data);
 }
 
 static inline void op_cycle (OP_ARGS)

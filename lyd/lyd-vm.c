@@ -22,8 +22,6 @@
    * and reabable. They assume that local variables arg0 to arg07 contain
    * aligned memory arrays, LydChunks.
    */
-typedef union { LydSample v[LYD_CHUNK]; }
-LydChunk __attribute__ ((__aligned__(LYD_ALIGN)));
 
 
   /* macro used when defining ops, to indicate a callback function to
@@ -113,7 +111,7 @@ LydChunk __attribute__ ((__aligned__(LYD_ALIGN)));
 static int lyd_op_argca[]=
 {
   0
-  #define LYD_OP(name, OP_CODE, ARG_COUNT, CODE, DOC, ARG_DOC), ARG_COUNT
+  #define LYD_OP(name, OP_CODE, ARG_COUNT, CODE, INIT, FREE, DOC, ARG_DOC), ARG_COUNT
   #include "lyd-ops.inc"
   #undef LYD_OP
   , -1
@@ -252,6 +250,10 @@ static LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
   return vm;
 }
 
+#include "lyd-ops.c" /* include lyd-ops.c directly from the C file so
+                        that the static functions can be compiled directly
+                        into lyd_vm_compute() */
+
 static void
 lyd_vm_free (LydVM *vm)
 {
@@ -260,15 +262,23 @@ lyd_vm_free (LydVM *vm)
     if (state->data)
       switch (state->op)
         {
-          case LYD_LOW_PASS:  case LYD_HIGH_PASS: case LYD_BAND_PASS:
-          case LYD_NOTCH:     case LYD_PEAK_EQ:
-          case LYD_LOW_SHELF: case LYD_HIGH_SHELF:
-            free (state->data);
-            break;
-          case LYD_REVERB:
+        case LYD_NONE: break;
+#define LYD_OP(name, OP_CODE, ARGC, CODE, INIT, FREE, DOC, BAZ) \
+        case LYD_##OP_CODE: { FREE }; break;
+        #include "lyd-ops.inc"
+        /* the include expands into cases for opcodes and the code to
+         * run when the opcode is invoked.
+         */
+        #undef LYD_OP
+        break;
+           // free (state->data);
+            //break;
+          //case LYD_REVERB:
           default:
             g_free (state->data);
         }
+
+  /* free unused parameter slots */
   {
     SList *l1, *l2;
     for (l1 = vm->params; l1; l1 = l1->next)
@@ -342,9 +352,6 @@ static inline float phase (LydVM *vm, LydOpState *state, float hz)
   return old;
 }
 
-#include "lyd-ops.c" /* include lyd-ops.c directly from the C file so
-                        that the static functions can be compiled directly
-                        into lyd_vm_compute() */
 
 /* The core virtual machine, it computes maximum LYD_CHUNK
  * samples in one go, a pointer to the result is returned.
@@ -358,7 +365,7 @@ lyd_vm_compute (LydVM  *vm,
     switch (state->op)
       {
         case LYD_NONE: break;
-#define LYD_OP(name, OP_CODE, ARGC, CODE, DOC, BAZ) \
+#define LYD_OP(name, OP_CODE, ARGC, CODE, INIT, FREE, DOC, BAZ) \
         case LYD_##OP_CODE: asm("#====LYDOPCODE " name);\
           { CODE } ;        asm("#====OPCODE END " name); \
           break;

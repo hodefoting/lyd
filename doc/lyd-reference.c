@@ -16,7 +16,7 @@ int main (int argc, char **argv)
  "<p>This reference documents all the reserved words in the lyd language, these a pre-existing sound sources and filters.</p>"
  "<h3>"TOP"<a name='keywords' href='#keywords'>Arithmetic</a></h3><p>Parantheses can be used to override or document precedence for the in-fix operations +,-,*,/,%% and ^</p\n");
   printf ("<p>");
-#define LYD_OP(TOKEN,ENUM,ARG_COUNT,CODE,DOC,ARG_DOC) \
+#define LYD_OP(TOKEN,ENUM,ARG_COUNT,CODE,INIT,FREE,DOC,ARG_DOC) \
   if (!strcmp(TOKEN, "adsr")) printf ("</p><h3>"TOP"<a name='sources' href='#sources'>Sources</a></h3>"\
                                       "<p>Sources are oscillators and other signal generators generate a time/sample dependent output and provides the changing elements of the equation expressed in the lyd language.</p><p>\n");\
   if (!strcmp(TOKEN, "reverb")) printf ("</p><h3>"TOP"<a name='filters' href='#filters'>Filters</a></h3><p>Filters adjust various qualities of a signal, ranging from providing chorus to masking out portions of the signal.</p><p>\n");\
@@ -27,7 +27,7 @@ int main (int argc, char **argv)
   printf ("</p>");
 
 
-#define LYD_OP(TOKEN,ENUM,ARG_COUNT,CODE,DOC,ARGS) \
+#define LYD_OP(TOKEN,ENUM,ARG_COUNT,CODE,INIT,FREE,DOC,ARGS) \
   printf ("<h3>"TOP"<a name='%s' href='#%s'>%s %s</a></h3><p>%s</p>\n", TOKEN, TOKEN, TOKEN, ARGS, DOC);
 #include "lyd-ops.inc"
 #undef LYD_OP
