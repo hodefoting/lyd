@@ -399,24 +399,25 @@ static void lyd_write_to_output (Lyd *lyd, int samples,
   LydSample * __restrict__ buf   = (void*)stream;
   LydSample * __restrict__ buf2  = (void*)stream2;
   short int * __restrict__ buf16 = (void*)stream;
+  float factor = lyd->i_voice_count;
   /* write from accumbuf into actual buffer */
   switch (lyd->format)
     {
       case LYD_f32:
         for (i=0;i<samples;i++)
-          buf[i] = (lyd->buf[0][i] + lyd->buf[0][i+samples])/2 * LYD_VOICE_VOLUME ;
+          buf[i] = (lyd->buf[0][i] + lyd->buf[0][i+samples])/2 * factor;
         break;
       case LYD_f32S:
         for (i=0;i<samples;i++)
-          buf[i] = lyd->buf[0][i] * LYD_VOICE_VOLUME;
+          buf[i] = lyd->buf[0][i] * factor;
         for (i=0;i<samples;i++)
-          buf2[i] = lyd->buf[0][i+samples] * LYD_VOICE_VOLUME;
+          buf2[i] = lyd->buf[0][i+samples] * factor;
         break;
       case LYD_s16S:
         for (i=0;i<samples;i++)
-          buf16[i*2]  = (lyd->buf[0][i] * 32767 * LYD_VOICE_VOLUME);
+          buf16[i*2]  = (lyd->buf[0][i] * 32767 * factor);
         for (i=0;i<samples;i++)
-          buf16[i*2+1] = (lyd->buf[0][i+samples] * 32767 * LYD_VOICE_VOLUME);
+          buf16[i*2+1] = (lyd->buf[0][i+samples] * 32767 * factor);
     }
 }
 
@@ -636,6 +637,7 @@ Lyd * lyd_new (void)
 #endif
 
   lyd_add_pre_cb (lyd, (void*)lyd_midi_iterate, NULL);
+  lyd_set_voice_count (lyd, 5);
 
   return lyd;
 }
@@ -929,7 +931,6 @@ lyd_remove_cb (Lyd *lyd, int id)
   UNLOCK ();
 }
 
-
 void
 lyd_load_wave (Lyd *lyd, const char *name,
               int  samples, int sample_rate, float *data)
@@ -980,4 +981,16 @@ lyd_set_wave_handler (Lyd *lyd,
   lyd->wave_handler = wave_handler;
   lyd->wave_handler_data = user_data;
   UNLOCK ();
+}
+
+void
+lyd_set_voice_count (Lyd *lyd, int voice_count)
+{
+  lyd->voice_count = voice_count;
+  lyd->i_voice_count = 1.0 / voice_count;
+}
+
+int lyd_get_voice_count (Lyd *lyd)
+{
+  return lyd->voice_count;
 }

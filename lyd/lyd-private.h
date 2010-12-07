@@ -24,9 +24,6 @@
 
 typedef struct _LydOp LydOp;
 typedef float LydSample;
-                         /* global define for what type lyd computes with,
-                            can be set to float or double, some mor jiggling
-                            would be needed to support 32bit int directly */
 
 // #define DEBUG_CLIPPING
 
@@ -35,16 +32,11 @@ typedef float LydSample;
                                               opcode.
                                               */
 #define LYD_MAX_ELEMENTS               128 /* largest compiled program */
-#define LYD_MAX_ARGC                   8
-#define LYD_MAX_VARIABLES              16
-#define LYD_MAX_CBS                    16
-
-#define LYD_MIX_NUM_VOICES             20 /* with more than this number
-                                             of concurrent voices,
-                                             clipping might occur.
-                                             */
-
-#define LYD_VOICE_VOLUME               (1.0/LYD_MIX_NUM_VOICES)
+#define LYD_MAX_ARGC                   8   /* maximum number of arguments */
+#define LYD_MAX_VARIABLES              16  /* maximum number of variables
+                                              per voice */
+#define LYD_MAX_CBS                    16  /* maximum number of registered
+                                              callbacks */
 
 #define LYD_MAX_WAVE                   128
 #define LYD_MAX_REVERB_SIZE            48000
@@ -245,6 +237,9 @@ struct _Lyd
                                    one instance for each channel
                                 */
 
+  int   voice_count;
+  float i_voice_count; /* 1.0/voice_count */
+
 #ifdef LYD_THREADED
   int             threads;
   int             tsamples;
@@ -284,6 +279,7 @@ struct _LydVM
                          controlled by lyd */
   int   sample_rate;
   float i_sample_rate; /* 1.0/sample_rate */
+
 
   LydSample silence_min; /* Silence detection */
   LydSample silence_max; /* (after release) */

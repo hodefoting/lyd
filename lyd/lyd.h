@@ -39,6 +39,24 @@ Lyd        *lyd_new             (void);
 void        lyd_free            (Lyd *lyd);
 
 /**
+ * lyd_set_voice_count:
+ * @lyd: lyd engine
+ * @new_count: number of voices at 1.0 to account for when scaling the mix down.
+ *
+ * Set the number of voices that all levels are adjusted to, the sum of voices
+ * is multiplied by (1.0/voice_count). The default voice_count is 5.
+ */
+void        lyd_set_voice_count (Lyd *lyd, int voice_count);
+
+/**
+ * lyd_get_voice_count:
+ * @lyd: lyd engine
+ *
+ * Returns: the current voice count.
+ */
+int         lyd_get_voice_count (Lyd *lyd);
+
+/**
  * lyd_set_sample_rate:
  * 
  * @lyd: lyd engine
