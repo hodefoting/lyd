@@ -86,7 +86,7 @@ int main (int    argc,
             }
 
           instrument = lyd_compile (lyd, code);
-          voice = lyd_voice_new (lyd, instrument, 0);
+          voice = lyd_voice_new (lyd, instrument, 0.0, 0);
 
           /* any variable (that is non-reserved keyword) in the source can be manipulated
            * in realtime like this: 
