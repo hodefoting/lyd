@@ -23,9 +23,6 @@
 #include "lyd-private.h"
 
 
-static void lyd_voice_update_params (LydVM *voice,
-                                     int       samples);
-
 /* we include the voice directly to make the mixing and the vm 
  * a single compilation unit
  */
@@ -278,7 +275,7 @@ lyd_synthesize_voice (Lyd   *lyd,
   voice->sample += first_sample;
 
   voice->sample++;
-  lyd_voice_update_params (voice, samples - first_sample);
+  lyd_vm_update_params (voice, samples - first_sample);
 
   /* result is a direct pointer to the results in the last processing chain */
   result = lyd_vm_compute (voice, samples - first_sample);
@@ -294,7 +291,6 @@ static SList *lyd_queue_voices (Lyd *lyd, int samples)
   SList *active, *iter = NULL;
   int thread_no = 0;
 #ifdef LYD_THREADED
-
   lyd->tsamples = samples;
 #endif
 
@@ -528,7 +524,7 @@ void lyd_voice_kill (Lyd *lyd,
 }
 
 void
-lyd_voice_release (Lyd      *lyd,
+lyd_voice_release (Lyd   *lyd,
                    LydVM *voice)
 {
   LOCK ();
@@ -639,6 +635,12 @@ Lyd * lyd_new (void)
   lyd_add_pre_cb (lyd, (void*)lyd_midi_iterate, NULL);
   lyd_set_voice_count (lyd, 5);
 
+  {
+    LydProgram *program = lyd_compile (lyd, "low_pass (1, 15000, 1, input(0))");
+    lyd_set_global_filter (lyd, program);
+    lyd_program_free (program);
+  }
+
   return lyd;
 }
 
@@ -694,7 +696,6 @@ void lyd_voice_set_position (Lyd      *lyd,
   UNLOCK ();
 }
 
-#define STREQUAL(str1,str2) (fabs((str1)-(str2))<0.0000001)
 
 void
 lyd_voice_set_param (Lyd        *lyd,
@@ -706,173 +707,24 @@ lyd_voice_set_param (Lyd        *lyd,
   LOCK ();
   if (slist_find (lyd->voices, voice))
     {
-      float hash = str2float (param);
-      LydOpState *state;
-      /* the variable constants are stored as a sequence of nops at the
-       * beginning of the program
-       */
-      for (state=voice->state; state->op == LYD_NOP; state = state->next)
-        {
-          if (STREQUAL(state->literal[1 * LYD_CHUNK], hash))
-            {
-              int k;
-              for (k = 0; k < LYD_CHUNK; k++)
-                state->literal[k] = value;/* could set the out directly,
-                                             and make nops be true no-ops? */
-              break;
-            }
-        }
+      lyd_vm_set_param (voice, param, value);
     }
   UNLOCK ();
 }
-
-typedef struct _LydParam
-{
-  LydSample        param_name;   /* string hashed to float */
-  long             sample_no;    /* which absolute lyd-time to set this param for*/
-  LydSample        value;        /* the value set */
-  LydInterpolation interpolation;/* Interpolation to use for this segment */
-  LydSample       *ptr;          /* the data location written */
-} LydParam;
-#define LYD_PARAM(a) ((LydParam*)(a))
 
 void lyd_voice_set_param_delayed (Lyd        *lyd,        LydVoice    *voice,
                                   const char *param_name, float        time,
                                   LydInterpolation interpolation,
                                   float       value)
 {
-  LydParam *param = g_new0 (LydParam, 1);
-
-  param->sample_no = lyd->sample_no + lyd->sample_rate * time;
-
-  param->param_name = str2float (param_name);
-  param->value = value;
-  param->interpolation = interpolation;
-
   LOCK ();
   if (slist_find (lyd->voices, voice))
     {
-      int i;
-      LydOpState *state;
-      for (state = voice->state; state->op == LYD_NOP; state = state->next)
-        if (STREQUAL (state->literal[LYD_CHUNK * 1], param->param_name))
-          {
-            param->ptr = &(state->literal[0]);
-            break;
-          }
-
-      if (voice->params)
-        {
-          SList *param_i, *param_key, *prev = NULL;
-
-          /* find parameter sublist */
-          for (param_i = voice->params;
-               param_i && !STREQUAL(LYD_PARAM (((SList*)(param_i->data))->data)->param_name, param->param_name);
-               param_i = param_i->next);
-
-          /* find insertion point in sublist */
-          for (param_key = param_i?param_i->data:NULL;
-               param_key
-            && LYD_PARAM (param_key->data)->sample_no < param->sample_no;
-               param_key = param_key->next)
-            prev = param_key;
-
-          if (prev) /* */
-             prev->next = slist_prepend (param_key, param);
-          else
-            {
-              if (param_i)
-                param_i->data = slist_prepend (param_key, param);
-              else
-                voice->params = slist_prepend (voice->params,
-                                               slist_prepend (NULL, param));
-            }
-        }
-      else
-        voice->params = slist_prepend (NULL, slist_prepend (NULL, param));
+      lyd_vm_set_param_delayed (voice, param_name, time, interpolation, value);
     }
   UNLOCK ();
 }
 
-static float
-cubic (const float dx,
-       const float prev, 
-       const float j,
-       const float next,
-       const float nextnext)
-{
-  return (((( - prev + 3 * j - 3 * next + nextnext ) * dx +
-            ( 2 * prev - 5 * j + 4 * next - nextnext ) ) * dx +
-            ( - prev + next ) ) * dx + (j + j) ) / 2.0;
-}
-
-static void lyd_voice_update_params (LydVoice *voice,
-                                     int       samples)
-{
-  SList *paramlist;
-  int j;
-
-  for (j=0; j<samples; j++)
-    {
-      for (paramlist = voice->params;
-           paramlist;
-           paramlist = paramlist->next)
-        {
-          SList *i;
-          LydParam *prev = NULL, *prev_prev = NULL;
-          int freefirst = 0;
-
-          for (i = paramlist->data; 
-               i && LYD_PARAM (i->data)->sample_no < voice->lyd->sample_no + j;
-               i = i->next)
-            {
-              prev_prev = prev;
-              prev = i->data;
-            }
-          if (prev_prev && prev_prev != ((SList*)paramlist->data)->data)
-            freefirst = 1;
-
-          if (i && prev)
-            {
-              LydParam *curr = i->data;
-              float     dt = curr->sample_no == prev->sample_no ? 1.0:
-                             ((voice->lyd->sample_no + j) - prev->sample_no)
-                            /(curr->sample_no - prev->sample_no * 1.0);
-
-              switch (curr->interpolation)
-                {
-                  case LYD_LINEAR:
-                    curr->ptr[j] = prev->value * (1.0-dt) + curr->value * dt;
-                    break;
-                  case LYD_GAP:
-                    curr->ptr[j] = 0.0;
-                    break;
-                  case LYD_STEP:
-                    curr->ptr[j] = dt < 0.9999?prev->value:curr->value;
-                    break;
-                  case LYD_CUBIC:
-                   {
-                    LydParam *next = i->next?i->next->data:curr;
-
-                    if (!prev_prev)
-                      prev_prev = prev;
-                    curr->ptr[j] = cubic (dt, prev_prev->value, prev->value,
-                                              curr->value, next->value);
-                    break;
-                   }
-                }
-            }
-
-          if (freefirst) /* we trim away now unneeded items from the list */
-            {            /* to speed up subsequent evaluation */
-              SList *oldfirst = paramlist->data;
-              paramlist->data = oldfirst->next;
-              oldfirst->next = NULL;
-              slist_free (oldfirst);
-            }
-        }
-    }
-}
 
 int
 lyd_add_pre_cb (Lyd *lyd,

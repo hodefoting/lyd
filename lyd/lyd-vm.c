@@ -310,6 +310,178 @@ lyd_vm_compute (LydVM  *vm,
   return last_state->out;
 }
 
+#define STREQUAL(str1,str2) (fabs((str1)-(str2))<0.0000001)
+
+void
+lyd_vm_set_param (LydVM      *vm,
+                  const char *param,
+                  double      value)
+{
+  float hash = str2float (param);
+  LydOpState *state;
+  /* the variable constants are stored as a sequence of nops at the
+   * beginning of the program
+   */
+  for (state=vm->state; state->op == LYD_NOP; state = state->next)
+    {
+      if (STREQUAL(state->literal[1 * LYD_CHUNK], hash))
+        {
+          int k;
+          for (k = 0; k < LYD_CHUNK; k++)
+            state->literal[k] = value;/* could set the out directly,
+                                         and make nops be true no-ops? */
+          break;
+        }
+    }
+}
+
+
+typedef struct _LydParam
+{
+  LydSample        param_name;   /* string hashed to float */
+  long             sample_no;    /* which absolute lyd-time to set this param for*/
+  LydSample        value;        /* the value set */
+  LydInterpolation interpolation;/* Interpolation to use for this segment */
+  LydSample       *ptr;          /* the data location written */
+} LydParam;
+#define LYD_PARAM(a) ((LydParam*)(a))
+
+
+void lyd_vm_set_param_delayed (LydVM *vm,
+                               const char *param_name, float        time,
+                               LydInterpolation interpolation,
+                               float       value)
+{
+  LydParam *param = g_new0 (LydParam, 1);
+
+  /* this should perhaps be different for standalone vms */
+  param->sample_no = vm->lyd->sample_no + vm->sample_rate * time;
+
+  param->param_name = str2float (param_name);
+  param->value = value;
+  param->interpolation = interpolation;
+  int i;
+  LydOpState *state;
+  for (state = vm->state; state->op == LYD_NOP; state = state->next)
+    if (STREQUAL (state->literal[LYD_CHUNK * 1], param->param_name))
+      {
+        param->ptr = &(state->literal[0]);
+        break;
+      }
+
+  if (vm->params)
+    {
+      SList *param_i, *param_key, *prev = NULL;
+
+      /* find parameter sublist */
+      for (param_i = vm->params;
+           param_i && !STREQUAL(LYD_PARAM (((SList*)(param_i->data))->data)->param_name, param->param_name);
+           param_i = param_i->next);
+
+      /* find insertion point in sublist */
+      for (param_key = param_i?param_i->data:NULL;
+           param_key
+        && LYD_PARAM (param_key->data)->sample_no < param->sample_no;
+           param_key = param_key->next)
+        prev = param_key;
+
+      if (prev) /* */
+         prev->next = slist_prepend (param_key, param);
+      else
+        {
+          if (param_i)
+            param_i->data = slist_prepend (param_key, param);
+          else
+            vm->params = slist_prepend (vm->params,
+                                        slist_prepend (NULL, param));
+        }
+    }
+  else
+    vm->params = slist_prepend (NULL, slist_prepend (NULL, param));
+}
+
+static float
+cubic (const float dx,
+       const float prev, 
+       const float j,
+       const float next,
+       const float nextnext)
+{
+  return (((( - prev + 3 * j - 3 * next + nextnext ) * dx +
+            ( 2 * prev - 5 * j + 4 * next - nextnext ) ) * dx +
+            ( - prev + next ) ) * dx + (j + j) ) / 2.0;
+}
+
+static void lyd_vm_update_params (LydVM *vm,
+                                  int    samples)
+{
+  SList *paramlist;
+  int j;
+
+  for (j=0; j<samples; j++)
+    {
+      for (paramlist = vm->params;
+           paramlist;
+           paramlist = paramlist->next)
+        {
+          SList *i;
+          LydParam *prev = NULL, *prev_prev = NULL;
+          int freefirst = 0;
+
+          for (i = paramlist->data; 
+               i && LYD_PARAM (i->data)->sample_no < vm->lyd->sample_no + j;
+               i = i->next)
+            {
+              prev_prev = prev;
+              prev = i->data;
+            }
+          if (prev_prev && prev_prev != ((SList*)paramlist->data)->data)
+            freefirst = 1;
+
+          if (i && prev)
+            {
+              LydParam *curr = i->data;
+              float     dt = curr->sample_no == prev->sample_no ? 1.0:
+                             ((vm->lyd->sample_no + j) - prev->sample_no)
+                            /(curr->sample_no - prev->sample_no * 1.0);
+
+              switch (curr->interpolation)
+                {
+                  case LYD_LINEAR:
+                    curr->ptr[j] = prev->value * (1.0-dt) + curr->value * dt;
+                    break;
+                  case LYD_GAP:
+                    curr->ptr[j] = 0.0;
+                    break;
+                  case LYD_STEP:
+                    curr->ptr[j] = dt < 0.9999?prev->value:curr->value;
+                    break;
+                  case LYD_CUBIC:
+                   {
+                    LydParam *next = i->next?i->next->data:curr;
+
+                    if (!prev_prev)
+                      prev_prev = prev;
+                    curr->ptr[j] = cubic (dt, prev_prev->value, prev->value,
+                                              curr->value, next->value);
+                    break;
+                   }
+                }
+            }
+
+          if (freefirst) /* we trim away now unneeded items from the list */
+            {            /* to speed up subsequent evaluation */
+              SList *oldfirst = paramlist->data;
+              paramlist->data = oldfirst->next;
+              oldfirst->next = NULL;
+              slist_free (oldfirst);
+            }
+        }
+    }
+}
+
+
+
 
 LydFilter  *lyd_filter_new      (Lyd *lyd, LydProgram *program)
 {
@@ -332,7 +504,7 @@ lyd_filter_process (LydFilter  *filter,
 
   filter->sample_rate = filter->lyd->sample_rate;
   filter->i_sample_rate = 1.0/filter->lyd->sample_rate;
-  if (n_inputs > 1 && inputs)
+  if (n_inputs > 0 && inputs)
     {
       filter->input_buf[0] = inputs[0];
       filter->input_pos = 0;
@@ -348,7 +520,7 @@ lyd_filter_process (LydFilter  *filter,
         chunk = left;
       left -= chunk;
 
-      lyd_voice_update_params (filter, chunk);
+      lyd_vm_update_params (filter, chunk);
       result = lyd_vm_compute (filter, chunk);
       for (i = 0; i< chunk; i++)
         output[pos+i] = result[i];
