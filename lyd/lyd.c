@@ -34,9 +34,7 @@ static SList *lyd_queue_voices (Lyd *lyd, int samples);
 static void lyd_thread_render_voices (Lyd *lyd, int samples, int thread_no);
 static void lyd_collapse_threads (Lyd *lyd, int samples);
 static void lyd_apply_global_filter (Lyd *lyd, int samples);
-#ifdef DEBUG_CLIPPING
-static void lyd_detect_level (Lyd *lyd, int samples);
-#endif
+static void lyd_scale_volume (Lyd *lyd, int samples);
 static void lyd_write_to_output (Lyd *lyd, int samples,
                              void *stream, void *stream2);
 static void lyd_kill_silent_voices (Lyd *lyd, SList *active);
@@ -80,9 +78,9 @@ lyd_synthesize (Lyd  *lyd,
 #endif
 
   lyd_apply_global_filter (lyd, samples);
-#ifdef DEBUG_CLIPPING
-  lyd_detect_level (lyd, samples);
-#endif
+
+  lyd_scale_volume (lyd, samples);
+
   lyd_write_to_output (lyd, samples, stream, stream2);
   lyd_kill_silent_voices (lyd, active);
   lyd_kill_excessive_voices (lyd, active);
@@ -363,30 +361,38 @@ static void lyd_apply_global_filter (Lyd *lyd, int samples)
     lyd_filter_process (lyd->global_filter[1], inputs, 1, lyd->buf[0] + samples, samples);
 }
 
-#ifdef DEBUG_CLIPPING
-static void lyd_detect_level (Lyd *lyd, int samples)
+static void lyd_scale_volume (Lyd *lyd, int samples)
 {
   int i;
+  float factor = lyd->i_voice_count;
   for (i=0;i<samples;i++)
     {
       LydSample value[2];
       value[0] = lyd->buf[0][i];
       value[1] = lyd->buf[0][i+samples];
+
       {
-        LydSample nlevel = fabs(value[0]);
-        if (nlevel > lyd->level)
-          lyd->level = nlevel;
-        if (nlevel > 1.0)
-          printf ("clipping\n");
-        nlevel = fabs(value[1]);
-        if (nlevel > lyd->level)
-          lyd->level = nlevel;
-        if (nlevel > 1.0)
-          printf ("clipping\n");
+        LydSample level = fabs(value[0]);
+        if (level > lyd->level)
+          lyd->level = level;
+        level = fabs(value[1]);
+        if (level > lyd->level)
+          lyd->level = level;
       }
+
+      if (lyd->level > lyd->voice_count)
+        {
+          factor = 1.0/lyd->level;
+          lyd->buf[0][i] *= factor;
+          lyd->buf[0][i+samples] *= factor;
+        }
+      else
+        {
+          lyd->buf[0][i] *= factor;
+          lyd->buf[0][i+samples] *= factor;
+        }
     }
 }
-#endif
 
 static void lyd_write_to_output (Lyd *lyd, int samples,
                                  void *stream, void *stream2)
@@ -395,25 +401,24 @@ static void lyd_write_to_output (Lyd *lyd, int samples,
   LydSample * __restrict__ buf   = (void*)stream;
   LydSample * __restrict__ buf2  = (void*)stream2;
   short int * __restrict__ buf16 = (void*)stream;
-  float factor = lyd->i_voice_count;
   /* write from accumbuf into actual buffer */
   switch (lyd->format)
     {
       case LYD_f32:
         for (i=0;i<samples;i++)
-          buf[i] = (lyd->buf[0][i] + lyd->buf[0][i+samples])/2 * factor;
+          buf[i] = (lyd->buf[0][i] + lyd->buf[0][i+samples])/2;
         break;
       case LYD_f32S:
         for (i=0;i<samples;i++)
-          buf[i] = lyd->buf[0][i] * factor;
+          buf[i] = lyd->buf[0][i];
         for (i=0;i<samples;i++)
-          buf2[i] = lyd->buf[0][i+samples] * factor;
+          buf2[i] = lyd->buf[0][i+samples];
         break;
       case LYD_s16S:
         for (i=0;i<samples;i++)
-          buf16[i*2]  = (lyd->buf[0][i] * 32767 * factor);
+          buf16[i*2]  = (lyd->buf[0][i] * 32767);
         for (i=0;i<samples;i++)
-          buf16[i*2+1] = (lyd->buf[0][i+samples] * 32767 * factor);
+          buf16[i*2+1] = (lyd->buf[0][i+samples] * 32767);
     }
 }
 
@@ -726,7 +731,7 @@ lyd_voice_set_param (Lyd        *lyd,
 }
 
 void lyd_voice_set_param_delayed (Lyd        *lyd,        LydVoice    *voice,
-                                  const char *param_name, float        time,
+                                  const char *param_name, double       time,
                                   LydInterpolation interpolation,
                                   float       value)
 {
