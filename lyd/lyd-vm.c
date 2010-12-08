@@ -373,8 +373,7 @@ void lyd_vm_set_param_delayed (LydVM *vm,
   int i;
   LydOpState *state;
 
-  /* this should perhaps be different for standalone vms */
-  param->sample_no = vm->lyd->sample_no + vm->sample_rate * time;
+  param->sample_no = vm->sample + vm->sample_rate * time;
 
   param->param_name = str2float (param_name);
   param->value = value;
@@ -402,6 +401,8 @@ void lyd_vm_set_param_delayed (LydVM *vm,
         && LYD_PARAM (param_key->data)->sample_no < param->sample_no;
            param_key = param_key->next)
         prev = param_key;
+
+      /* deal with erronious insertions */
 
       if (prev) /* */
          prev->next = slist_prepend (param_key, param);
@@ -447,7 +448,7 @@ static void lyd_vm_update_params (LydVM *vm,
           int freefirst = 0;
 
           for (i = paramlist->data; 
-               i && LYD_PARAM (i->data)->sample_no < vm->lyd->sample_no + j;
+               i && LYD_PARAM (i->data)->sample_no < vm->sample + j;
                i = i->next)
             {
               prev_prev = prev;
@@ -460,19 +461,27 @@ static void lyd_vm_update_params (LydVM *vm,
             {
               LydParam *curr = i->data;
               float     dt = curr->sample_no == prev->sample_no ? 1.0:
-                             ((vm->lyd->sample_no + j) - prev->sample_no)
-                            /(curr->sample_no - prev->sample_no * 1.0);
+                             ((vm->sample + j) - prev->sample_no);
+              float     div = (curr->sample_no - prev->sample_no * 1.0);
+
+              if (div != 0.0)
+                dt /=div;
+              else
+                dt = 0.0;
 
               switch (curr->interpolation)
                 {
                   case LYD_LINEAR:
-                    curr->ptr[j] = prev->value * (1.0-dt) + curr->value * dt;
+                    if (curr->ptr)
+                      curr->ptr[j] = (prev?prev->value:0.0 * (1.0-dt)) + curr->value * dt;
                     break;
                   case LYD_GAP:
-                    curr->ptr[j] = 0.0;
+                    if (curr->ptr)
+                      curr->ptr[j] = 0.0;
                     break;
                   case LYD_STEP:
-                    curr->ptr[j] = dt < 0.9999?prev->value:curr->value;
+                    if (curr->ptr)
+                      curr->ptr[j] = dt < 0.9999?prev->value:curr->value;
                     break;
                   case LYD_CUBIC:
                    {
@@ -480,10 +489,14 @@ static void lyd_vm_update_params (LydVM *vm,
 
                     if (!prev_prev)
                       prev_prev = prev;
-                    curr->ptr[j] = cubic (dt, prev_prev->value, prev->value,
-                                              curr->value, next->value);
+
+                    if (curr->ptr)
+                      curr->ptr[j] = cubic (dt, prev_prev->value, prev->value,
+                                                curr->value, next->value);
                     break;
                    }
+                  default:
+                    assert(0);
                 }
             }
 
