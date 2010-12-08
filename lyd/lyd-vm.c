@@ -365,7 +365,7 @@ typedef struct _LydParam
 #define LYD_PARAM(a) ((LydParam*)(a))
 
 void lyd_vm_set_param_delayed (LydVM *vm,
-                               const char *param_name, float        time,
+                               const char *param_name, double       time,
                                LydInterpolation interpolation,
                                float       value)
 {
@@ -473,7 +473,8 @@ static void lyd_vm_update_params (LydVM *vm,
                 {
                   case LYD_LINEAR:
                     if (curr->ptr)
-                      curr->ptr[j] = (prev?prev->value:0.0 * (1.0-dt)) + curr->value * dt;
+                      curr->ptr[j] = (prev?prev->value:0.0) * (1.0-dt) +
+                                      curr->value * dt;
                     break;
                   case LYD_GAP:
                     if (curr->ptr)
