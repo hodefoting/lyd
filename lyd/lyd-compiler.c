@@ -249,7 +249,7 @@ static LydToken *parser_scanner_next (LydParser *parser)
   int   incomment=0;
   char *whitespace = "\n ";
   char *numerals   = "0123456789.";
-  char *operators  = "+-/*%(),";
+  char *operators  = "+-/*%(),^";
 
   LydToken *tok = g_new0 (LydToken, 1);
   
