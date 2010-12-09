@@ -272,9 +272,9 @@ typedef enum {
  * lyd program source is accesible as such a string.
  */
 void        lyd_voice_set_param_delayed (Lyd        *lyd,   LydVoice *voice,
-                                         const char *param, float     time,
-                                         LydInterpolation interpolation, 
-                                         float       value); 
+                                         const char *param, double    time,
+                                         LydInterpolation interpolation,
+                                         float       value);
 
 /**
  * lyd_load_wave:
@@ -492,7 +492,7 @@ void         lyd_midi_set_playing (Lyd *lyd, int playing);
  */
 void         lyd_midi_out   (Lyd *lyd, unsigned char *data, int length);
 /**
- * lyd_midi_seel:
+ * lyd_midi_seek:
  * @lyd: lyd engine
  * @position: new position in seconds
  *
