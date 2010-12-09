@@ -641,6 +641,7 @@ Lyd * lyd_new (void)
 #endif
 
   lyd_add_pre_cb (lyd, (void*)lyd_midi_iterate, NULL);
+  lyd_set_sample_rate (lyd, 48000);
   lyd_set_voice_count (lyd, 5);
 
   /*
@@ -858,6 +859,7 @@ lyd_set_voice_count (Lyd *lyd, int voice_count)
 {
   lyd->voice_count = voice_count;
   lyd->i_voice_count = 1.0 / voice_count;
+  lyd->level = 0.0;
 }
 
 int lyd_get_voice_count (Lyd *lyd)
