@@ -29,7 +29,9 @@
     <p>A compact self-contained realtime audio-synthesis engine</p>
 
     <p>Lyd is an embeddable signal processing language and engine.  Suitable
-    for among other things realtime audio effect and instrument synthesis.
+    for among other things realtime audio effect and instrument synthesis and
+    mixing. It can form the audio core of games, virtual instruments, real-time
+    audio mixing and editing experiments.
     </p>
 
     <h3>
@@ -40,7 +42,8 @@
          <li><a href='reference.html'>audio synthesis language</a> providing
          <em>audio-shaders</em> or "GLSL for audio", lyd uses a language but
          the vm could just as easily support nodes.</li>
-         <li>Extendable virtual machine.</li>
+         <li>Extendable virtual machine. (extendable both with C and in lyd
+         itself)</li>
          <li>Accurate queuing of voices and control of interpolated variables.</li>
          <li>Loading of PCM data from wav (using callback handlers)</li>
     </ul>
@@ -51,7 +54,7 @@
            href='http://jackaudio.org/'>jack</a></li>
          <li>MIDI sequencer - for playback of midi tracks (timing is broken)</li>
          <li>patch databank (preloaded with <a href='http://pippin.gimp.org/git/lyd/tree/lyd/general-midi.txt'>FM-synthesis based GM set</a>)</li>
-         <li>ALSA midi/OSC control</li>
+         <li>ALSA midi/OSC daemon</li>
     </ul>
 
     <h3><a class='jump' href='#top' title='jump to top'>⇡</a>
@@ -75,7 +78,6 @@
            pulse(200 + sin(190) * 1.4, square(8.0)) * adsr(0.12, 0.12, 0.8, 0.30)
          )
         ) * volume=1.0 * 0.4</pre>
-
     </p>
 
     <h3><a name='get' href='#get'>Sources</a>
@@ -86,8 +88,6 @@
          <a href='http://pippin.gimp.org/git/lyd/snapshot/lyd-master.tar.bz2'>lyd-master.tar.bz2</a> , 
          <a href='http://pippin.gimp.org/git/lyd/snapshot/lyd-master.zip'>lyd-master.zip</a></li>
     </ul>
-
-
 
     <h3><a class='jump' href='#top' title='jump to top'>⇡</a>
       <a name='musicans' href='#musicans'>Lyd for musicans/composers</a></h3>
