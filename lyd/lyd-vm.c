@@ -367,7 +367,7 @@ typedef struct _LydParam
 void lyd_vm_set_param_delayed (LydVM *vm,
                                const char *param_name, double       time,
                                LydInterpolation interpolation,
-                               float       value)
+                               double      value)
 {
   LydParam *param = g_new0 (LydParam, 1);
   int i;

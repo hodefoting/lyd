@@ -734,7 +734,7 @@ lyd_voice_set_param (Lyd        *lyd,
 void lyd_voice_set_param_delayed (Lyd        *lyd,        LydVoice    *voice,
                                   const char *param_name, double       time,
                                   LydInterpolation interpolation,
-                                  float       value)
+                                  double      value)
 {
   LOCK ();
   if (slist_find (lyd->voices, voice))

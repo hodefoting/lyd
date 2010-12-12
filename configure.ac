@@ -91,6 +91,18 @@ AC_SUBST(ALSA_CFLAGS)
 AC_SUBST(ALSA_LIBS)
 AM_CONDITIONAL(HAVE_ALSA, test "$have_alsa" = "yes")
 
+AC_ARG_WITH(sdl, [  --without-sdl          build library without SDL support])
+have_sdl="no"
+if test "x$with_sdl" != "xno"; then
+  PKG_CHECK_MODULES(SDL, sdl,
+    have_sdl="yes"
+    AC_DEFINE(HAVE_SDL, 1, [Define to 1 if sdl is available])
+    ,
+    have_sdl="no  (sdl not found)")
+fi
+AC_SUBST(SDL_CFLAGS)
+AC_SUBST(SDL_LIBS)
+AM_CONDITIONAL(HAVE_SDL, test "$have_sdl" = "yes")
 
 AC_ARG_WITH(sndfile, [  --without-sndfile          build library without SNDFILE audio output, and lyd binary without midi])
 have_sndfile="no"

@@ -233,6 +233,9 @@ void        lyd_voice_set_duration (Lyd *lyd, LydVoice *voice, double duration);
 void        lyd_voice_set_position (Lyd      *lyd,
                                     LydVoice *voice,
                                     double    position);
+
+
+
 /**
  * lyd_voice_set_param:
  * @lyd: lyd engine
@@ -274,7 +277,28 @@ typedef enum {
 void        lyd_voice_set_param_delayed (Lyd        *lyd,   LydVoice *voice,
                                          const char *param, double    time,
                                          LydInterpolation interpolation,
-                                         float       value);
+                                         double      value);
+
+/**
+ * lyd_vm_set_param:
+ *
+ * Similar to lyd_voice_set_param, but operates directly on a vm core
+ * with a lock.
+ */
+void lyd_vm_set_param (LydVM      *vm,
+                       const char *param,
+                       double      value);
+
+/**
+ * lyd_vm_set_param_delayed:
+ *
+ * Similar to lyd_voice_set_param_delayed, but operates directly on a vm core
+ * with a lock.
+ */
+void lyd_vm_set_param_delayed (LydVM *vm,
+                               const char *param_name, double       time,
+                               LydInterpolation interpolation,
+                               double      value);
 
 /**
  * lyd_load_wave:
