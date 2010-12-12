@@ -198,13 +198,6 @@ static inline void op_wave_loop (OP_ARGS)
   OP_LOOP(OUT = wave_sample_loop (vm, state, ARG0(0), ARG0(1));)
 }
 
-typedef struct _ReverbData 
-{
-   int    pos;
-   int    size;
-   LydSample *old;
-} ReverbData;
-
 static inline void op_mix (OP_ARGS)
 {
   ALIGNED_ARGS;
@@ -236,6 +229,13 @@ static inline void op_mix (OP_ARGS)
     }
   ALIGNED_ARGS_SILENCE;
 }
+
+typedef struct _ReverbData
+{
+   int    pos;
+   int    size;
+   LydSample *old;
+} ReverbData;
 
 static inline void op_reverb (OP_ARGS)
 {
@@ -276,6 +276,54 @@ static inline void op_reverb_free (LydOpState *state)
 {
   g_free (state->data);
 }
+
+
+typedef struct _DelayData
+{
+   int    pos;
+   int    size;
+   LydSample *old;
+} DelayData;
+
+static inline void op_delay (OP_ARGS)
+{
+  /* XXX: allow dynamically changing the length */
+  DelayData *data   = state->data;
+  ALIGNED_ARGS;
+  int i;
+  for (i=0; i<samples; i++)
+    {
+      LydSample length = ARG(0),
+                sample = ARG(1);
+      int       size   = length * vm->sample_rate;
+
+      if (size <=0)
+        return;
+
+      if (G_UNLIKELY (size > LYD_MAX_REVERB_SIZE))
+        size = LYD_MAX_REVERB_SIZE;
+
+      if (G_UNLIKELY (data == NULL ||
+          size != data->size))
+        {
+          data = state->data = g_malloc0 (sizeof (LydSample) *size + sizeof(DelayData));
+          data->size = size;
+          data->old = (void*)((  ((char*)(data)) + sizeof (DelayData)));
+        }
+
+      OUT = data->old[data->pos];
+      data->old[data->pos++] = sample;
+      if (G_UNLIKELY (data->pos >= size))
+        data->pos = 0;
+    }
+  ALIGNED_ARGS_SILENCE;
+}
+
+static inline void op_delay_free (LydOpState *state)
+{
+  g_free (state->data);
+}
+
 
 static inline void op_cycle (OP_ARGS)
 {

@@ -151,6 +151,12 @@ LYD_OP("ddadsr", DDADSR, 6,
        "DDADSR Envelope - like ADSR, but with delay and duration first",
        "(delay, duration, atack, decay, sustain, release)")
 
+LYD_OP("delay", DELAY, 2,
+       OP_FUN (op_delay),,
+       op_delay_free(state);,
+       "Delay signal, slows down a signal by amount of time in seconds.",
+       "(time, signal)")
+
 LYD_OP("reverb", REVERB, 3,
        OP_FUN (op_reverb),,
        op_reverb_free(state);,
