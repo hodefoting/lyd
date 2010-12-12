@@ -460,45 +460,54 @@ static void lyd_vm_update_params (LydVM *vm,
           if (i && prev)
             {
               LydParam *curr = i->data;
-              float     dt = curr->sample_no == prev->sample_no ? 1.0:
-                             ((vm->sample + j) - prev->sample_no);
-              float     div = (curr->sample_no - prev->sample_no * 1.0);
-
-              if (div != 0.0)
-                dt /=div;
-              else
-                dt = 0.0;
-
-              switch (curr->interpolation)
+              /*  This benefits from optimization, but this commented out
+               *  optimization code as it stands is incorrect.
+               */
+              //int did=0;
+              //for (; j < samples && curr->sample_no > vm->sample + j; j++)
                 {
-                  case LYD_LINEAR:
-                    if (curr->ptr)
-                      curr->ptr[j] = (prev?prev->value:0.0) * (1.0-dt) +
-                                      curr->value * dt;
-                    break;
-                  case LYD_GAP:
-                    if (curr->ptr)
-                      curr->ptr[j] = 0.0;
-                    break;
-                  case LYD_STEP:
-                    if (curr->ptr)
-                      curr->ptr[j] = dt < 0.9999?prev->value:curr->value;
-                    break;
-                  case LYD_CUBIC:
-                   {
-                    LydParam *next = i->next?i->next->data:curr;
+                  float     dt = curr->sample_no == prev->sample_no ? 1.0:
+                                 ((vm->sample + j) - prev->sample_no);
+                  float     div = (curr->sample_no - prev->sample_no * 1.0);
+               //   did = 1;
 
-                    if (!prev_prev)
-                      prev_prev = prev;
+                  if (div != 0.0)
+                    dt /=div;
+                  else
+                    dt = 0.0;
 
-                    if (curr->ptr)
-                      curr->ptr[j] = cubic (dt, prev_prev->value, prev->value,
-                                                curr->value, next->value);
-                    break;
-                   }
-                  default:
-                    assert(0);
+                  switch (curr->interpolation)
+                    {
+                      case LYD_LINEAR:
+                        if (curr->ptr)
+                          curr->ptr[j] = (prev?prev->value:0.0) * (1.0-dt) +
+                                          curr->value * dt;
+                        break;
+                      case LYD_GAP:
+                        if (curr->ptr)
+                          curr->ptr[j] = 0.0;
+                        break;
+                      case LYD_STEP:
+                        if (curr->ptr)
+                          curr->ptr[j] = dt < 0.9999?prev->value:curr->value;
+                        break;
+                      case LYD_CUBIC:
+                       {
+                        LydParam *next = i->next?i->next->data:curr;
+
+                        if (!prev_prev)
+                          prev_prev = prev;
+
+                        if (curr->ptr)
+                          curr->ptr[j] = cubic (dt, prev_prev->value, prev->value,
+                                                    curr->value, next->value);
+                        break;
+                       }
+                      default:
+                        assert(0);
+                    }
                 }
+              //j -= did;
             }
 
           if (freefirst) /* we trim away now unneeded items from the list */
