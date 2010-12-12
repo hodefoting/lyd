@@ -31,6 +31,8 @@ int main (int    argc,
 {
   Lyd        *lyd = lyd_new ();
   int         i;
+  int         start = 0;
+  int         end = 127;
 
   if (!lyd_audio_init (lyd, "auto"))
     {
@@ -39,7 +41,14 @@ int main (int    argc,
       return -1;
     }
 
-  for (i = 0; i<128; i++)
+  if (argv[1])
+    {
+      start = atoi (argv[1]);
+      if (argv[2])
+        end = atoi (argv[2]);
+    }
+
+  for (i = start; i<= end; i++)
     {
       int n;
       printf ("%i: %s\n", i, lyd_get_patch (lyd, i));
