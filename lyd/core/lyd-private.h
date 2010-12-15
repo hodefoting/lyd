@@ -23,7 +23,7 @@
 
 typedef struct _LydOp LydOp;
 
-// #define DEBUG_CLIPPING
+/* #define DEBUG_CLIPPING */
 
 /* LYD_MAX_ARGC                        8    is defined in lyd-extend.h */
 /* #define LYD_CHUNK                   128  defined in lyd-extend.h */
@@ -65,11 +65,9 @@ typedef enum
 #include "lyd-extend.h"
 
 
-static LydSample *lyd_chunk_new  (Lyd *lyd);
-static void       lyd_chunk_free (Lyd *lyd, LydSample *chunk);
+LydSample *lyd_chunk_new  (Lyd *lyd);
+void       lyd_chunk_free (Lyd *lyd, LydSample *chunk);
 
-static LydSample *lyd_vm_chunk_new (LydVM *vm);
-static void       lyd_vm_chunk_free (LydVM *vm, LydSample *chunk);
 
 struct _LydOp
 {
@@ -84,7 +82,7 @@ struct _LydOpInfo  /* structure describing an extension to lyd
                     */
 {
   LydOpCode   op;       /* opcode */
-  const char *name;     /* function name */
+  char       *name;     /* function name */
   int         argc;     /* argument count */
 
   /* Program to be executed, or ..  */
@@ -319,7 +317,14 @@ float        lyd_midi_get_duration (Lyd *lyd);
 /* set loop positions (also enables looping)  */
 void         lyd_midi_set_repeat (Lyd *lyd, float start, float end);
 
+void lyd_vm_update_params (LydVM *vm,
+                           int    samples);
+LydSample *
+lyd_vm_compute (LydVM  *vm,
+                int     samples);
 
+void lyd_vm_free (LydVM *vm);
+LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program);
 
 
 #endif

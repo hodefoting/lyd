@@ -100,23 +100,27 @@ static LydToken *led_default (LydParser *parser, LydToken *this, LydToken *left)
 static LydToken *led_infix   (LydParser *parser, LydToken *this, LydToken *left);
 static LydToken *led_lparen  (LydParser *parser, LydToken *this, LydToken *left);
 
+#define COMMON 0, 0, NULL, NULL, {NULL,}
+
 /* When used as a symbol only the first 6 fields of the token are used. */
 static LydToken symbols[]= {
-  {"(end)", operator, 0,  nud_default, 0,  led_default},
-  {"(fun)", function, 10, nud_itself,  0,  led_default},
-  {"(var)", variable, 0,  nud_itself,  0,  led_default},
-  {"(lit)", literal,  0,  nud_itself,  0,  led_default},
-  {";",     operator, 0,  nud_default, 0,  led_default},
-  {",",     operator, 0,  nud_default, 0,  led_default},
-  {")",     operator, 0,  nud_default, 0,  led_default},
-  {"-",     operator, 50, nud_prefix,  50, led_infix},
-  {"+",     operator, 50, nud_default, 50, led_infix},
-  {"*",     operator, 60, nud_default, 60, led_infix},
-  {"/",     operator, 60, nud_default, 60, led_infix},
-  {"%",     operator, 60, nud_default, 60, led_infix},
-  {"^",     operator, 70, nud_default, 70, led_infix},
-  {"(",     operator, 80, nud_lparen,  0,  led_lparen},
+  {"(end)", operator, 0,  nud_default, 0,  led_default,COMMON},
+  {"(fun)", function, 10, nud_itself,  0,  led_default,COMMON},
+  {"(var)", variable, 0,  nud_itself,  0,  led_default,COMMON},
+  {"(lit)", literal,  0,  nud_itself,  0,  led_default,COMMON},
+  {";",     operator, 0,  nud_default, 0,  led_default,COMMON},
+  {",",     operator, 0,  nud_default, 0,  led_default,COMMON},
+  {")",     operator, 0,  nud_default, 0,  led_default,COMMON},
+  {"-",     operator, 50, nud_prefix,  50, led_infix,COMMON},
+  {"+",     operator, 50, nud_default, 50, led_infix,COMMON},
+  {"*",     operator, 60, nud_default, 60, led_infix,COMMON},
+  {"/",     operator, 60, nud_default, 60, led_infix,COMMON},
+  {"%",     operator, 60, nud_default, 60, led_infix,COMMON},
+  {"^",     operator, 70, nud_default, 70, led_infix,COMMON},
+  {"(",     operator, 80, nud_lparen,  0,  led_lparen,COMMON},
 };
+
+#undef COMMON
 
 /* forward declarations */
 static LydToken * parser_expression (LydParser *parser, int right_binding_power);
@@ -193,7 +197,7 @@ static LydToken *nud_prefix (LydParser *parser, LydToken *this)
 static LydToken *parser_lookup (LydParser *parser,
                                 char   *str)
 {
-  int i;
+  unsigned int i;
   for (i=0; i<N_ELEMENTS (symbols); i++)
     {
       if (!strcmp (symbols[i].str, str))
@@ -204,7 +208,7 @@ static LydToken *parser_lookup (LydParser *parser,
 
 static LydOpCode str2opcode (Lyd *lyd, const char *str)
 {
-  int i;
+  unsigned int i;
   SList *iter;
   for (i=0 ; i < N_ELEMENTS (op_lexicon); i++)
     if (!strcmp(str, op_lexicon[i].str))
@@ -222,7 +226,7 @@ static LydOpCode str2opcode (Lyd *lyd, const char *str)
 
 static float str2constant (const char *str)
 {
-  int i;
+  unsigned int i;
   for (i=0 ; i < N_ELEMENTS (constant_lexicon); i++)
     if (!strcmp(str, constant_lexicon[i].str))
       return constant_lexicon[i].value;

@@ -138,7 +138,7 @@ void         lyd_add_op         (Lyd *lyd, const char *name, int argc,
     LydChunk * __restrict__ arg5 = (void*)(state->arg[5]);\
     LydChunk * __restrict__ arg6 = (void*)(state->arg[6]);\
     LydChunk * __restrict__ arg7 = (void*)(state->arg[7]);\
-    LydChunk * __restrict__ out  = (void*)(state->out);\
+    LydChunk * __restrict__ out  = (void*)(state->out);
   /* to remove warnings about unused vars, gcc optimizes this away for us */
   #define ALIGNED_ARGS_SILENCE \
     arg0=arg1=arg2=arg3=arg4=arg5=arg6=arg7

@@ -147,12 +147,12 @@ AM_CONDITIONAL(HAVE_OSC, test "$have_osc" = "yes")
 dnl ========================================================================
 
 AC_CONFIG_FILES([
-        Makefile
-        lyd/Makefile
-        examples/Makefile
-        bin/Makefile
-        doc/Makefile
-        lyd.pc
+   Makefile
+   lyd/Makefile
+   examples/Makefile
+   bin/Makefile
+   doc/Makefile
+   lyd.pc
 ])
 
 AC_OUTPUT

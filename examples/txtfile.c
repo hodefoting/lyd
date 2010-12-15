@@ -20,6 +20,7 @@
 #include <unistd.h>
 #include <math.h>
 #include <stdint.h>
+#include <endian.h>
 
 static unsigned char linear2ulaw(int sample);
 static int           wav_write_header (FILE *stream, int num_samples);

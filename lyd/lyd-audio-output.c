@@ -18,7 +18,6 @@
 #include <string.h>
 #include <math.h>
 #include <lyd/lyd.h>
-#include <lyd/lyd-private.h>
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -119,13 +118,13 @@ static void *alsa_audio_start(void *aux)
     } else {
       if (getenv("LYD_FATAL_UNDERRUNS"))
         {
-          printf ("%i", lyd->active);
+          printf ("dying XXxx need to add API for this debug\n");
+          //printf ("%i", lyd->active);
           exit(0);
         }
-      fprintf (stderr, "alsa underun %d voices\n", lyd->active);
+      //fprintf (stderr, "alsa underun %d voices\n", lyd->active);
       //exit(0);
     }
-     
   }
   return NULL;
 }
@@ -177,7 +176,7 @@ lyd_audio_init_jack (Lyd *lyd)
   if ((client = jack_client_open ("picolyd",
                                   JackNoStartServer, NULL)) == 0)
     {
-      return FALSE;
+      return 0;
     }
   jack_set_process_callback (client, jack_process, 0);
   output_port = jack_port_register (client, "lyd",
@@ -187,14 +186,14 @@ lyd_audio_init_jack (Lyd *lyd)
   if (jack_activate (client))
     {
       fprintf (stderr, "cannot activate jack client\n");
-      return FALSE;
+      return 0;
     }
 
   if ((ports = jack_get_ports (client, NULL, NULL,
                                JackPortIsPhysical|JackPortIsInput)) == NULL)
     {
       fprintf (stderr, "cannot find a physical capture port\n");
-      return FALSE;
+      return 0;
     }
 
   for (i = 0; ports[i]; i++)
@@ -207,7 +206,7 @@ lyd_audio_init_jack (Lyd *lyd)
   lyd_set_sample_rate (lyd, jack_get_sample_rate (client));
   lyd_set_format (lyd, LYD_f32);
 
-  return TRUE;
+  return 1;
 }
 #endif
 
@@ -217,16 +216,16 @@ lyd_audio_init (Lyd       *lyd,
 {
   if (driver == NULL
    || strstr (driver, "none"))
-    return TRUE;
+    return 1;
   else if (strstr (driver, "auto"))
     {
 #ifdef HAVE_JACK
        if (lyd_audio_init_jack (lyd))
-         return TRUE;
+         return 1;
 #endif
 #ifdef HAVE_ALSA
        if (lyd_audio_init_alsa (lyd))
-         return TRUE;
+         return 1;
 #endif
     }
 #ifdef HAVE_ALSA
@@ -237,5 +236,5 @@ lyd_audio_init (Lyd       *lyd,
   else if (strstr (driver, "jack"))
     return lyd_audio_init_jack (lyd);
 #endif
-  return FALSE;
+  return 0;
 }

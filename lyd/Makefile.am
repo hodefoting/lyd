@@ -3,7 +3,7 @@ NULL =
 CLEANFILES =
 DISTCLEANFILES =
 
-INCLUDES = -I$(srcdir) -I$(top_srcdir) 
+INCLUDES = -I$(srcdir) -I$(top_srcdir)
 
 AM_CPPFLAGS = \
         -DPREFIX=\""$(prefix)"\"  \
@@ -19,24 +19,23 @@ lyd.s: lyd-vm.c lyd-ops.inc lyd.c
 
 # please, keep the list sorted alphabetically
 liblyd_@LYD_API_VERSION@_la_SOURCES = \
-        $(srcdir)/lyd.c \
-        $(srcdir)/lyd-compiler.c \
         $(srcdir)/lyd-audio-output.c \
-        $(srcdir)/lyd-midi.c \
         $(srcdir)/lyd-patches.c \
         $(builddir)/general-midi.inc \
+        $(srcdir)/lyd-midi.c \
         $(NULL)
-
-BUILT_SOURCES = $(builddir)/general-midi.inc
 
 EXTRA_DIST = lyd-private.h lyd-vm.c biquad.c general-midi.txt
 
-liblyd_@LYD_API_VERSION@_la_LIBADD = $(ALSA_LIBS) $(JACK_LIBS) -lm -lpthread
+liblyd_@LYD_API_VERSION@_la_LIBADD = liblyd-core-@LYD_API_VERSION@.la \
+                                     $(ALSA_LIBS) $(JACK_LIBS) -lm -lpthread
 liblyd_@LYD_API_VERSION@_la_LDFLAGS = $(ALSA_LT_LDFLAGS)  $(JACK_LT_LDFLAGS)
 
 lydheadersdir = $(includedir)/lyd-@LYD_API_VERSION@/lyd
 
-lydheaders_HEADERS = $(top_srcdir)/lyd/lyd.h $(top_srcdir)/lyd/lyd-extend.h
+lydheaders_HEADERS = $(top_srcdir)/lyd/lyd.h $(top_srcdir)/lyd/core/lyd-extend.h
+
+BUILT_SOURCES = $(builddir)/general-midi.inc
 
 $(builddir)/general-midi.inc: $(srcdir)/general-midi.txt
 	echo "static char *midi_patches[256]={" > $@
@@ -44,3 +43,17 @@ $(builddir)/general-midi.inc: $(srcdir)/general-midi.txt
 	echo "};" >> $@
 
 CLEANFILES += general-midi.inc
+
+noinst_LTLIBRARIES = liblyd-core-@LYD_API_VERSION@.la
+
+EXTRA_DIST += core/lyd-private.h core/biquad.c
+
+# please, keep the list sorted alphabetically
+liblyd_core_@LYD_API_VERSION@_la_SOURCES = \
+        $(srcdir)/core/lyd.c \
+        $(srcdir)/core/lyd-vm.c \
+        $(srcdir)/core/lyd-compiler.c \
+        $(NULL)
+
+liblyd_core_@LYD_API_VERSION@_la_LIBADD = -lm
+liblyd_core_@LYD_API_VERSION@_la_LDFLAGS =

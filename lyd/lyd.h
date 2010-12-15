@@ -98,16 +98,6 @@ void        lyd_set_format      (Lyd *lyd, LydFormat format);
  * Get the current sample format used by lyd engine.
  */
 LydFormat   lyd_get_format      (Lyd *lyd);
-/**
- * lyd_audio_init:
- * @lyd: lyd engine
- * @driver: audio driver
- *
- * Initialize audio output subsystem, this is a global initialization that binds
- * to a lyd core, leaving driving of lyd_synthesize to the output driver.
- */
-int          lyd_audio_init (Lyd *lyd, const char *driver); 
-
 
 /**
  * lyd_synthesize:
@@ -234,8 +224,6 @@ void        lyd_voice_set_position (Lyd      *lyd,
                                     LydVoice *voice,
                                     double    position);
 
-
-
 /**
  * lyd_voice_set_param:
  * @lyd: lyd engine
@@ -296,7 +284,7 @@ void lyd_vm_set_param (LydVM      *vm,
  * with a lock.
  */
 void lyd_vm_set_param_delayed (LydVM *vm,
-                               const char *param_name, double       time,
+                               const char *param_name, double time,
                                LydInterpolation interpolation,
                                double      value);
 
@@ -391,6 +379,60 @@ void        lyd_filter_free     (LydFilter *filter);
 void        lyd_set_global_filter (Lyd *lyd, LydProgram *program);
 
 /**
+ * lyd_add_pre_cb:
+ * @lyd: lyd engine
+ * @cb: callback to be invoked before new data is rendered
+ * @data: user data
+ *
+ * Sets a callback function to be called just before generating
+ * new samples. elapsed is the time in seconds elapsed since the
+ * last call to lyd_synthesize.
+ *
+ * Returns: an integer handle that can be used to uninstall the handler.
+ */
+int          lyd_add_pre_cb (Lyd *lyd,
+                             void (*cb)(Lyd *lyd, float elapsed, void *data),
+                             void *data);
+/**
+ * lyd_add_post_cb:
+ * @lyd: lyd engine
+ * @cb: callback to be invoked after data has been rendered.
+ * @data: user data
+ *
+ * Snoop on the generated data as it is generated.
+ * Sets a callback function to be called after data have been
+ * synthesized by lyd_synthesize and before control returns.
+ *
+ * Returns: an integer handle that can be used to uninstall the handler.
+ */
+int          lyd_add_post_cb (Lyd *lyd,
+                              void (*cb)(Lyd *lyd, int samples,
+                                         void *stream, void *stream2,
+                                         void *data),
+                              void *data);
+
+/**
+ * lyd_remove_cb:
+ * @lyd: lyd engine
+ * @id: callback id
+ *
+ * Remove a previously installed callback handler.
+ */
+void         lyd_remove_cb (Lyd *lyd, int id);
+
+
+/**
+ * lyd_audio_init:
+ * @lyd: lyd engine
+ * @driver: audio driver
+ *
+ * Initialize audio output subsystem, this is a global initialization that binds
+ * to a lyd core, leaving driving of lyd_synthesize to the output driver.
+ */
+int          lyd_audio_init (Lyd *lyd, const char *driver); 
+
+
+/**
  * lyd_get_patch:
  * @lyd: lyd engine
  * @no: patch number 0-127
@@ -444,47 +486,6 @@ LydVoice *lyd_note (Lyd *lyd, int patch, float hz, float volume, float duration)
 LydVoice *lyd_note_full (Lyd *lyd, int patch, float hz, float volume,
                          float duration, float pan, int tag);
 
-
-/**
- * lyd_add_pre_cb:
- * @lyd: lyd engine
- * @cb: callback to be invoked before new data is rendered
- * @data: user data
- *
- * Sets a callback function to be called just before generating
- * new samples. elapsed is the time in seconds elapsed since the
- * last call to lyd_synthesize.
- *
- * Returns: an integer handle that can be used to uninstall the handler.
- */
-int          lyd_add_pre_cb (Lyd *lyd,
-                             void (*cb)(Lyd *lyd, float elapsed, void *data),
-                             void *data);
-/**
- * lyd_add_post_cb:
- * @lyd: lyd engine
- * @cb: callback to be invoked after data has been rendered.
- * @data: user data
- *
- * Snoop on the generated data as it is generated.
- * Sets a callback function to be called after data have been
- * synthesized by lyd_synthesize and before control returns.
- *
- * Returns: an integer handle that can be used to uninstall the handler.
- */
-int          lyd_add_post_cb (Lyd *lyd,
-                              void (*cb)(Lyd *lyd, int samples,
-                                         void *stream, void *stream2,
-                                         void *data),
-                              void *data);
-/**
- * lyd_remove_cb:
- * @lyd: lyd engine
- * @id: callback id
- *
- * Remove a previously installed callback handler.
- */
-void         lyd_remove_cb (Lyd *lyd, int id);
 
 
 

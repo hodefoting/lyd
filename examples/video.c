@@ -120,7 +120,7 @@ int main (int    argc,
       code = examples[1];
     }
   if (!code)
-    return;
+    return 0;
 
   init_sdl ();
   lyd = lyd_new ();
@@ -132,7 +132,7 @@ int main (int    argc,
   printf ("{%s}\n", code);
   instrument = lyd_compile (lyd, code);
   if (!instrument)
-    return;
+    return 0;
   filter = lyd_filter_new (lyd, instrument);
 
   float rowstride = 1.0/scanlines;   /* rowstride in seconds */

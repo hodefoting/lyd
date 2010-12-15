@@ -18,8 +18,8 @@
 
 static inline void op_adsr (OP_ARGS)
 {
-  ALIGNED_ARGS;
   int i;
+  ALIGNED_ARGS
   LydSample a = ARG0(0),
             d = ARG0(1),
             s = ARG0(2),
@@ -52,12 +52,13 @@ static inline void op_adsr (OP_ARGS)
       else                                         /* in sustain */
         OUT = s;
     }
+  ALIGNED_ARGS_SILENCE;
 }
 
 static inline void op_ddadsr (OP_ARGS)
 {
-  ALIGNED_ARGS;
   int i;
+  ALIGNED_ARGS
   LydSample delay = ARG0(0),
             duration = ARG0(1),
             a = ARG0(2),
@@ -98,6 +99,7 @@ static inline void op_ddadsr (OP_ARGS)
       else                                         /* in sustain */
         OUT = s;
     }
+  ALIGNED_ARGS_SILENCE;
 }
 
 #include "biquad.c"
@@ -109,8 +111,8 @@ static inline void op_filter_free (LydOpState *state)
 
 static inline void op_filter (OP_ARGS)
 {
-  ALIGNED_ARGS;
   int i = 0;
+  ALIGNED_ARGS;
   if (G_UNLIKELY (!DATA))
     DATA = BiQuad_new(state->op-LYD_LOW_PASS,/* compute the right biquad-enum */
                       ARG0(0),ARG0(1), vm->sample_rate, ARG0(2));
@@ -212,8 +214,8 @@ static inline void op_wave_loop (OP_ARGS)
 
 static inline void op_mix (OP_ARGS)
 {
-  ALIGNED_ARGS;
   int i;
+  ALIGNED_ARGS;
   switch (state->argc)
     {
       case 0: for (i = 0; i < samples; i++)
@@ -252,8 +254,8 @@ typedef struct _ReverbData
 static inline void op_reverb (OP_ARGS)
 {
   ReverbData *data   = state->data;
-  ALIGNED_ARGS;
   int i;
+  ALIGNED_ARGS;
   for (i=0; i<samples; i++)
     {
       LydSample   reverb = ARG(0),
@@ -301,8 +303,8 @@ static inline void op_delay (OP_ARGS)
 {
   /* XXX: allow dynamically changing the length */
   DelayData *data   = state->data;
-  ALIGNED_ARGS;
   int i;
+  ALIGNED_ARGS;
   for (i=0; i<samples; i++)
     {
       LydSample length = ARG(0),
@@ -339,8 +341,8 @@ static inline void op_delay_free (LydOpState *state)
 
 static inline void op_cycle (OP_ARGS)
 {
-  ALIGNED_ARGS;
   int i, pos, count;
+  ALIGNED_ARGS
   LydSample freq = ARG0(0);
 
   if (state->argc < 2)

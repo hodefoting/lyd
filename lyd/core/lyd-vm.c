@@ -18,8 +18,17 @@
  * from it exporting a small set of symbols.
  */
 
-
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+#include <assert.h>
+#include <unistd.h>
+#include "lyd-private.h"
 #include <stdint.h>
+
+static LydSample *lyd_vm_chunk_new (LydVM *vm);
+static void       lyd_vm_chunk_free (LydVM *vm, LydSample *chunk);
 
 static int lyd_op_argca[]=
 {
@@ -31,7 +40,7 @@ static int lyd_op_argca[]=
 };
 
 #ifdef LYD_EXTENDABLE
-static LydOpInfo *lyd_op_info (Lyd *lyd, int op)
+static LydOpInfo *lyd_op_info (Lyd *lyd, LydOpCode op)
 {
   SList *iter;
   for (iter = lyd->op_info; iter; iter = iter->next)
@@ -60,10 +69,9 @@ lyd_op_argc (Lyd *lyd, int op)
 }
 
 /* create a new vm from a program */
-static LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
+LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
 {
   LydVM *vm;
-  static LydSample nul = 0.0;
   int i, j;
   LydOpState *state;
   LydOpState *states[LYD_MAX_ELEMENTS];
@@ -162,6 +170,8 @@ static LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
               }
             break;
           }
+          default:
+            break;
         }
       state = state->next;
     }
@@ -181,7 +191,7 @@ static LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
                         that the static functions can be compiled directly
                         into lyd_vm_compute() */
 
-static void
+void
 lyd_vm_free (LydVM *vm)
 {
   LydOpState *state;
@@ -291,7 +301,7 @@ static inline float phase (LydVM *vm, LydOpState *state, float hz)
 /* The core virtual machine, it computes maximum LYD_CHUNK
  * samples in one go, a pointer to the result is returned.
  */
-static inline LydSample *
+LydSample *
 lyd_vm_compute (LydVM  *vm,
                 int     samples)
 {
@@ -370,7 +380,6 @@ void lyd_vm_set_param_delayed (LydVM *vm,
                                double      value)
 {
   LydParam *param = g_new0 (LydParam, 1);
-  int i;
   LydOpState *state;
 
   param->sample_no = vm->sample + vm->sample_rate * time;
@@ -431,8 +440,8 @@ cubic (const float dx,
             ( - prev + next ) ) * dx + (j + j) ) / 2.0;
 }
 
-static void lyd_vm_update_params (LydVM *vm,
-                                  int    samples)
+void lyd_vm_update_params (LydVM *vm,
+                           int    samples)
 {
   SList *paramlist;
   int j;

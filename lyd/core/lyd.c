@@ -20,13 +20,12 @@
 #include <math.h>
 #include <assert.h>
 #include <unistd.h>
-#include "lyd-private.h"
+#include "core/lyd-private.h"
 
 
 /* we include the voice directly to make the mixing and the vm 
  * a single compilation unit
  */
-#include "lyd-vm.c"
 
 static void lyd_prepare_buffer (Lyd *lyd, int samples);
 static void lyd_pre_cb (Lyd *lyd, int samples);
@@ -255,7 +254,6 @@ lyd_synthesize_voice (Lyd   *lyd,
                       int    tot_samples,
                       int    pos)
 {
-  int        i;
   LydSample * __restrict__ result = NULL;
   int first_sample = voice->sample<0?-voice->sample:0;
 
@@ -353,7 +351,8 @@ static void lyd_collapse_threads (Lyd *lyd, int samples)
 
 static void lyd_apply_global_filter (Lyd *lyd, int samples)
 {
-  LydSample *inputs[]={lyd->buf[0]};
+  LydSample *inputs[]={NULL};
+  inputs[0] = lyd->buf[0];
   if (lyd->global_filter[0])
     lyd_filter_process (lyd->global_filter[0], inputs, 1, lyd->buf[0], samples);
   inputs[0] = lyd->buf[0] + samples;
@@ -628,7 +627,6 @@ void lyd_midi_iterate (Lyd *lyd, float elapsed);
 Lyd * lyd_new (void)
 {
   Lyd *lyd = g_new0 (Lyd, 1);
-  int i;
   pthread_mutex_init(&lyd->mutex, NULL);
   lyd->max_active = 4000;
 #ifdef LYD_EXTENDABLE
@@ -722,7 +720,6 @@ lyd_voice_set_param (Lyd        *lyd,
                      const char *param,
                      double      value)
 {
-  int j;
   LOCK ();
   if (slist_find (lyd->voices, voice))
     {
@@ -786,6 +783,7 @@ lyd_add_post_cb (Lyd *lyd,
       return i + LYD_MAX_CBS;
     }
   UNLOCK ();
+  return -1;
 }
 
 void
@@ -876,7 +874,7 @@ typedef struct AllocPool
   long       used;  /* bitmask of used bufs */
 } AllocPool;
 
-static LydSample *lyd_chunk_new (Lyd *lyd)
+LydSample *lyd_chunk_new (Lyd *lyd)
 {
   AllocPool *pool = lyd->chunk_pools?lyd->chunk_pools->data:NULL;
   int no;
@@ -911,14 +909,14 @@ static LydSample *lyd_chunk_new (Lyd *lyd)
   return NULL;
 }
 
-static void lyd_chunk_free (Lyd *lyd, LydSample *chunk)
+void lyd_chunk_free (Lyd *lyd, LydSample *chunk)
 {
   SList *iter, *prev = NULL;
   for (iter = lyd->chunk_pools; iter; prev = iter, iter = iter->next)
     {
       AllocPool *pool = iter->data;
       if ((char*)(chunk) - (char*)(pool->mem) <
-          POOL_SIZE * sizeof (LydSample) * LYD_CHUNK)
+          (int)POOL_SIZE * sizeof (LydSample) * LYD_CHUNK)
         {
           int no = (int)((char*)(chunk) - (char*)(pool->mem)) / (LYD_CHUNK * sizeof (LydSample));
 
@@ -944,31 +942,56 @@ static void lyd_chunk_free (Lyd *lyd, LydSample *chunk)
         }
     }
 }
-
 #ifdef LYD_EXTENDABLE
-void         lyd_add_op         (Lyd *lyd, const char *name, int argc,
-                                 void (*process) (LydVM *vm, LydOpState *state, int samples),
-                                 void (*init) (LydVM *vm, LydOpState *state),
-                                 void (*free) (LydVM *vm, LydOpState *state))
+
+static LydOpInfo *getinfo (Lyd *lyd, const char *name)
 {
-  LydOpInfo *info = g_new0 (LydOpInfo, 1);
+  LydOpInfo *info = NULL;
+  SList *iter;
+  for (iter =  lyd->op_info; iter; iter = iter->next)
+    {
+      LydOpInfo *i = iter->data;
+      if (!strcmp (i->name, name))
+        {
+          info = i;
+          g_free (info->name);
+          if (info->program)
+            lyd_program_free (info->program);
+          info->process = NULL;
+          info->init = NULL;
+          info->free = NULL;
+          break;
+        }
+    }
+  if (!info)
+    {
+      info = g_new0 (LydOpInfo, 1);
+      lyd->op_info = slist_prepend (lyd->op_info, info);
+      info->op = lyd->last_op++;
+    }
+  return info;
+}
+
+void
+lyd_add_op (Lyd *lyd, const char *name, int argc,
+            void (*process) (LydVM *vm, LydOpState *state, int samples),
+            void (*init)    (LydVM *vm, LydOpState *state),
+            void (*free)    (LydVM *vm, LydOpState *state))
+{
+  LydOpInfo *info = getinfo (lyd, name);
   info->name = g_strdup (name);
   info->argc = argc;
   info->process = process;
   info->init = init;
   info->free = free;
-  info->op = lyd->last_op++;
-  lyd->op_info = slist_prepend (lyd->op_info, info);
 }
 
 void lyd_add_op_program (Lyd *lyd, const char *name, int argc,
                          LydProgram *program)
 {
-  LydOpInfo *info = g_new0 (LydOpInfo, 1);
+  LydOpInfo *info = getinfo (lyd, name);
   info->name = g_strdup (name);
   info->argc = argc;
   info->program = program;
-  info->op = lyd->last_op++;
-  lyd->op_info = slist_prepend (lyd->op_info, info);
 }
 #endif
