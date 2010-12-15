@@ -140,17 +140,29 @@ static inline void op_noise (OP_ARGS)
   OP_LOOP(OUT = noise();)
 }
 
-static inline float input_sample (LydVM *vm,
-                                  int    no)
+static inline float input_sample_peek (LydVM *vm,
+                                       int    no)
 {
   float ret = 0.0;
   if (!vm->input_buf)
     return 0.0;
   if (vm->input_pos[no] < vm->input_buf_len)
     ret = vm->input_buf[no][vm->input_pos[no]];
+  return ret;
+}
+
+static inline float input_sample (LydVM *vm,
+                                  int    no)
+{
+  float ret = 0.0;
+  if (!vm->input_buf)
+    return 0.0;
+  ret = input_sample_peek (vm, no);
   vm->input_pos[no] ++; /* this should not happen here, this 
                            makes multiple concurrent uses of the
-                           same input impossible */
+                           same input impossible,
+                           all positions should be iterated together.
+                         */
   return ret;
 }
 
