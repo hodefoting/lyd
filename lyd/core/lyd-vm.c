@@ -223,7 +223,8 @@ lyd_vm_free (LydVM *vm)
           }
     }
 
-  /* free unused parameter slots */
+  /* free unused parameter keys */
+  if (vm->params)
   {
     SList *l1, *l2;
     for (l1 = vm->params; l1; l1 = l1->next)
