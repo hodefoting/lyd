@@ -14,8 +14,8 @@ AM_CFLAGS = $(MAINTAINER_CFLAGS) $(JACK_CFLAGS) -DNIH
 
 lib_LTLIBRARIES = liblyd-@LYD_API_VERSION@.la
 
-lyd.s: lyd-vm.c lyd-ops.inc lyd.c
-	gcc lyd.c -S $(CFLAGS) $(SSE_FLAGS) $(AM_CFLAGS)
+lyd-vm.s: core/lyd-vm.c core/lyd-ops.inc
+	gcc core/lyd-vm.c -S $(CFLAGS) $(SSE_FLAGS) $(AM_CFLAGS)
 
 # please, keep the list sorted alphabetically
 liblyd_@LYD_API_VERSION@_la_SOURCES = \
@@ -25,7 +25,7 @@ liblyd_@LYD_API_VERSION@_la_SOURCES = \
         $(srcdir)/lyd-midi.c \
         $(NULL)
 
-EXTRA_DIST = lyd-private.h lyd-vm.c biquad.c general-midi.txt
+EXTRA_DIST = core/lyd-private.h core/lyd-ops.inc core/lyd-ops.c general-midi.txt
 
 liblyd_@LYD_API_VERSION@_la_LIBADD = liblyd-core-@LYD_API_VERSION@.la \
                                      $(ALSA_LIBS) $(JACK_LIBS) -lm -lpthread
@@ -51,6 +51,7 @@ EXTRA_DIST += core/lyd-private.h core/biquad.c
 # please, keep the list sorted alphabetically
 liblyd_core_@LYD_API_VERSION@_la_SOURCES = \
         $(srcdir)/core/lyd.c \
+        $(srcdir)/core/lyd-mixer.c \
         $(srcdir)/core/lyd-vm.c \
         $(srcdir)/core/lyd-compiler.c \
         $(NULL)

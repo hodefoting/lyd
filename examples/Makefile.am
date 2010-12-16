@@ -3,11 +3,11 @@ AM_CFLAGS  = -I$(top_srcdir) $(GLIB_CFLAGS)
 CFILES = $(wildcard $(srcdir)/*.c)
 bins = $(subst $(srcdir)/,,$(CFILES:.c=))
 
-noinst_PROGRAMS = interpolated-param lyd-hi midi-test patches scale sun-audio wave-storm 
+noinst_PROGRAMS = interpolated-param midi-test patches scale sun-audio wave-storm video
 
 EXTRA_DIST = $(wildcard *.c) $(wildcard util/*.[ch])
 
-all-local: $(bins) video
+all-local: $(bins)
 clean-local:
 	rm -f *.lo $(bins)
 %: %.c 

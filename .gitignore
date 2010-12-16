@@ -31,9 +31,9 @@ lyd/Lyd-0.0.gir
 lyd/Lyd-0.0.typelib
 examples/patches
 examples/midi-test
-examples/lyd-hi
 examples/interpolated-param
 examples/scale
+examples/video
 doc/reference
 doc/lyd-reference
 reference.html

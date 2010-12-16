@@ -152,49 +152,49 @@ LYD_OP("ddadsr", DDADSR, 6,
        "(delay, duration, atack, decay, sustain, release)")
 
 LYD_OP("delay", DELAY, 2,
-       OP_FUN (op_delay),,
+       OP_FUN (op_delay),;,
        op_delay_free(state);,
        "Delay signal, slows down a signal by amount of time in seconds.",
        "(time, signal)")
 
 LYD_OP("reverb", REVERB, 3,
-       OP_FUN (op_reverb),,
+       OP_FUN (op_reverb),;,
        op_reverb_free(state);,
        "Reverb filter", "(amount, delay, signal)")
 
 /* biquad frequency filters */
 LYD_OP("low_pass", LOW_PASS, 4,
-       OP_FUN (op_filter),,op_filter_free(state);,
+       OP_FUN (op_filter),;,op_filter_free(state);,
        "Low pass filter, for performance reasons the parameters of filters are not varying with sample accurate precision but vary per chunk of processed audio (at least for each 128 samples).",
        "(gain, hz, bandwidth, signal)")
 
 LYD_OP("high_pass", HIGH_PASS, 4,
-       OP_FUN (op_filter),,op_filter_free(state);,
+       OP_FUN (op_filter),;,op_filter_free(state);,
        "High pass filter",
        "(gain, hz, bandwidth, signal)")
 
 LYD_OP("band_pass", BAND_PASS, 4,
-       OP_FUN (op_filter),,op_filter_free(state);,
+       OP_FUN (op_filter),;,op_filter_free(state);,
        "Band pass filter",
        "(gain, hz, bandwidth, signal)")
 
 LYD_OP("notch", NOTCH, 4,
-       OP_FUN (op_filter),,op_filter_free(state);,
+       OP_FUN (op_filter),;,op_filter_free(state);,
        "notch filter",
        "(gain, hz, bandwidth, signal)")
 
 LYD_OP("peak_eq", PEAK_EQ, 4,
-       OP_FUN (op_filter),,op_filter_free(state);,
+       OP_FUN (op_filter),;,op_filter_free(state);,
        "peak eq filter",
        "(gain, hz, bandwidth, signal)")
 
 LYD_OP("low_shelf", LOW_SHELF, 4,
-       OP_FUN (op_filter),,op_filter_free(state);,
+       OP_FUN (op_filter),;,op_filter_free(state);,
        "low shelf filter",
        "(gain, hz, bandwidth, signal)")
 
 LYD_OP("high_shelf", HIGH_SHELF, 4,
-       OP_FUN (op_filter),,op_filter_free(state);,
+       OP_FUN (op_filter),;,op_filter_free(state);,
        "high shelf filter",
        "(gain, hz, bandwidth, signal)")
 

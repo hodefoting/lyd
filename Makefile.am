@@ -8,4 +8,4 @@ pkgconfig_DATA = lyd-$(LYD_API_VERSION).pc
 
 CLEANFILES = lyd-$(LYD_API_VERSION).pc
 DISTCLEANFILES = lyd.pc
-EXTRA_DIST = lyd.pc.in
+EXTRA_DIST = lyd.pc.in autogen.sh
