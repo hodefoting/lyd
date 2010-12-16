@@ -448,6 +448,12 @@ parser_advance (LydParser *parser, const char *expected)
             }
           if (value)
             parser->var_default[parser->variables] = g_ascii_strtod (value + 1, NULL);
+
+          if (parser->lyd->var_handler)
+            parser->lyd->var_handler (parser->lyd, newtok->str,
+                                      parser->var_default[parser->variables],
+                                      parser->lyd->var_handler_data);
+
           parser->variable[parser->variables++] = newtok->value;
           found:
           ;

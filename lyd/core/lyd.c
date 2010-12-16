@@ -385,6 +385,19 @@ lyd_set_wave_handler (Lyd *lyd,
 }
 
 void
+lyd_set_var_handler (Lyd *lyd,
+                     void (*var_handler) (Lyd *lyd, const char *varname,
+                                          double default_value,
+                                          void *user_data),
+                     void *user_data)
+{
+  LOCK ();
+  lyd->var_handler = var_handler;
+  lyd->var_handler_data = user_data;
+  UNLOCK ();
+}
+
+void
 lyd_set_voice_count (Lyd *lyd, int voice_count)
 {
   lyd->voice_count = voice_count;

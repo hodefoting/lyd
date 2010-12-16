@@ -242,6 +242,12 @@ struct _Lyd
   int     (*wave_handler) (Lyd *lyd, const char *name,
                            void *user_data);
   void     *wave_handler_data;
+  void    (*var_handler) (Lyd        *lyd,
+                          const char *var,
+                          double      default_value,
+                          void       *user_data);
+  void     *var_handler_data;
+
 
   LydSample level;
   int       active;

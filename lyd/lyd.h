@@ -322,6 +322,23 @@ void        lyd_set_wave_handler (Lyd *lyd,
                                   void *user_data);
 
 /**
+ * lyd_set_var_handler:
+ * @lyd: lyd engine
+ * @var_handler: function to execute when compiler sees a new variable.
+ * @user_data: user data to pass to the wave handler.
+ *
+ * Used to know which variables are available for compiled programs, when
+ * setting a new var_handler any previous var handler is removed, setting
+ * NULL removes a previously set var handler.
+ */
+void        lyd_set_var_handler (Lyd *lyd,
+                                 void (*var_handler) (Lyd *lyd,
+                                                      const char *var,
+                                                      double default_value,
+                                                      void *user_data),
+                                 void *user_data);
+
+/**
  * LydFilter:
  *
  * A type that shares most API with LydVoice, but is used for standalone
