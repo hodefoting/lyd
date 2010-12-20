@@ -226,6 +226,7 @@ typedef struct LydWave
 struct _Lyd
 {
   pthread_mutex_t mutex;
+  pthread_mutex_t mmutex;
   int       sample_rate; /* sample rate */
   LydFormat format;      /* */
 

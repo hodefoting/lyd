@@ -160,6 +160,7 @@ Lyd * lyd_new (void)
 {
   Lyd *lyd = g_new0 (Lyd, 1);
   pthread_mutex_init(&lyd->mutex, NULL);
+  pthread_mutex_init(&lyd->mmutex, NULL);
   lyd->max_active = 4000;
 #ifdef LYD_EXTENDABLE
   lyd->last_op = LydLastOp;
@@ -410,19 +411,21 @@ int lyd_get_voice_count (Lyd *lyd)
   return lyd->voice_count;
 }
 
-#define POOL_SIZE   48
-#define FULL_POOL   0xffffff
+#define POOL_SIZE   28
+#define FULL_POOL   0xfffffff
 typedef struct AllocPool
 {
-  void      *alloc;
+  char      *alloc;
   LydSample *mem;
-  long       used;  /* bitmask of used bufs */
+  long       used; /* bitmask of used bufs */
 } AllocPool;
 
 LydSample *lyd_chunk_new (Lyd *lyd)
 {
-  AllocPool *pool = lyd->chunk_pools?lyd->chunk_pools->data:NULL;
+  AllocPool *pool;
   int no;
+  pthread_mutex_lock (&lyd->mmutex);
+  pool = lyd->chunk_pools?lyd->chunk_pools->data:NULL;
   if (!pool || pool->used == FULL_POOL)
     {
       SList *iter;
@@ -437,9 +440,9 @@ LydSample *lyd_chunk_new (Lyd *lyd)
         {
           pool = g_new0 (AllocPool, 1);
           lyd->chunk_pools = slist_prepend (lyd->chunk_pools, pool);
-          pool->alloc = g_malloc0 (sizeof (LydSample) * LYD_CHUNK * POOL_SIZE + LYD_ALIGN);
+          pool->alloc = g_malloc0 (sizeof (LydSample) * LYD_CHUNK * POOL_SIZE + LYD_ALIGN * 2);
           /* align memory */
-          pool->mem = (void*)(((char*)pool->alloc) + ((int)((char *)pool->alloc)) % LYD_ALIGN);
+          pool->mem = (pool->alloc) + (LYD_ALIGN-((int)((char *)pool->alloc)) % LYD_ALIGN);
         }
     }
   for (no = 0; no < POOL_SIZE; no++)
@@ -448,44 +451,51 @@ LydSample *lyd_chunk_new (Lyd *lyd)
       if (!(pool->used & bitmask))
         {
           pool->used |= bitmask;
+          pthread_mutex_unlock (&lyd->mmutex);
           return (LydSample*) &pool->mem[LYD_CHUNK * no];
         }
     }
+  pthread_mutex_unlock (&lyd->mmutex);
   return NULL;
 }
 
 void lyd_chunk_free (Lyd *lyd, LydSample *chunk)
 {
   SList *iter, *prev = NULL;
+  pthread_mutex_lock (&lyd->mmutex);
   for (iter = lyd->chunk_pools; iter; prev = iter, iter = iter->next)
     {
       AllocPool *pool = iter->data;
       if ((char*)(chunk) - (char*)(pool->mem) <
-          (int)POOL_SIZE * sizeof (LydSample) * LYD_CHUNK)
+          (int)POOL_SIZE * sizeof (LydSample) * LYD_CHUNK &&
+          (char*)(chunk) >= (char*)(pool->mem))
         {
           int no = (int)((char*)(chunk) - (char*)(pool->mem)) / (LYD_CHUNK * sizeof (LydSample));
 
           if (pool->used & (1 << no))
             {
               pool->used ^= (1 << no);
+              if (pool->used == 0 && 0)
+                {
+                  if (lyd->chunk_pools == iter)
+                    lyd->chunk_pools = iter->next;
+                  if (prev)
+                    prev->next = iter->next;
+                  g_free (pool->alloc);
+                  g_free (pool);
+                  iter->next = NULL;
+                  slist_free (iter);
+                  /* the pool with freed item should perhaps move to the start of
+                   * the list to facilitate reuse as well as speeding up of
+                   * subsequent frees, overkill with lyds access patterns though
+                   */
+                }
             }
-            if (pool->used == 0)
-              {
-                if (lyd->chunk_pools == iter)
-                  lyd->chunk_pools = iter->next;
-                if (prev)
-                  prev->next = iter->next;
-                g_free (pool);
-                iter->next = NULL;
-                slist_free (iter);
-                /* the pool with freed item should perhaps move to the start of
-                 * the list to facilitate reuse as well as speeding up of
-                 * subsequent frees, overkill with lyds access patterns though
-                 */
-              }
+          pthread_mutex_unlock (&lyd->mmutex);
           return;
         }
     }
+  pthread_mutex_unlock (&lyd->mmutex);
 }
 #ifdef LYD_EXTENDABLE
 

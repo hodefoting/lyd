@@ -140,7 +140,10 @@ LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
         }
 
       if (outarg>=0) /* reusing input buf as output */
-        state->out = state->literal[outarg];
+        {
+          state->out = state->literal[outarg];
+          state->out_is_clone = 1;
+        }
       else
         state->out = lyd_vm_chunk_new (vm);
 
@@ -200,7 +203,9 @@ lyd_vm_free (LydVM *vm)
     {
       int i;
       int argc = lyd_op_argc (vm->lyd, state->op);
-      lyd_vm_chunk_free (vm, state->out);
+
+      if (!state->out_is_clone)
+        lyd_vm_chunk_free (vm, state->out);
       state->out = NULL;
 
       for (i = 0; i< argc; i++)

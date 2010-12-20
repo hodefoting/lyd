@@ -218,7 +218,7 @@ lyd_voice_spatialize (Lyd   *lyd,
                       int    samples,
                       int    tot_samples,
                       int    pos,
-                      LydSample * __restrict__ result)
+                      LydSample * result)
 {
   int i;
   /* simple stereo spatialization */

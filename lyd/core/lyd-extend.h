@@ -28,7 +28,8 @@
 
 typedef float  LydSample;
 
-typedef union { LydSample v[LYD_CHUNK]; }
+//typedef union { LydSample v[LYD_CHUNK]; } LydChunk;
+typedef union { LydSample v[LYD_CHUNK]; } 
 LydChunk __attribute__ ((__aligned__(LYD_ALIGN)));
 
 typedef struct _LydOpState  LydOpState;
@@ -42,6 +43,7 @@ struct _LydOpState
   LydSample   phase;  /* phase, used by oscillator ops */
   LydOpState *next;   /* op to run after this one */
   LydSample  *out;
+  int         out_is_clone;
 #ifdef LYD_EXTENDABLE
   LydOpInfo  *info;
 #endif
