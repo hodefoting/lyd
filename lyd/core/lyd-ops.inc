@@ -90,7 +90,7 @@ LYD_OP("triangle", TRIANGLE, 1,
 
 LYD_OP("pulse", PULSE, 2,
        OP_LOOP(OUT = PHASE > ARG(1)?1.0:-1.0;),;,;,
-       "Pulse oscillator to simulate square wave use a width of 0.5","(hz, width)")
+       "Pulse oscillator to simulate square wave use a width of 0.5","(hz, duty)cycle)")
 
 LYD_OP("noise", NOISE, 0,
        OP_FUN(op_noise),;,;,
@@ -158,30 +158,30 @@ LYD_OP("ddadsr", DDADSR, 6,
 
 LYD_OP("delay", DELAY, 2,
        OP_FUN (op_delay),;,
-       op_delay_free(state);,
+       op_free(state);,
        "Delay signal, slows down a signal by amount of time in seconds.",
        "(time, signal)")
 
 LYD_OP("tapped_delay", TDELAY, 8,
        OP_FUN (op_tapped_delay),;,
-       op_tapped_delay_free(state);,
+       op_free(state);,
        "Delay signal, slows down a signal by amount of time in seconds, multiple delays can be done concurrently their results are averaged.",
        "(signal, tap1, [tap2..7])")
 
-LYD_OP("trapped_delay", TRDELAY, 8,
-       OP_FUN (op_trapped_delay),;,
-       op_trapped_delay_free(state);,
+LYD_OP("echo", ECHO, 3,
+       OP_FUN (op_echo),;,
+       op_free(state);,
+       "Echo filter, implements a single feedback delay line", "(amount, delay, signal)")
+
+LYD_OP("tapped_echo", TECHO, 8,
+       OP_FUN (op_tapped_echo),;,
+       op_free(state);,
        "Delay signal, slows down a signal by amount of time in seconds, multiple delays can be done concurrently all their results are averaged for the result, the result is fed back to the delay line used.",
        "(signal, tap1, [tap2..7])")
 
-LYD_OP("reverb", REVERB, 3,
-       OP_FUN (op_reverb),;,
-       op_reverb_free(state);,
-       "Reverb filter", "(amount, delay, signal)")
-
 LYD_OP("pluck", PLUCK, 3,
        OP_FUN (op_pluck),;,
-       op_reverb_free(state);,
+       op_free(state);,
        "Plucked string, implements the decaying of the periodic wave form of a string using karplus strong algorithm, the decay ratio allows extending the duraiton of the decay in the range 1.0..., you can specify a custom waveform that is decayed by specifying a third argument with no third argument white noise is used., v", "(hz, [decayratio, [custom-waveform]])")
 
 /* biquad frequency filters */

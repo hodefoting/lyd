@@ -182,11 +182,16 @@ Lyd * lyd_new (void)
     lyd_program_free (program);
   }*/
 
-  if (1){
-    LydProgram *program = lyd_compile (lyd, "input(0) + mix (reverb(1, 0.001, inputp(0)), reverb(1, 0.002, inputp(0)), reverb(1, 0.003, inputp(0)))");
-      
-    lyd_add_op_program (lyd, "reverb2", 1, program);
-  }
+  lyd_add_op_program (lyd, "reverb", 1, lyd_compile (lyd,
+                      "tapped_echo (tapped_delay (input(0),         "
+                      "                           0.00297, 0.00371, "
+                      "                           0.00411, 0.00437),"
+                      "             0.009683, 0.003292)"));
+
+  "defun reverb 1 { tapped_echo (tapped_delay (input(0) }"
+
+  lyd_add_op_program (lyd, "remove_dc", 1, lyd_compile (lyd,
+                      "high_pass (1, 20, 1, input(0))"));
 
   return lyd;
 }
@@ -442,7 +447,7 @@ LydSample *lyd_chunk_new (Lyd *lyd)
           lyd->chunk_pools = slist_prepend (lyd->chunk_pools, pool);
           pool->alloc = g_malloc0 (sizeof (LydSample) * LYD_CHUNK * POOL_SIZE + LYD_ALIGN * 2);
           /* align memory */
-          pool->mem = (pool->alloc) + (LYD_ALIGN-((int)((char *)pool->alloc)) % LYD_ALIGN);
+          pool->mem = (void*) (pool->alloc) + (LYD_ALIGN-((int)((char *)pool->alloc)) % LYD_ALIGN);
         }
     }
   for (no = 0; no < POOL_SIZE; no++)

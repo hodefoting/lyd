@@ -193,7 +193,7 @@ int main (int    argc,
                   }
               }
             else
-              {
+              if (0){
                 voice = lyd_voice_new (lyd, program, 0.0, 0);
                 lyd_voice_set_param (lyd, voice, "volume", 1.0);
                 lyd_voice_set_param (lyd, voice, "hz", 440.0);

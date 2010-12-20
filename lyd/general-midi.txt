@@ -1,4 +1,4 @@
-low_pass (20, 1200, 5, adsr (0,0,1,0.1) * pluck(hz))*volume*4
+reverb(remove_dc(mix(pluck(hz),pluck(hz*0.9999),pluck(hz*1.0001)) * adsr(0,0.1,3,0.1))) * volume
 sin(hz*3.000+sin(hz*3.000) * 0.001 * adsr(0.000,0.512,0.000,0.444)) * 0.762 * adsr(0.000,0.512,0.000,0.444) * volume=1.0 #001 BrightAcouGrand
 sin(hz*3.000+sin(hz*3.000) * 0.227 * adsr(0.000,0.057,0.000,0.444)) * 0.762 * adsr(0.000,0.356,0.000,0.444) * volume=1.0 #002 ElecGrandPiano 
 sin(hz*3.000+sin(hz*3.000) * 0.403 * adsr(0.000,0.512,0.000,0.444)) * 0.762 * adsr(0.000,0.601,0.000,0.444) * volume=1.0 #003 Honky-tonkPiano

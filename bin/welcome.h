@@ -18,7 +18,7 @@ void welcome (Lyd *lyd)
 { 
   LydVoice   *voice;
   LydProgram *program;
-  program = lyd_compile (lyd, "reverb (0.1, 0.223, low_pass (0.1, hz=440.0, 0.01, pulse(200 + sin(190) * 1.4, square(8.0)) * adsr(0.12, 0.12, 0.8, 0.30))) * volume=1.0 * 0.1");
+  program = lyd_compile (lyd, "echo (0.1, 0.223, low_pass (0.1, hz=440.0, 0.01, pulse(200 + sin(190) * 1.4, square(8.0)) * adsr(0.12, 0.12, 0.8, 0.30))) * volume=1.0 * 0.1");
 
 #define Q(delay, duration, frequency, pos) \
   voice = lyd_voice_new (lyd, program, delay, 0);\

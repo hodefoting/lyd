@@ -16,6 +16,12 @@
 
 /* this file is included from lyd-vm.c */
 
+/* macro to point into an allocation, after a header struct, used to
+ * implement extensions for ops as single allocations including
+ * data buffers at the end.
+ */
+#define after_ptr(ptr, type) (void*)((((char*)(ptr)) + sizeof (type)))
+
 static inline void op_adsr (OP_ARGS)
 {
   int i;
@@ -54,6 +60,8 @@ static inline void op_adsr (OP_ARGS)
     }
   ALIGNED_ARGS_SILENCE;
 }
+
+/**********************************************************************/
 
 static inline void op_ddadsr (OP_ARGS)
 {
@@ -102,12 +110,9 @@ static inline void op_ddadsr (OP_ARGS)
   ALIGNED_ARGS_SILENCE;
 }
 
-#include "biquad.c"
+/**********************************************************************/
 
-static inline void op_filter_free (LydOpState *state)
-{
-  free (state->data);
-}
+#include "biquad.c"
 
 static inline void op_filter (OP_ARGS)
 {
@@ -127,6 +132,13 @@ static inline void op_filter (OP_ARGS)
   ALIGNED_ARGS_SILENCE;
 }
 
+static inline void op_filter_free (LydOpState *state)
+{
+  free (state->data);
+}
+
+/**********************************************************************/
+
 static inline float noise (void)
 {
   /* not thread safe, but we do not care the results are random enough */
@@ -142,6 +154,8 @@ static inline void op_noise (OP_ARGS)
 {
   OP_LOOP(OUT = noise();)
 }
+
+/**********************************************************************/
 
 static inline float input_sample_peek (LydVM *vm,
                                        int    no)
@@ -179,6 +193,7 @@ static inline void op_input (OP_ARGS)
   OP_LOOP(OUT = input_sample (vm, ARG0(0));)
 }
 
+/**********************************************************************/
 
 #define MIDDLE_C 261.625565
 
@@ -195,6 +210,13 @@ static inline float wave_sample (LydVM *vm, LydOpState *state, int no, float hz)
   return 0.0;
 }
 
+static inline void op_wave (OP_ARGS)
+{
+  OP_LOOP(OUT = wave_sample (vm, state, ARG0(0), ARG0(1));)
+}
+
+/**********************************************************************/
+
 static inline float wave_sample_loop  (LydVM *vm, LydOpState *state, int no, float hz)
 {
   LydWave *wave = vm->lyd->wave[no];
@@ -209,15 +231,12 @@ static inline float wave_sample_loop  (LydVM *vm, LydOpState *state, int no, flo
   return 0.0;
 }
 
-static inline void op_wave (OP_ARGS)
-{
-  OP_LOOP(OUT = wave_sample (vm, state, ARG0(0), ARG0(1));)
-}
-
 static inline void op_wave_loop (OP_ARGS)
 {
   OP_LOOP(OUT = wave_sample_loop (vm, state, ARG0(0), ARG0(1));)
 }
+
+/**********************************************************************/
 
 static inline void op_mix (OP_ARGS)
 {
@@ -251,23 +270,24 @@ static inline void op_mix (OP_ARGS)
   ALIGNED_ARGS_SILENCE;
 }
 
-#define after_ptr(ptr, type) (void*)((((char*)(ptr)) + sizeof (type)));
 
-typedef struct _ReverbData
+/**********************************************************************/
+
+typedef struct _EchoData
 {
    int    pos;
    int    size;
    LydSample *old;
-} ReverbData;
+} EchoData;
 
-static inline void op_reverb (OP_ARGS)
+static inline void op_echo (OP_ARGS)
 {
-  ReverbData *data   = state->data;
+  EchoData *data   = state->data;
   int i;
   ALIGNED_ARGS;
   for (i=0; i<samples; i++)
     {
-      LydSample   reverb = ARG(0),
+      LydSample   strength = ARG(0),
                   length = ARG(1),
                   sample = ARG(2);
       int         size   = length * vm->sample_rate;
@@ -281,13 +301,13 @@ static inline void op_reverb (OP_ARGS)
       if (G_UNLIKELY (data == NULL ||
           size != data->size))
         {
-          data = state->data = g_malloc0 (sizeof (LydSample) *size + sizeof(ReverbData));
+          data = state->data = g_malloc0 (sizeof (LydSample) *size + sizeof(EchoData));
           data->size = size;
-          data->old = after_ptr (data, ReverbData);
+          data->old = after_ptr (data, EchoData);
         }
 
-      sample = sample + data->old[data->pos] * reverb;
-      data->old[data->pos++] = sample / (1.0 + reverb);
+      sample = sample + data->old[data->pos] * strength;
+      data->old[data->pos++] = sample / (1.0 + strength);
       if (G_UNLIKELY (data->pos >= size))
         data->pos = 0;
       OUT = sample;
@@ -295,11 +315,18 @@ static inline void op_reverb (OP_ARGS)
   ALIGNED_ARGS_SILENCE;
 }
 
+static inline void op_free (LydOpState *state)
+{
+  g_free (state->data);
+}
+
+/**********************************************************************/
 
 typedef struct _PluckData
 {
    int        pos;
    int        size;
+   int        asize;
    float      decay_ratio;
    LydSample *old;
 } PluckData;
@@ -325,11 +352,19 @@ static inline void op_pluck (OP_ARGS)
         size = LYD_MAX_REVERB_SIZE;
 
       if (G_UNLIKELY (data == NULL ||
-          size != data->size))
+          size > data->asize))
         {
-          data = state->data = g_malloc0 (sizeof (LydSample) *size + sizeof(PluckData));
+          int asize = size;
+          if (asize < vm->sample_rate * 1.0)
+            asize = vm->sample_rate * 1.0;
+          if (state->data)
+            g_free (state->data);
+          data = state->data = g_malloc0 (sizeof (LydSample) * asize + sizeof(PluckData));
+          data->asize = asize;
           data->size = size;
-          data->old = (void*)((  ((char*)(data)) + sizeof (PluckData)));
+          data->old = after_ptr (data, PluckData);
+
+
           data->decay_ratio = ARG0(1);
           if (data->decay_ratio != 0.0)
             data->decay_ratio = 1.0/data->decay_ratio;
@@ -362,11 +397,7 @@ static inline void op_pluck (OP_ARGS)
   ALIGNED_ARGS_SILENCE;
 }
 
-
-static inline void op_reverb_free (LydOpState *state)
-{
-  g_free (state->data);
-}
+/**********************************************************************/
 
 #define MAX_DELAY_SIZE   (48000 * 200)
 
@@ -374,6 +405,7 @@ typedef struct _DelayData
 {
    int    pos;
    int    size;
+   int    asize;
    LydSample *old;
 } DelayData;
 
@@ -396,12 +428,15 @@ static inline void op_delay (OP_ARGS)
         size = MAX_DELAY_SIZE;
 
       if (G_UNLIKELY (data == NULL ||
-          size != data->size))
+          size > data->asize))
         {
+          int asize = size;
+          if (asize < vm->sample_rate * 1.0)
+            asize = vm->sample_rate * 1.0;
           if (state->data)
             g_free (state->data);
-          data = state->data = g_malloc0 (sizeof(DelayData) +
-                                          sizeof (LydSample) * size);
+          data = state->data = g_malloc0 (sizeof (LydSample) * asize + sizeof(DelayData));
+          data->asize = asize;
           data->size = size;
           data->old = after_ptr (data, DelayData);
         }
@@ -415,10 +450,7 @@ static inline void op_delay (OP_ARGS)
   ALIGNED_ARGS_SILENCE;
 }
 
-static inline void op_delay_free (LydOpState *state)
-{
-  g_free (state->data);
-}
+/**********************************************************************/
 
 typedef struct _TappedDelayData
 {
@@ -468,11 +500,15 @@ static inline void op_tapped_delay (OP_ARGS) /* XXX: should perhaps have the dat
       if (G_UNLIKELY (data == NULL ||
           size > data->asize))
         {
+          int asize = size;
+          if (asize < vm->sample_rate * 1.0)
+            asize = vm->sample_rate * 1.0;
           if (state->data)
             g_free (state->data);
-          data = state->data = g_malloc0 (sizeof (LydSample) *size + sizeof(TappedDelayData));
+          data = state->data = g_malloc0 (sizeof (LydSample) * asize + sizeof(TappedDelayData));
+          data->asize = asize;
+
           data->size = size;
-          data->asize = size;
           data->old = after_ptr (data, TappedDelayData);
         }
 
@@ -494,25 +530,22 @@ static inline void op_tapped_delay (OP_ARGS) /* XXX: should perhaps have the dat
   ALIGNED_ARGS_SILENCE;
 }
 
-static inline void op_tapped_delay_free (LydOpState *state)
-{
-  g_free (state->data);
-}
+/**********************************************************************/
 
-typedef struct _TrappedDelayData
+typedef struct _TappedEchoData
 {
    int    pos;
    int    size;
    int    asize;
    int    taps[8];
    LydSample *old;
-} TrappedDelayData;
+} TappedEchoData;
 
 
-static inline void op_trapped_delay (OP_ARGS) /* XXX: should perhaps have the data as last arg? */
+static inline void op_tapped_echo (OP_ARGS)
 {
   /* XXX: allow dynamically changing the length */
-  TrappedDelayData *data   = state->data;
+  TappedEchoData *data   = state->data;
   int i;
   ALIGNED_ARGS;
   for (i=0; i<samples; i++)
@@ -547,12 +580,16 @@ static inline void op_trapped_delay (OP_ARGS) /* XXX: should perhaps have the da
       if (G_UNLIKELY (data == NULL ||
           size > data->asize))
         {
+          int asize = size;
+          if (asize < vm->sample_rate * 1.0)
+            asize = vm->sample_rate * 1.0;
           if (state->data)
             g_free (state->data);
-          data = state->data = g_malloc0 (sizeof (LydSample) *size + sizeof(TrappedDelayData));
+          data = state->data = g_malloc0 (sizeof (LydSample) * asize + sizeof(TappedEchoData));
+          data->asize = asize;
+
           data->size = size;
-          data->asize = size;
-          data->old = after_ptr (data, TrappedDelayData);
+          data->old = after_ptr (data, TappedEchoData);
         }
 
       for (j = 0; j < state->argc-1; j++)
@@ -564,7 +601,7 @@ static inline void op_trapped_delay (OP_ARGS) /* XXX: should perhaps have the da
         }
       result /= (state->argc-1);
 
-      OUT = data->old[data->pos] = sample + result * 0.999;
+      OUT = data->old[data->pos] = sample + result * 0.9;
       data->pos ++;
       while (data->pos >= size)
         data->pos -= size;
@@ -572,11 +609,7 @@ static inline void op_trapped_delay (OP_ARGS) /* XXX: should perhaps have the da
   ALIGNED_ARGS_SILENCE;
 }
 
-static inline void op_trapped_delay_free (LydOpState *state)
-{
-  g_free (state->data);
-}
-
+/**********************************************************************/
 
 static inline void op_cycle (OP_ARGS)
 {
@@ -610,3 +643,5 @@ static inline void op_cycle (OP_ARGS)
     }
   ALIGNED_ARGS_SILENCE;
 }
+
+/**********************************************************************/
