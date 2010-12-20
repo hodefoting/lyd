@@ -100,6 +100,11 @@ LYD_OP("input", INPUT, 1,
        OP_FUN(op_input),;,;,
        "Used when implementing filters, acts as a signal source", "(buffer_no)")
 
+LYD_OP("inputp", INPUTP, 1,
+       OP_FUN(op_inputp),;,;,
+       "Used when implementing filters, acts as a signal source", "(buffer_no)")
+
+
 LYD_OP("time", GTIME, 0,
        OP_LOOP(OUT = TIME;),;,;,
        "current time of sample running, in seconds","()")
@@ -157,10 +162,27 @@ LYD_OP("delay", DELAY, 2,
        "Delay signal, slows down a signal by amount of time in seconds.",
        "(time, signal)")
 
+LYD_OP("tapped_delay", TDELAY, 8,
+       OP_FUN (op_tapped_delay),;,
+       op_tapped_delay_free(state);,
+       "Delay signal, slows down a signal by amount of time in seconds, multiple delays can be done concurrently their results are averaged.",
+       "(signal, tap1, [tap2..7])")
+
+LYD_OP("trapped_delay", TRDELAY, 8,
+       OP_FUN (op_trapped_delay),;,
+       op_trapped_delay_free(state);,
+       "Delay signal, slows down a signal by amount of time in seconds, multiple delays can be done concurrently all their results are averaged for the result, the result is fed back to the delay line used.",
+       "(signal, tap1, [tap2..7])")
+
 LYD_OP("reverb", REVERB, 3,
        OP_FUN (op_reverb),;,
        op_reverb_free(state);,
        "Reverb filter", "(amount, delay, signal)")
+
+LYD_OP("pluck", PLUCK, 3,
+       OP_FUN (op_pluck),;,
+       op_reverb_free(state);,
+       "Plucked string, implements the decaying of the periodic wave form of a string using karplus strong algorithm, the decay ratio allows extending the duraiton of the decay in the range 1.0..., you can specify a custom waveform that is decayed by specifying a third argument with no third argument white noise is used., v", "(hz, [decayratio, [custom-waveform]])")
 
 /* biquad frequency filters */
 LYD_OP("low_pass", LOW_PASS, 4,

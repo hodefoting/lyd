@@ -1,4 +1,4 @@
-possin(hz*1.000+abssin(hz*1.000) * 0.327 * adsr(0.032,0.512,0.751,0.640)) * 0.762 * adsr(0.128,0.601,0.360,0.751) * volume=1.0 #000 AcouGrandPiano  
+low_pass (20, 1200, 5, adsr (0,0,1,0.1) * pluck(hz))*volume*4
 sin(hz*3.000+sin(hz*3.000) * 0.001 * adsr(0.000,0.512,0.000,0.444)) * 0.762 * adsr(0.000,0.512,0.000,0.444) * volume=1.0 #001 BrightAcouGrand
 sin(hz*3.000+sin(hz*3.000) * 0.227 * adsr(0.000,0.057,0.000,0.444)) * 0.762 * adsr(0.000,0.356,0.000,0.444) * volume=1.0 #002 ElecGrandPiano 
 sin(hz*3.000+sin(hz*3.000) * 0.403 * adsr(0.000,0.512,0.000,0.444)) * 0.762 * adsr(0.000,0.601,0.000,0.444) * volume=1.0 #003 Honky-tonkPiano

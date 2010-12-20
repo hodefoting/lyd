@@ -182,10 +182,10 @@ Lyd * lyd_new (void)
     lyd_program_free (program);
   }*/
 
-  if (0){
-    LydProgram *program = lyd_compile (lyd, "square(440 + sin (10) * 220)");
-    lyd_add_op_program (lyd, "foo", 0, program);
-    lyd_program_free (program);
+  if (1){
+    LydProgram *program = lyd_compile (lyd, "input(0) + mix (reverb(1, 0.001, inputp(0)), reverb(1, 0.002, inputp(0)), reverb(1, 0.003, inputp(0)))");
+      
+    lyd_add_op_program (lyd, "reverb2", 1, program);
   }
 
   return lyd;

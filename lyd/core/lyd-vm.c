@@ -136,7 +136,9 @@ LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
               state->arg[j] = &states[i + offset]->out[0];
             }
           else
-            assert(0);
+            {
+              assert(0);
+            }
         }
 
       if (outarg>=0) /* reusing input buf as output */
@@ -176,17 +178,21 @@ LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program)
           default:
             break;
         }
+
+      if (state->info)
+        {
+          if (state->info->program)
+            {
+              state->data = lyd_filter_new (vm->lyd, state->info->program);
+            }
+          else if (state->info->init)
+            state->info->init (vm, state);
+        }
+
       state = state->next;
     }
   vm->position = 0.0;
 
-  if (state->info)
-    {
-      if (state->info->program)
-        state->data = lyd_filter_new (vm->lyd, state->info->program);
-      else if (state->info->init)
-        state->info->init (vm, state);
-    }
   return vm;
 }
 
@@ -209,23 +215,28 @@ lyd_vm_free (LydVM *vm)
       state->out = NULL;
 
       for (i = 0; i< argc; i++)
-        lyd_vm_chunk_free (vm, state->literal[i]);
+        {
+          if (state->literal[i] && 0)
+            lyd_vm_chunk_free (vm, state->literal[i]);
+        }
 
       if (state->data)
-        switch (state->op)
-          {
-            case LYD_NONE: break;
+        {
+          switch (state->op)
+            {
+              case LYD_NONE: break;
 #define LYD_OP(name, OP_CODE, ARGC, CODE, INIT, FREE, DOC, BAZ) \
-            case LYD_##OP_CODE: { FREE }; break;
-            #include "lyd-ops.inc"
+              case LYD_##OP_CODE: { FREE }; break;
+              #include "lyd-ops.inc"
 #undef LYD_OP
-          default:
-            if (state->info->program)
-              lyd_filter_free (state->data);
-            else if (state->info->free)
-              state->info->free (vm, state);
-            break;
-          }
+            default:
+              if (state->info->free)
+                state->info->free (vm, state);
+              else if (state->info->program)
+                lyd_filter_free (state->data);
+              break;
+            }
+        }
     }
 
   /* free unused parameter keys */

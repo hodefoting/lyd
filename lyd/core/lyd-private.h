@@ -36,11 +36,11 @@ typedef struct _LydOp LydOp;
 #define LYD_MAX_WAVE                   128
 #define LYD_MAX_REVERB_SIZE            48000
 #define LYD_RELEASE_SILENCE_DAMPENING  0.001
-#define LYD_RELEASE_THRESHOLD          0.01  /* time average amplitude
+#define LYD_RELEASE_MIN                2.0   /* kill voices after 1s of silence */
+#define LYD_RELEASE_THRESHOLD          0.001  /* time average amplitude
                                               * at which released 
                                               * voices are killed
                                               */
-#define LYD_MIN_RELASE_TIME_DIVISOR    100   /* computed as samplerate/this */
 
 #define LYD_ALIGN                      16    /* needed for tree-vectorize SIMD*/
 
@@ -63,7 +63,6 @@ typedef enum
 
 #include "lyd.h"
 #include "lyd-extend.h"
-
 
 LydSample *lyd_chunk_new  (Lyd *lyd);
 void       lyd_chunk_free (Lyd *lyd, LydSample *chunk);
@@ -120,9 +119,9 @@ static inline float str2float (const char *str)
 
 
 /*** lyd is written with an independently recoded on demand
- * minimal glib like core for single linked lists and memory management
+ * minimal glib like core for single linked lists and memory management,
+ * these glibisms should probably be removed...
  */
-#ifdef NIH
 #undef  g_new0
 #undef  G_UNLIKELY
 #define TRUE  1
@@ -201,19 +200,6 @@ static inline SList *slist_find (SList *list, void *data)
 #define LOCK()    pthread_mutex_lock(&lyd->mutex)
 #define UNLOCK()  pthread_mutex_unlock(&lyd->mutex)
 
-#else
-
-#define LOCK()   g_static_mutex_lock (&mutex)
-#define UNLOCK() g_static_mutex_unlock (&mutex)
-GStaticMutex mutex;
-
-#define SList GSList
-#define slist_prepend(l, a) g_slist_prepend ((l), (a))
-#define slist_remove(l, a)  g_slist_remove ((l), (a))
-#define slist_find(l, a)    g_slist_find ((l), (a))
-#define slist_free(l)       g_slist_free ((l))
-
-#endif
 
 typedef struct LydWave
 {
@@ -223,10 +209,23 @@ typedef struct LydWave
   float *data;
 } LydWave;
 
+typedef struct LydMic
+{
+  char  *name;
+  int    samples;      /* total number of samples accumulated */
+  int    sample_rate;
+  float *data;
+  int    data_size;
+  int    read_pos;
+  int    write_pos;
+} LydMic;
+
 struct _Lyd
 {
   pthread_mutex_t mutex;
   pthread_mutex_t mmutex;
+  SList          *chunk_pools;
+
   int       sample_rate; /* sample rate */
   LydFormat format;      /* */
 
@@ -238,11 +237,7 @@ struct _Lyd
                          both built in and extended ops */
   int       last_op;
 #endif
-  LydWave  *wave[LYD_MAX_WAVE];
 
-  int     (*wave_handler) (Lyd *lyd, const char *name,
-                           void *user_data);
-  void     *wave_handler_data;
   void    (*var_handler) (Lyd        *lyd,
                           const char *var,
                           double      default_value,
@@ -277,14 +272,21 @@ struct _Lyd
 #endif
   int             buf_len;
 
-  SList          *chunk_pools;
 
   void (*pre_cb[LYD_MAX_CBS])(Lyd *lyd, float elapsed, void *data);
   void *pre_cb_data[LYD_MAX_CBS];
   void (*post_cb[LYD_MAX_CBS])(Lyd *lyd, int len, void *stream, void *stream2, void *data);
   void *post_cb_data[LYD_MAX_CBS];
-};
 
+  SList *extensions;
+
+  //LydMic   *mic[LYD_MAX_MIC];
+
+  LydWave  *wave[LYD_MAX_WAVE];
+  int     (*wave_handler) (Lyd *lyd, const char *name,
+                           void *user_data);
+  void     *wave_handler_data;
+};
 
 /* LydVM is the datastructure representing a single voice,
  * it contains meta data for managing the voice as well

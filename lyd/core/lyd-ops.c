@@ -129,11 +129,12 @@ static inline void op_filter (OP_ARGS)
 
 static inline float noise (void)
 {
+  /* not thread safe, but we do not care the results are random enough */
   static int seed = 1996;
   float rand;
   const int ia = 853, im = 981287;
   seed = (seed*ia)%im;
-  rand = ((float) seed - 0.5)/((float) (im - 1));
+  rand = ((float) seed)/((float) (im - 1)) - 0.5;
   return rand;
 }
 
@@ -168,10 +169,16 @@ static inline float input_sample (LydVM *vm,
   return ret;
 }
 
+static inline void op_inputp (OP_ARGS)
+{
+  OP_LOOP(OUT = input_sample_peek (vm, ARG0(0));)
+}
+
 static inline void op_input (OP_ARGS)
 {
   OP_LOOP(OUT = input_sample (vm, ARG0(0));)
 }
+
 
 #define MIDDLE_C 261.625565
 
@@ -244,6 +251,8 @@ static inline void op_mix (OP_ARGS)
   ALIGNED_ARGS_SILENCE;
 }
 
+#define after_ptr(ptr, type) (void*)((((char*)(ptr)) + sizeof (type)));
+
 typedef struct _ReverbData
 {
    int    pos;
@@ -274,7 +283,7 @@ static inline void op_reverb (OP_ARGS)
         {
           data = state->data = g_malloc0 (sizeof (LydSample) *size + sizeof(ReverbData));
           data->size = size;
-          data->old = (void*)((  ((char*)(data)) + sizeof (ReverbData)));
+          data->old = after_ptr (data, ReverbData);
         }
 
       sample = sample + data->old[data->pos] * reverb;
@@ -286,11 +295,80 @@ static inline void op_reverb (OP_ARGS)
   ALIGNED_ARGS_SILENCE;
 }
 
+
+typedef struct _PluckData
+{
+   int        pos;
+   int        size;
+   float      decay_ratio;
+   LydSample *old;
+} PluckData;
+
+/* Karplus Strong plucked string, implements the decaying of harmonics
+ * similar to a plucked string.
+ */
+static inline void op_pluck (OP_ARGS)
+{
+  PluckData *data   = state->data;
+  ALIGNED_ARGS;
+  int i = 0;
+  
+  for (i=0; i<samples; i++)
+    {
+      int         size   = (vm->sample_rate / ARG0(0));
+      int         p2;
+
+      if (size <=0)
+        return;
+
+      if (G_UNLIKELY (size > LYD_MAX_REVERB_SIZE))
+        size = LYD_MAX_REVERB_SIZE;
+
+      if (G_UNLIKELY (data == NULL ||
+          size != data->size))
+        {
+          data = state->data = g_malloc0 (sizeof (LydSample) *size + sizeof(PluckData));
+          data->size = size;
+          data->old = (void*)((  ((char*)(data)) + sizeof (PluckData)));
+          data->decay_ratio = ARG0(1);
+          if (data->decay_ratio != 0.0)
+            data->decay_ratio = 1.0/data->decay_ratio;
+        }
+
+      /* varying the generated original wave varies the type of pluck..
+       */
+      if (SAMPLE < size)
+        {
+          if (state->argc > 2)
+            data->old[data->pos] = ARG(2);
+          else
+            data->old[data->pos] = noise () * 2;
+        }
+
+      OUT = data->old[data->pos];
+      p2 = data->pos;
+      p2--;
+      if (p2 <0)
+        p2 += size;
+
+      if (state->argc < 2 ||
+          data->decay_ratio > (noise() + 0.5))
+        data->old[data->pos] = (data->old[data->pos] + data->old[p2])/2.00;
+
+      data->pos++;
+      if (G_UNLIKELY (data->pos >= size))
+        data->pos -= size;
+    }
+  ALIGNED_ARGS_SILENCE;
+}
+
+
 static inline void op_reverb_free (LydOpState *state)
 {
   g_free (state->data);
 }
 
+#define MAX_DELAY_SIZE   (48000 * 200)
 
 typedef struct _DelayData
 {
@@ -314,19 +392,23 @@ static inline void op_delay (OP_ARGS)
       if (size <=0)
         return;
 
-      if (G_UNLIKELY (size > LYD_MAX_REVERB_SIZE))
-        size = LYD_MAX_REVERB_SIZE;
+      if (G_UNLIKELY (size > MAX_DELAY_SIZE))
+        size = MAX_DELAY_SIZE;
 
       if (G_UNLIKELY (data == NULL ||
           size != data->size))
         {
-          data = state->data = g_malloc0 (sizeof (LydSample) *size + sizeof(DelayData));
+          if (state->data)
+            g_free (state->data);
+          data = state->data = g_malloc0 (sizeof(DelayData) +
+                                          sizeof (LydSample) * size);
           data->size = size;
-          data->old = (void*)((  ((char*)(data)) + sizeof (DelayData)));
+          data->old = after_ptr (data, DelayData);
         }
 
       OUT = data->old[data->pos];
-      data->old[data->pos++] = sample;
+      data->old[data->pos] = sample;
+      data->pos ++;
       if (G_UNLIKELY (data->pos >= size))
         data->pos = 0;
     }
@@ -334,6 +416,163 @@ static inline void op_delay (OP_ARGS)
 }
 
 static inline void op_delay_free (LydOpState *state)
+{
+  g_free (state->data);
+}
+
+typedef struct _TappedDelayData
+{
+   int    pos;
+   int    size;
+   int    asize;
+   int    taps[8];
+   LydSample *old;
+} TappedDelayData;
+
+
+static inline void op_tapped_delay (OP_ARGS) /* XXX: should perhaps have the data as last arg? */
+{
+  /* XXX: allow dynamically changing the length */
+  TappedDelayData *data   = state->data;
+  int i;
+  ALIGNED_ARGS;
+  for (i=0; i<samples; i++)
+    {
+      LydSample sample = ARG(0),
+                length[8];
+      float     max_length=0.0;
+      LydSample result = 0.0;
+      int       size;
+
+      int j;
+      if (state->argc > 1) {length[0] = ARG(1);
+      if (state->argc > 2) {length[1] = ARG(2);
+      if (state->argc > 3) {length[2] = ARG(3);
+      if (state->argc > 4) {length[3] = ARG(4);
+      if (state->argc > 5) {length[4] = ARG(5);
+      if (state->argc > 6) {length[5] = ARG(6);
+      if (state->argc > 7) {length[6] = ARG(7);}}}}}}}
+
+      for (j = 0; j < state->argc-1; j++)
+          if (length[j] > max_length)
+            max_length = length[j];
+
+      size = max_length * vm->sample_rate;
+
+      if (size <=0)
+        return;
+
+      if (G_UNLIKELY (size > MAX_DELAY_SIZE))
+        size = MAX_DELAY_SIZE;
+
+      if (G_UNLIKELY (data == NULL ||
+          size > data->asize))
+        {
+          if (state->data)
+            g_free (state->data);
+          data = state->data = g_malloc0 (sizeof (LydSample) *size + sizeof(TappedDelayData));
+          data->size = size;
+          data->asize = size;
+          data->old = after_ptr (data, TappedDelayData);
+        }
+
+      for (j = 0; j < state->argc-1; j++)
+        {
+          int tappos = data->pos + (max_length - length[j]) * vm->sample_rate + 1;
+          while (tappos >= size)
+            tappos -= size;
+          result += data->old[tappos];
+        }
+      result /= (state->argc-1);
+
+      OUT = result;
+      data->old[data->pos] = sample;
+      data->pos ++;
+      if (data->pos >= size)
+        data->pos = 0;
+    }
+  ALIGNED_ARGS_SILENCE;
+}
+
+static inline void op_tapped_delay_free (LydOpState *state)
+{
+  g_free (state->data);
+}
+
+typedef struct _TrappedDelayData
+{
+   int    pos;
+   int    size;
+   int    asize;
+   int    taps[8];
+   LydSample *old;
+} TrappedDelayData;
+
+
+static inline void op_trapped_delay (OP_ARGS) /* XXX: should perhaps have the data as last arg? */
+{
+  /* XXX: allow dynamically changing the length */
+  TrappedDelayData *data   = state->data;
+  int i;
+  ALIGNED_ARGS;
+  for (i=0; i<samples; i++)
+    {
+      LydSample sample = ARG(0),
+                length[8];
+      float     max_length=0.0;
+      LydSample result = 0.0;
+      int       size;
+
+      int j;
+      if (state->argc > 1) {length[0] = ARG(1);
+      if (state->argc > 2) {length[1] = ARG(2);
+      if (state->argc > 3) {length[2] = ARG(3);
+      if (state->argc > 4) {length[3] = ARG(4);
+      if (state->argc > 5) {length[4] = ARG(5);
+      if (state->argc > 6) {length[5] = ARG(6);
+      if (state->argc > 7) {length[6] = ARG(7);}}}}}}}
+
+      for (j = 0; j < state->argc-1; j++)
+          if (length[j] > max_length)
+            max_length = length[j];
+
+      size = max_length * vm->sample_rate;
+
+      if (size <=0)
+        return;
+
+      if (G_UNLIKELY (size > MAX_DELAY_SIZE))
+        size = MAX_DELAY_SIZE;
+
+      if (G_UNLIKELY (data == NULL ||
+          size > data->asize))
+        {
+          if (state->data)
+            g_free (state->data);
+          data = state->data = g_malloc0 (sizeof (LydSample) *size + sizeof(TrappedDelayData));
+          data->size = size;
+          data->asize = size;
+          data->old = after_ptr (data, TrappedDelayData);
+        }
+
+      for (j = 0; j < state->argc-1; j++)
+        {
+          int tappos = data->pos + (max_length - length[j]) * vm->sample_rate;
+          while (tappos >= size)
+            tappos -= size;
+          result += data->old[tappos];
+        }
+      result /= (state->argc-1);
+
+      OUT = data->old[data->pos] = sample + result * 0.999;
+      data->pos ++;
+      while (data->pos >= size)
+        data->pos -= size;
+    }
+  ALIGNED_ARGS_SILENCE;
+}
+
+static inline void op_trapped_delay_free (LydOpState *state)
 {
   g_free (state->data);
 }

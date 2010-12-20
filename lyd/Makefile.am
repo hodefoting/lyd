@@ -15,7 +15,7 @@ AM_CFLAGS = $(MAINTAINER_CFLAGS) $(JACK_CFLAGS) -DNIH
 lib_LTLIBRARIES = liblyd-@LYD_API_VERSION@.la
 
 lyd-vm.s: core/lyd-vm.c core/lyd-ops.inc
-	gcc core/lyd-vm.c -S $(CFLAGS) $(SSE_FLAGS) $(AM_CFLAGS)
+	gcc core/lyd-vm.c -S $(CFLAGS) $(INCLUDES) $(SSE_FLAGS) $(AM_CFLAGS)
 
 # please, keep the list sorted alphabetically
 liblyd_@LYD_API_VERSION@_la_SOURCES = \

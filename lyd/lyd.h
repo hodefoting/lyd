@@ -555,5 +555,21 @@ void         lyd_midi_seek  (Lyd *lyd, float position);
 void         lyd_add_op_program (Lyd *lyd, const char *name, int argc,
                                  LydProgram *program);
 
+/**
+ * lyd_mix_add_data:
+ * @lyd: lyd engine
+ * @name: name of microphone/live input
+ * @nsamples: number of samples to add
+ * @buffer: data buffer with samples to add
+ *
+ * Adds data to a named microphone, can be used with mic("name") in
+ * a lyd progam to get the live waveform from the microphone.
+ *
+ * XXX: how are underruns handled?
+ */
+void         lyd_mic_add_data (Lyd *lyd, const char *mic_name,
+                               int nsamples, float *buffer);
+
+
 
 #endif

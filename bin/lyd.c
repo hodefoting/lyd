@@ -179,7 +179,7 @@ int main (int    argc,
                       }
 
                     if (rand()%256 > 128)
-                      sdir *= -1;
+                     sdir *= -1;
                     spos += sdir;
 
                     if (spos >= 

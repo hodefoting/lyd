@@ -38,6 +38,7 @@ static void   lyd_write_to_output (Lyd *lyd, int samples,
 static void   lyd_kill_silent_voices (Lyd *lyd, SList *active);
 static void   lyd_kill_excessive_voices (Lyd *lyd, SList *active);
 static void   lyd_post_cb (Lyd *lyd, int samples, void *stream, void *stream2);
+void lyd_worker_threads_init (Lyd *lyd);
 
 long
 lyd_synthesize (Lyd  *lyd,
@@ -48,22 +49,30 @@ lyd_synthesize (Lyd  *lyd,
   SList *active = NULL;
   int i;
 
+  /* we do this here to ensure that the locking is done by the right thread */
+#ifdef LYD_THREADED
+  lyd_worker_threads_init (lyd);
+#endif
+
   lyd_prepare_buffer (lyd, samples);
   lyd_pre_cb (lyd, samples);
 
   LOCK ();
 
   active = lyd_queue_voices (lyd, samples);
-#ifdef LYD_THREADED
+
+#ifndef LYD_THREADED
+  lyd_thread_render_voices (lyd, samples, 0);
+#else
   for (i = 1; i < lyd->threads; i++)
     {
       lyd->pending_data[i]=1;
       pthread_mutex_unlock (&lyd->tmutex[i]);
       pthread_cond_signal (&lyd->tcond[i]);
     }
-#endif
+
   lyd_thread_render_voices (lyd, samples, 0);
-#ifdef LYD_THREADED
+
   for (i = 1; i < lyd->threads; i++)
     {
       pthread_mutex_lock (&lyd->tmutex[i]);
@@ -427,10 +436,10 @@ static void lyd_kill_silent_voices (Lyd *lyd, SList *active)
   for (iter=active; iter; iter=iter->next)
     {                                  /* remove released and silent voices */
       LydVM *voice = iter->data;
-      if (voice->released > voice->sample_rate / LYD_MIN_RELASE_TIME_DIVISOR
+      if (voice->released > LYD_RELEASE_MIN * voice->sample_rate
        && (voice->silence_max -
            voice->silence_min < LYD_RELEASE_THRESHOLD ||
-           voice->released > voice->sample_rate * 15.0)
+           voice->released > voice->sample_rate * 30.0)
           )
         {
           lyd->voices = slist_remove (lyd->voices, voice);
