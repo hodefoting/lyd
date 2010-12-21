@@ -188,8 +188,6 @@ Lyd * lyd_new (void)
                       "                           0.00411, 0.00437),"
                       "             0.009683, 0.003292)"));
 
-  "defun reverb 1 { tapped_echo (tapped_delay (input(0) }"
-
   lyd_add_op_program (lyd, "remove_dc", 1, lyd_compile (lyd,
                       "high_pass (1, 20, 1, input(0))"));
 
