@@ -81,7 +81,7 @@ static int osc_run (OSC_ARGS)
   program = lyd_compile (lyd, code);
   if (!program)
     return 0;
-  voices[slot] = lyd_voice_new (lyd, program, 0);
+  voices[slot] = lyd_voice_new (lyd, program, 0, 0);
 
   lyd_program_free (program);
   return 0;
