@@ -7,7 +7,7 @@ INCLUDES = -I$(srcdir) -I$(top_srcdir)
 
 AM_CPPFLAGS = \
         -DPREFIX=\""$(prefix)"\"  \
-	-I$(builddir) $(SSE_FLAGS)
+	-I$(top_builddir)/lyd $(SSE_FLAGS)
         $(NULL)
 
 AM_CFLAGS = $(MAINTAINER_CFLAGS) $(JACK_CFLAGS) -DNIH
@@ -21,7 +21,7 @@ lyd-vm.s: core/lyd-vm.c core/lyd-ops.inc
 liblyd_@LYD_API_VERSION@_la_SOURCES = \
         $(srcdir)/lyd-audio-output.c \
         $(srcdir)/lyd-patches.c \
-        $(builddir)/general-midi.inc \
+        $(top_builddir)/lyd/general-midi.inc \
         $(srcdir)/lyd-midi.c \
         $(NULL)
 
@@ -35,9 +35,9 @@ lydheadersdir = $(includedir)/lyd-@LYD_API_VERSION@/lyd
 
 lydheaders_HEADERS = $(top_srcdir)/lyd/lyd.h $(top_srcdir)/lyd/core/lyd-extend.h
 
-BUILT_SOURCES = $(builddir)/general-midi.inc
+BUILT_SOURCES = $(top_builddir)/lyd/general-midi.inc
 
-$(builddir)/general-midi.inc: $(srcdir)/general-midi.txt
+$(top_builddir)/lyd/general-midi.inc: $(srcdir)/general-midi.txt
 	echo "static char *midi_patches[256]={" > $@
 	cat $< |sed -e 's/^/"/' -e 's/$$/",/' >> $@
 	echo "};" >> $@

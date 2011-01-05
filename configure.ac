@@ -16,7 +16,7 @@ AC_CONFIG_SRCDIR([lyd/lyd.h])
 
 AM_CONFIG_HEADER([config.h])
 
-AM_INIT_AUTOMAKE([1.10] foreign)
+AM_INIT_AUTOMAKE([1.9] foreign)
 
 dnl ----------------------------- from acbirnet.m4 -------------------------------
 dnl Check whether cc accepts a certain option
