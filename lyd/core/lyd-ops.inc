@@ -113,7 +113,8 @@ LYD_OP("wave", WAVE, 2,
        OP_FUN(op_wave),;,;,
        "PCM data oscillator, first argument is a string, second argument if"
        " present is gives pitch deviation determined by desired playback hz"
-       " assuming sample recorded is middle-C, wave('test.wav') or"
+       " assuming sample recorded is middle-C note that this does not work well"
+       " if the hz deviation is larger than a couple of half notes,. <em>a relative speed would probably be better.</em>, wave('test.wav')"
        " wave('test.wav', 440.0)","('wave-identifier'[, hz])")
 
 LYD_OP("wave_loop", WAVELOOP, 2,

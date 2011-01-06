@@ -611,3 +611,13 @@ static void lyd_vm_chunk_free (LydVM *vm, LydSample *chunk)
 {
   lyd_chunk_free (vm->lyd, chunk);
 }
+
+
+void
+lyd_vm_set_complete_cb (LydVM *vm,
+                        void  (*complete_cb)(void *data),
+                        void *data)
+{
+  vm->complete_cb = complete_cb;
+  vm->complete_data = data;
+}

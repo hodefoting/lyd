@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 #ifdef HAVE_SNDFILE
 #include <sndfile.h>
@@ -55,36 +56,26 @@ void lyd_osc_init   (Lyd *lyd);
 void lyd_midi_init   (Lyd *lyd);
 #endif
 
+static void program_play_score (Lyd *lyd, LydProgram *program,
+                                const char *score, double duration);
+
 int main (int    argc,
           char **argv)
 {
   Lyd *lyd;
+  int nosound = 0;
 #ifdef HAVE_GLIB
   g_thread_init (NULL);
 #endif
   lyd = lyd_new ();
 
-  if (!lyd_audio_init (lyd, "auto"))
-    {
-      lyd_free (lyd);
-      printf ("failed to initialize lyd (audio output)\n");
-      exit (1);
-    }
+  lyd_set_sample_rate (lyd, 44100);
 
-#ifdef HAVE_SNDFILE
-  lyd_set_wave_handler (lyd, wave_handler, NULL);
-#endif
-
-#ifdef HAVE_OSC
-  lyd_osc_init (lyd);
-#endif
-#ifdef HAVE_ALSA
-  lyd_midi_init (lyd);
-#endif
 
   {
     int scale_walker = 0;
     const char *source = NULL;
+    const char *score = NULL;
     float duration = 0.3;
     float delay = 0.0;
     argv++;
@@ -92,14 +83,20 @@ int main (int    argc,
       {
         if (!strcmp (*argv, "-h"))
           {
-            printf ("Usage: lyd [-i 'instrument source' [-w delay]] [-o output.wav]\n"
+            printf ("Usage: lyd [-s score] [-i 'instrument source' [-w delay]] [-o output.wav]\n"
+                    "-s score specifies a tune to play, in a subset of ABC\n"
                     "-i specifies an instrument to compile, this instrument becomes instrument 0 in the midi set of the ALSA midi device."
 #ifdef HAVE_SNDFILE
                     "-o in addition to playback write output to a WAV file\n"
 #endif
+                    "-nosound do not attempt to initialize audio output\n"
                     "-w creates a random scale walker with the specified delay playing the instrument\n"
                     );
             return 0;
+          }
+        else if (!strcmp (*argv, "-nosound"))
+          {
+            nosound = 1;
           }
         else if (!strcmp (*argv, "-i"))
           {
@@ -110,6 +107,16 @@ int main (int    argc,
                 return -1;
               }
             source = *argv;
+          }
+        else if (!strcmp (*argv, "-s"))
+          {
+            argv++;
+            if (!*argv)
+              {
+                fprintf (stderr, "expected argument to -s\n");
+                return -1;
+              }
+            score = *argv;
           }
         else if (!strcmp (*argv, "-d"))
           {
@@ -150,19 +157,53 @@ int main (int    argc,
           }
         argv++;
       }
+
+  if (nosound)
+    {
+      lyd_set_sample_rate (lyd, 44100);
+      lyd_set_format (lyd, LYD_s16S);
+    }
+  else
+    {
+      if (!lyd_audio_init (lyd, "auto"))
+        {
+          lyd_free (lyd);
+          printf ("failed to initialize lyd (audio output)\n");
+          exit (1);
+        }
+    }
+
+
+#ifdef HAVE_OSC
+  lyd_osc_init (lyd);
+#endif
+#ifdef HAVE_ALSA
+  lyd_midi_init (lyd);
+#endif
+
+
+
     if (source)
       {
         LydProgram *program;
         LydVoice   *voice;
 
         program = lyd_compile (lyd, source);
-        printf ("Compiling: %s\n", source);
+        fprintf (stderr, "Compiling: %s\n", source);
         if (program)
           {
             /* set this source as a midi patch */
             lyd_set_patch (lyd, 0, source);
 
-            if (scale_walker)
+#ifdef HAVE_SNDFILE
+            lyd_set_wave_handler (lyd, wave_handler, NULL);
+#endif
+
+            if (score)
+              {
+                program_play_score (lyd, program, score, duration);
+              }
+            else if (scale_walker)
               {
                 int i;
                 int spos = 0;
@@ -191,23 +232,35 @@ int main (int    argc,
                         spos += sdir;
                       }
                   }
-              }
-            else
-              if (0){
-                voice = lyd_voice_new (lyd, program, 0.0, 0);
-                lyd_voice_set_param (lyd, voice, "volume", 1.0);
-                lyd_voice_set_param (lyd, voice, "hz", 440.0);
-                lyd_voice_set_duration (lyd, voice, duration);
-                lyd_voice_set_position (lyd, voice, 0.0);
-              }
+                }
+              else
+                if (0){
+                  voice = lyd_voice_new (lyd, program, 0.0, 0);
+                  lyd_voice_set_param (lyd, voice, "volume", 1.0);
+                  lyd_voice_set_param (lyd, voice, "hz", 440.0);
+                  lyd_voice_set_duration (lyd, voice, duration);
+                  lyd_voice_set_position (lyd, voice, 0.0);
+                }
           }
         else
-          return;
+          return 0;
       }
-    else 
-      welcome (lyd);
+    else
+      {
+        welcome (lyd);
+#ifdef HAVE_SNDFILE
+        lyd_set_wave_handler (lyd, wave_handler, NULL);
+#endif
+      }
   }
 
+  if (nosound)
+    {
+      int buf[1000];
+      for (;;)
+        lyd_synthesize (lyd, 1000, buf, NULL);
+      exit(0);
+    }
   for (;;)
     sleep (1);
   return 0;
@@ -258,7 +311,6 @@ static void flushit(void)
 {
   sf_write_sync (sndfile);
   sf_close (sndfile);
-  fprintf (stderr, "@flush\n");
 }
 
 static void init_wav_write (Lyd *lyd, const char *file)
@@ -281,3 +333,151 @@ static void render_cb (Lyd *lyd, int len, void *stream, void *stream2, void *dat
   sf_writef_short (sndfile, stream, len);
 }
 #endif
+
+/** abc score playback **/
+
+static int abcscale[]={0,2,4,5,7,9, 11};
+
+static float midi2hz (int midinote)
+{
+    return (440.0 * pow (2,(midinote-69.0)/12.0));
+}
+
+static LydVM *last_voice = NULL;
+
+static void abc_flush (Lyd *lyd, LydProgram *program,
+                       double *position, double duration,
+                       int *note, int *octave, int *accidental,
+                       int *gotnominator, int *nominator, int *denominator,
+                       int *gotnote, int *gotrest)
+{
+  if (*gotrest)
+    {
+      *position += (duration * *nominator) / *denominator;
+      *note = 0;
+      *nominator = 1;
+      *denominator = 1;
+      *gotnominator = 0;
+      *octave = 0;
+      *accidental = 0;
+      *gotnote = 0;
+      *gotrest = 0;
+    }
+  if (*gotnote)
+    {
+      int res;
+      LydVoice *voice;
+      res = abcscale[((*note) + 7 * 20)%7];
+      if (*note >= 7)
+        *octave += 1;
+      if (*octave)
+        res += *octave * 12;
+      res+= *accidental;
+      res += 60 - 12;
+
+      voice = lyd_voice_new (lyd, program, *position, 0);
+      lyd_voice_set_param (lyd, voice, "volume", 1.0);
+      lyd_voice_set_param (lyd, voice, "hz", midi2hz(res));
+
+      printf ("%i %f\n", res, midi2hz(res));
+
+      lyd_voice_set_duration (lyd, voice, (duration * *nominator) / *denominator);
+      lyd_voice_set_position (lyd, voice, 0.0);
+
+      *position += (duration * *nominator) / *denominator;
+
+      *note = 0;
+      *nominator = 1;
+      *denominator = 1;
+      *gotnominator = 0;
+      *octave = 0;
+      *accidental = 0;
+      *gotnote = 0;
+      *gotrest = 0;
+
+      last_voice = voice;
+    }
+}
+
+static void completed (void *data)
+{
+  printf ("completed\n");
+  exit(0);
+}
+
+static void program_play_score (Lyd *lyd, LydProgram *program,
+                                const char *score, double duration)
+{
+  const char *p;
+  int octave = 0;
+  int note = 0;
+  int gotnote = 0;
+  int gotrest = 0;
+  int accidental = 0;
+  int nominator = 1;
+  int denominator = 1;
+  int gotnominator = 0;
+  double position = 0.0;
+  char notes[] = "CDEFGABcdefgab";
+
+#define FLUSH abc_flush(lyd, program, &position, duration, &note, &octave, &accidental, &gotnominator, &nominator, &denominator, &gotnote, &gotrest);
+
+  for (p = score; *p; p++)
+    {
+      switch (*p)
+        {
+          case 'z':
+            FLUSH
+            gotrest = 1;
+            break;
+          case '^':
+            FLUSH
+            accidental ++;
+            break;
+          case '_':
+            FLUSH
+            accidental --;
+            break;
+          case '\'':
+            octave++;
+            break;
+          case ',':
+            octave--;
+            break;
+          case '/':
+            if (gotnominator)
+              denominator *= 2;
+            gotnominator = 1;
+            break;
+          case '0': case '1': case '2': case '3': case '4':
+          case '5': case '6': case '7': case '8': case '9':
+            if (!gotnominator)
+              {
+                nominator = *p - '0';
+                gotnominator = 1;
+              }
+            else
+              {
+                denominator = *p - '0';
+              }
+            break;
+          default:
+            if (strchr (notes, *p))
+              {
+                FLUSH
+                note = strchr(notes, *p)-notes;
+                gotnote = 1;
+                break;
+              }
+          case ' ':
+            break;
+        }
+    }
+  FLUSH
+#undef FLUSH
+
+  if (last_voice)
+    lyd_vm_set_complete_cb (last_voice, completed, NULL);
+  else
+    exit(0);
+}

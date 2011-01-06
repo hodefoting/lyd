@@ -332,6 +332,11 @@ LydSample *
 lyd_vm_compute (LydVM  *vm,
                 int     samples);
 
+void
+lyd_vm_set_complete_cb (LydVM *vm,
+  void  (*complete_cb)(void *data),
+  void *data);
+
 void lyd_vm_free (LydVM *vm);
 LydVM * lyd_vm_create (Lyd *lyd, LydProgram *program);
 

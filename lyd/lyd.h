@@ -571,5 +571,16 @@ void         lyd_mic_add_data (Lyd *lyd, const char *mic_name,
                                int nsamples, float *buffer);
 
 
+/**
+ * lyd_vm_set_complete_cb:
+ * @vm: a voice/instance to register a complete callback
+ * @complete_cb: callback to call
+ * @data: data to pass to complete callback.
+ *
+ * Specify a function to be called when this note is destroyed
+ */
+void         lyd_vm_set_complete_cb (LydVM *vm,
+                                     void  (*complete_cb)(void *data),
+                                     void *data);
 
 #endif

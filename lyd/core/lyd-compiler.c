@@ -251,7 +251,7 @@ static LydToken *parser_scanner_next (LydParser *parser)
   char word[MAX_TOK_LEN]="";
   int   wpos=0;
   int   incomment=0;
-  char *whitespace = "\n ";
+  char *whitespace = "\n\r\t ";
   char *numerals   = "0123456789.";
   char *operators  = "+-/*%(),^";
 
