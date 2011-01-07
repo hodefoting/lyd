@@ -59,6 +59,10 @@ void lyd_midi_init   (Lyd *lyd);
 static void program_play_score (Lyd *lyd, LydProgram *program,
                                 const char *score, double duration);
 
+static void scale_walk (Lyd *lyd, LydProgram *program, float delay, float duration);
+
+#define MAX_INSTRUMENTS 64
+
 int main (int    argc,
           char **argv)
 {
@@ -71,11 +75,10 @@ int main (int    argc,
 
   lyd_set_sample_rate (lyd, 44100);
 
-
   {
     int scale_walker = 0;
-    const char *source = NULL;
-    const char *score = NULL;
+    const char *source[MAX_INSTRUMENTS] = {NULL,};
+    const char *score[MAX_INSTRUMENTS] = {NULL,};
     float duration = 0.3;
     float delay = 0.0;
     argv++;
@@ -106,7 +109,7 @@ int main (int    argc,
                 fprintf (stderr, "expected argument to -i\n");
                 return -1;
               }
-            source = *argv;
+            source[0] = *argv;
           }
         else if (!strcmp (*argv, "-s"))
           {
@@ -116,7 +119,33 @@ int main (int    argc,
                 fprintf (stderr, "expected argument to -s\n");
                 return -1;
               }
-            score = *argv;
+            score[0] = *argv;
+          }
+        else if (strstr(*argv, "-i") == *argv)
+          {
+            int no = atoi(*argv+2);
+            argv++;
+            if (no>MAX_INSTRUMENTS || no<0)
+              no = 0;
+            if (!*argv)
+              {
+                fprintf (stderr, "expected argument to -i\n");
+                return -1;
+              }
+            source[no] = *argv;
+          }
+        else if (strstr(*argv, "-s") == *argv)
+          {
+            int no = atoi(*argv+2);
+            if (no>MAX_INSTRUMENTS || no<0)
+              no = 0;
+            argv++;
+            if (!*argv)
+              {
+                fprintf (stderr, "expected argument to -s#\n");
+                return -1;
+              }
+            score[no] = *argv;
           }
         else if (!strcmp (*argv, "-d"))
           {
@@ -181,69 +210,40 @@ int main (int    argc,
   lyd_midi_init (lyd);
 #endif
 
-
-
-    if (source)
+    if (source[0])
       {
         LydProgram *program;
         LydVoice   *voice;
-
-        program = lyd_compile (lyd, source);
-        fprintf (stderr, "Compiling: %s\n", source);
-        if (program)
-          {
-            /* set this source as a midi patch */
-            lyd_set_patch (lyd, 0, source);
+        int trackno=0;
 
 #ifdef HAVE_SNDFILE
-            lyd_set_wave_handler (lyd, wave_handler, NULL);
+        lyd_set_wave_handler (lyd, wave_handler, NULL);
 #endif
 
-            if (score)
+        for (trackno = 0; source[trackno]; trackno++)
+          {
+            program = lyd_compile (lyd, source[trackno]);
+            fprintf (stderr, "Compiling: %s\n", source[trackno]);
+            if (program)
               {
-                program_play_score (lyd, program, score, duration);
-              }
-            else if (scale_walker)
-              {
-                int i;
-                int spos = 0;
-                int sdir = 1;
-                for (i=0; i < 122; i++)
+                /* set this source as a midi patch */
+                lyd_set_patch (lyd, 0, source[trackno]);
+
+                if (score[trackno])
                   {
-                    if (rand()%256 > 16)
-                      {
-                        voice = lyd_voice_new (lyd, program, i * delay, 0);
-                        lyd_voice_set_param (lyd, voice, "volume", 1.0);
-                        lyd_voice_set_param (lyd, voice, "hz", scale[spos]);
-                        lyd_voice_set_duration (lyd, voice, duration);
-                        lyd_voice_set_position (lyd, voice, 0.0);
-                      }
-
-                    if (rand()%256 > 128)
-                     sdir *= -1;
-                    spos += sdir;
-
-                    if (spos >= 
-                        (sizeof (scale)/sizeof(scale[0]))  ||
-                        spos < 0)
-                      {
-                        sdir *= -1;
-                        spos += sdir;
-                        spos += sdir;
-                      }
+                    program_play_score (lyd, program, score[trackno], duration);
                   }
-                }
-              else
-                if (0){
-                  voice = lyd_voice_new (lyd, program, 0.0, 0);
-                  lyd_voice_set_param (lyd, voice, "volume", 1.0);
-                  lyd_voice_set_param (lyd, voice, "hz", 440.0);
-                  lyd_voice_set_duration (lyd, voice, duration);
-                  lyd_voice_set_position (lyd, voice, 0.0);
-                }
+                else if (scale_walker)
+                  {
+                    scale_walk (lyd, program, duration, delay);
+                  }
+              }
+            else
+              {
+                /* hand back compile error */
+                return 0;
+              }
           }
-        else
-          return 0;
       }
     else
       {
@@ -379,8 +379,6 @@ static void abc_flush (Lyd *lyd, LydProgram *program,
       lyd_voice_set_param (lyd, voice, "volume", 1.0);
       lyd_voice_set_param (lyd, voice, "hz", midi2hz(res));
 
-      printf ("%i %f\n", res, midi2hz(res));
-
       lyd_voice_set_duration (lyd, voice, (duration * *nominator) / *denominator);
       lyd_voice_set_position (lyd, voice, 0.0);
 
@@ -399,10 +397,14 @@ static void abc_flush (Lyd *lyd, LydProgram *program,
     }
 }
 
+static int tracks = 0;
 static void completed (void *data)
 {
-  printf ("completed\n");
-  exit(0);
+  tracks--;
+  if (tracks <= 0)
+    {
+      exit(0);
+    }
 }
 
 static void program_play_score (Lyd *lyd, LydProgram *program,
@@ -426,6 +428,7 @@ static void program_play_score (Lyd *lyd, LydProgram *program,
     {
       switch (*p)
         {
+          case '.': /* not in ABC but can be convenient */
           case 'z':
             FLUSH
             gotrest = 1;
@@ -449,6 +452,8 @@ static void program_play_score (Lyd *lyd, LydProgram *program,
               denominator *= 2;
             gotnominator = 1;
             break;
+          /* XXX: extend to deal with floating point and numbers >9,
+           * should perhaps also add * so the full expanded form is N*1.1/1.0 */
           case '0': case '1': case '2': case '3': case '4':
           case '5': case '6': case '7': case '8': case '9':
             if (!gotnominator)
@@ -476,8 +481,40 @@ static void program_play_score (Lyd *lyd, LydProgram *program,
   FLUSH
 #undef FLUSH
 
+  tracks++;
   if (last_voice)
     lyd_vm_set_complete_cb (last_voice, completed, NULL);
-  else
-    exit(0);
+}
+
+
+static void scale_walk (Lyd *lyd, LydProgram *program, float delay, float duration)
+{
+int i;
+int spos = 0;
+int sdir = 1;
+for (i=0; i < 122; i++)
+  {
+    if (rand()%256 > 16)
+      {
+        LydVoice *voice;
+        voice = lyd_voice_new (lyd, program, i * delay, 0);
+        lyd_voice_set_param (lyd, voice, "volume", 1.0);
+        lyd_voice_set_param (lyd, voice, "hz", scale[spos]);
+        lyd_voice_set_duration (lyd, voice, duration);
+        lyd_voice_set_position (lyd, voice, 0.0);
+      }
+
+    if (rand()%256 > 128)
+     sdir *= -1;
+    spos += sdir;
+
+    if (spos >= 
+        (sizeof (scale)/sizeof(scale[0]))  ||
+        spos < 0)
+      {
+        sdir *= -1;
+        spos += sdir;
+        spos += sdir;
+      }
+  }
 }
