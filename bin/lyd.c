@@ -419,6 +419,7 @@ static void program_play_score (Lyd *lyd, LydProgram *program,
   int nominator = 1;
   int denominator = 1;
   int gotnominator = 0;
+  int instring = 0;
   double position = 0.0;
   char notes[] = "CDEFGABcdefgab";
 
@@ -426,12 +427,21 @@ static void program_play_score (Lyd *lyd, LydProgram *program,
 
   for (p = score; *p; p++)
     {
-      switch (*p)
+      if (instring)
+        {
+          printf ("skipping %c\n", *p);
+          if (*p=='"')
+            instring=0;
+        }
+      else switch (*p)
         {
           case '.': /* not in ABC but can be convenient */
           case 'z':
             FLUSH
             gotrest = 1;
+            break;
+          case '"':
+            instring=1;
             break;
           case '^':
             FLUSH
@@ -448,9 +458,8 @@ static void program_play_score (Lyd *lyd, LydProgram *program,
             octave--;
             break;
           case '/':
-            if (gotnominator)
-              denominator *= 2;
             gotnominator = 1;
+            denominator *= 2;
             break;
           /* XXX: extend to deal with floating point and numbers >9,
            * should perhaps also add * so the full expanded form is N*1.1/1.0 */
