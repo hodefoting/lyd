@@ -175,13 +175,7 @@ Lyd * lyd_new (void)
   lyd_set_sample_rate (lyd, 48000);
   lyd_set_voice_count (lyd, 5);
 
-  /*
-  {
-    LydProgram *program = lyd_compile (lyd, "low_pass (1, 15000, 1, input(0))");
-    lyd_set_global_filter (lyd, program);
-    lyd_program_free (program);
-  }*/
-
+  /* this should be read from file,.. */
   lyd_add_op_program (lyd, "reverb", 1, lyd_compile (lyd,
                       "tapped_echo (tapped_delay (input(0),         "
                       "                           0.00297, 0.00371, "
@@ -190,6 +184,13 @@ Lyd * lyd_new (void)
 
   lyd_add_op_program (lyd, "remove_dc", 1, lyd_compile (lyd,
                       "high_pass (1, 20, 1, input(0))"));
+
+  /*
+  {
+    LydProgram *program = lyd_compile (lyd, "low_pass (1, 15000, 1, input(0))");
+    lyd_set_global_filter (lyd, program);
+    lyd_program_free (program);
+  }*/
 
   return lyd;
 }

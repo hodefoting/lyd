@@ -37,6 +37,7 @@
 
 static int wave_handler (Lyd *lyd, const char *wavename, void *user_data);
 static void init_wav_write (Lyd *lyd, const char *file);
+static int tracks = 0;
 
 static float scale[]=
   {261.63, 293.66, 329.63, 349.23, 392.0, 440.0, 493.88, 523.25, 587.33, 622.25};
@@ -79,6 +80,7 @@ int main (int    argc,
     int scale_walker = 0;
     const char *source[MAX_INSTRUMENTS] = {NULL,};
     const char *score[MAX_INSTRUMENTS] = {NULL,};
+    const char *key = NULL;
     float duration = 0.3;
     float delay = 0.0;
     argv++;
@@ -110,6 +112,16 @@ int main (int    argc,
                 return -1;
               }
             source[0] = *argv;
+          }
+        else if (!strcmp (*argv, "-k"))
+          {
+            argv++;
+            if (!*argv)
+              {
+                fprintf (stderr, "expected argument to -k\n");
+                return -1;
+              }
+            key = *argv;
           }
         else if (!strcmp (*argv, "-s"))
           {
@@ -213,7 +225,6 @@ int main (int    argc,
     if (source[0])
       {
         LydProgram *program;
-        LydVoice   *voice;
         int trackno=0;
 
 #ifdef HAVE_SNDFILE
@@ -257,7 +268,9 @@ int main (int    argc,
   if (nosound)
     {
       int buf[1000];
-      for (;;)
+      int i;
+      if (tracks > 0)
+      for (i = 0; i < 44100 * 60 * 4 / 1000; i ++)
         lyd_synthesize (lyd, 1000, buf, NULL);
       exit(0);
     }
@@ -397,7 +410,6 @@ static void abc_flush (Lyd *lyd, LydProgram *program,
     }
 }
 
-static int tracks = 0;
 static void completed (void *data)
 {
   tracks--;

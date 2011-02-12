@@ -59,6 +59,7 @@ int main (int    argc,
       printf ("Loaded %li bytes midi data from %s\n", length, argv[1]);
       fclose (file);
     }
+
   lyd_midi_load (lyd, (void*)mididata, length);
   lyd_midi_set_playing (lyd, 1);
   

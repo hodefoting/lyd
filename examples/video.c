@@ -1,19 +1,3 @@
-/*
- * Copyright (c) 2010 Øyvind Kolås <pippin@gimp.org>
- *
- * Permission to use, copy, modify, and/or distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- */
-
 /* This example shows how a single lyd core can be used to generate a
  * grayscale video signal. Vaiarbles X and Y are interpolated in the range
  * -1.0 .. 1.0 and ready for use in expressions run by the code, in the
@@ -52,7 +36,6 @@ static char *examples[]={
  NULL
 };
 
-static long get_ticks (void); /* utility function for measuring wall time */
 
 /* defines controlling the dimensions of framebuffer/periods for x,y variables
  */
@@ -63,31 +46,15 @@ static long get_ticks (void); /* utility function for measuring wall time */
 
 float outbuf[SIZE];
 
-static void
-init_sdl (void)
-{
-  static int inited = 0;
-
-  if (!inited)
-    {
-      inited = 1;
-
-      if (SDL_Init (SDL_INIT_VIDEO) < 0)
-        {
-          fprintf (stderr, "Unable to init SDL: %s\n", SDL_GetError ());
-          return;
-        }
-      atexit (SDL_Quit);
-      SDL_EnableUNICODE (1);
-    }
-}
+static long get_ticks (void); /* utility function for measuring wall time */
+static void init_sdl (void);
 
 int main (int    argc,
           char **argv)
 {
-  Lyd        *lyd;
-  LydFilter  *filter;
-  LydProgram *instrument;
+  Lyd         *lyd;
+  LydFilter   *filter;
+  LydProgram  *instrument;
   SDL_Surface *screen;
 
   const char *code = NULL;
@@ -109,9 +76,7 @@ int main (int    argc,
               }
         }
       else
-        {
-          code = argv[1];
-        }
+        code = argv[1];
     }
   else
     {
@@ -127,9 +92,9 @@ int main (int    argc,
 
   screen = SDL_SetVideoMode (WIDTH, HEIGHT, 32, SDL_SWSURFACE);
 
-  lyd_set_sample_rate (lyd, SIZE); /* XXX: should have a dummy sample rate */
-
+  lyd_set_sample_rate (lyd, SIZE); /* 1.0s be equal to total pixel count */
   printf ("{%s}\n", code);
+
   instrument = lyd_compile (lyd, code);
   if (!instrument)
     return 0;
@@ -138,26 +103,32 @@ int main (int    argc,
   float rowstride = 1.0/scanlines;   /* rowstride in seconds */
 
 #define PX2TIME(x,y)    (y * 1) + (x * rowstride) /* converts a pixel
-                                                       coordinate to time */
+                                                     coordinate to time */
   for (;;)
     {
       int j;
       int *pixels = screen->pixels;
+      double elapsed;
 
-      /* create */
 #define PX 0.00001
 #define PX2 0.01
-      lyd_vm_set_param_delayed (filter, "y", PX2TIME(0, 0)+PX2,   LYD_LINEAR, -1.0);
-      lyd_vm_set_param_delayed (filter, "y", PX2TIME(1.0, 1.0)-PX2, LYD_LINEAR, 1.0);
+      /* configure parameter values for CRT video (zero-time h and v-retrace) */
+      lyd_vm_set_param_delayed (filter,
+                                "y", PX2TIME(0, 0)+PX2, LYD_LINEAR, -1.0);
+      lyd_vm_set_param_delayed (filter,
+                                "y", PX2TIME(1.0, 1.0)-PX2, LYD_LINEAR, 1.0);
 
       for (j = 0;j<scanlines; j++)
         {
-          lyd_vm_set_param_delayed (filter, "x", PX2TIME(0, (1.0 * j/scanlines))+PX, LYD_LINEAR, -1.0);
-          lyd_vm_set_param_delayed (filter, "x", PX2TIME(1, (1.0 * j/scanlines))-PX, LYD_LINEAR,  1.0);
+          lyd_vm_set_param_delayed (filter,
+                    "x", PX2TIME(0, (1.0 * j/scanlines))+PX, LYD_LINEAR, -1.0);
+          lyd_vm_set_param_delayed (filter,
+                    "x", PX2TIME(1, (1.0 * j/scanlines))-PX, LYD_LINEAR,  1.0);
         }
 
       tick_start = get_ticks ();
 
+      /* process the filter, getting SIZE samples out, write them to outbuf */
       lyd_filter_process (filter, NULL, 0, outbuf, SIZE);
 
       for (j = 0; j < SIZE; j++)
@@ -167,11 +138,10 @@ int main (int    argc,
           pixels[j] = val + (val << 8) + (val << 16);
         }
 
-      long nticks = get_ticks ();
-      double elapsed = (nticks - tick_start)/1000000.0;
-      fprintf (stderr, "\r%f fps  ", 1.0/elapsed);
-
       SDL_UpdateRect (screen, 0, 0, 0, 0);
+
+      elapsed = (get_ticks () - tick_start)/1000000.0;
+      fprintf (stderr, "\r%f fps  ", 1.0/elapsed);
 
       SDL_Event event;
       while (SDL_PollEvent  (&event))
@@ -189,6 +159,27 @@ int main (int    argc,
   lyd_free (lyd);
   return 0;
 }
+
+/********/
+
+static void
+init_sdl (void)
+{
+  static int inited = 0;
+
+  if (!inited)
+    {
+      inited = 1;
+
+      if (SDL_Init (SDL_INIT_VIDEO) < 0)
+        {
+          fprintf (stderr, "Unable to init SDL: %s\n", SDL_GetError ());
+          return;
+        }
+      atexit (SDL_Quit);
+    }
+}
+
 
 
 static struct timeval start_time;
