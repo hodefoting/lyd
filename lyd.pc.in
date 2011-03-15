@@ -7,5 +7,5 @@ apiversion=@LYD_API_VERSION@
 Name: lyd
 Description: audio synthesis engine
 Version: @VERSION@
-Libs: -L${libdir} -llyd-${apiversion}
+Libs: -L${libdir} -llyd-${apiversion} -lm
 Cflags: -I${includedir}/lyd-${apiversion}

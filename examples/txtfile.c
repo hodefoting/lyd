@@ -119,9 +119,9 @@ static int
 wav_write_header (FILE *stream,
                   int   num_samples)
 {
+#if 0
   int32_t i32;
   int16_t i16;
-#if 0
   fwrite ("RIFF", 4, 1, stream);
   i32 = htole32 (num_samples + 0x32);
   fwrite (&i32, sizeof (i32), 1, stream);
