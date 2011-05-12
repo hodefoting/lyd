@@ -292,7 +292,7 @@ lyd_synthesize_voice (Lyd   *lyd,
 
 static SList *lyd_queue_voices (Lyd *lyd, int samples)
 {
-  SList *active, *iter = NULL;
+  SList *active = NULL, *iter = NULL;
   int thread_no = 0;
 #ifdef LYD_THREADED
   lyd->tsamples = samples;
