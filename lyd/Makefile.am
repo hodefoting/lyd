@@ -28,7 +28,7 @@ liblyd_@LYD_API_VERSION@_la_SOURCES = \
 EXTRA_DIST = core/lyd-private.h core/lyd-ops.inc core/lyd-ops.c general-midi.txt
 
 liblyd_@LYD_API_VERSION@_la_LIBADD = liblyd-core-@LYD_API_VERSION@.la \
-                                     $(ALSA_LIBS) $(JACK_LIBS) -lpthread -lm
+                                     $(ALSA_LIBS) $(JACK_LIBS) -lpthread
 liblyd_@LYD_API_VERSION@_la_LDFLAGS = $(ALSA_LT_LDFLAGS)  $(JACK_LT_LDFLAGS)
 
 lydheadersdir = $(includedir)/lyd-@LYD_API_VERSION@/lyd

@@ -70,6 +70,8 @@ LYD_LT_LDFLAGS="-version-info $LYD_LT_VERSION"
 AC_SUBST(LYD_LT_VERSION)
 AC_SUBST(LYD_LT_LDFLAGS)
 
+
+
 dnl ========================================================================
 
 # Checks for programs.
@@ -143,6 +145,12 @@ fi
 AC_SUBST(OSC_CFLAGS)
 AC_SUBST(OSC_LIBS)
 AM_CONDITIONAL(HAVE_OSC, test "$have_osc" = "yes")
+
+dnl ========================================================================
+
+AC_CHECK_HEADERS(dl.h)
+AC_SEARCH_LIBS([dlopen], [dl])
+AC_SEARCH_LIBS([sin],    [m])
 
 dnl ========================================================================
 
