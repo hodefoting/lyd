@@ -7,11 +7,15 @@ http://www.icrobotics.co.uk/wiki/index.php/Turning_the_Raspberry_Pi_Into_an_FM_T
 
 
 #define RPI_BUF_SIZE  1
-int rpi_sample_rate = 11025;
-//int rpi_sample_rate = 22050;
+int rpi_sample_rate = 9000; /* we don't need to obey any standard, just
+                                be low enough that we have enough headroom
+                                to outweigh most glitches
+                              */
 
-static float stochastic_iters = 450;
-#define RPI_N_ADJUST            256
+static float stochastic_iters = 450;  /* this is auto-tuned on the fly */
+
+
+#define RPI_N_ADJUST            256   /* auto adjust every N samples proceesed*/
 
 
 #define BCM2708_PERI_BASE        0x20000000
@@ -167,15 +171,11 @@ static void sample_adjust (void)
       float target_rate = rpi_sample_rate;
 
 
-      //if (fabs(play_rate - target_rate))
-        {
-	  if (play_rate > target_rate)
-	    stochastic_iters *= 1.01;
-	  else
-	    stochastic_iters *= 0.99;
+      if (play_rate > target_rate)
+        stochastic_iters *= 1.02;
+      else
+        stochastic_iters *= 0.98;
           
-          fprintf (stderr, "[%2.2f %f %f]\n", stochastic_iters, play_rate, target_rate);
-        }
       prev_ticks = ticks;
     }
 }

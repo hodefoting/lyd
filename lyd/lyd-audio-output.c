@@ -26,10 +26,8 @@
 extern int lyd_dead;
 
 /* XXX: uncomment the following to enable rpi gpip FM output */
-/*
 #define HAVE_RPIFM
 #include "rpi-fm.c"
-*/
 
 #ifdef HAVE_ALSA
 #include <pthread.h>
@@ -249,7 +247,6 @@ lyd_audio_init_rpifm (Lyd *lyd)
 
   lyd_set_sample_rate (lyd, rpi_sample_rate);
   lyd_set_format (lyd, LYD_f32);
-  //pthread_create(&tid, NULL, rpifm_audio_render, lyd);
   pthread_create(&tid, NULL, rpifm_audio_consume, lyd);
   return 1;
 }
