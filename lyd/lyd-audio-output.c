@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -23,6 +24,13 @@
 #include "config.h"
 #endif
 extern int lyd_dead;
+
+/* XXX: uncomment the following to enable rpi gpip FM output */
+/*
+#define HAVE_RPIFM
+#include "rpi-fm.c"
+*/
+
 #ifdef HAVE_ALSA
 #include <pthread.h>
 #include <alsa/asoundlib.h>
@@ -30,6 +38,8 @@ extern int lyd_dead;
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+
+
 
 /* This is what my sound card gives me when using ALSA directly,
  * and it is what gives the best performance when using pulseaudio.
@@ -210,6 +220,42 @@ lyd_audio_init_jack (Lyd *lyd)
 }
 #endif
 
+#ifdef HAVE_RPIFM
+
+#include <pthread.h>
+
+static void *rpifm_audio_consume(void *aux)
+{
+  Lyd *lyd = aux;
+  float buffer[RPI_BUF_SIZE];
+  for (;;) {
+    int j;
+    if (lyd_dead)
+      return NULL;
+
+    lyd_synthesize (lyd, RPI_BUF_SIZE, buffer, NULL);
+    for (j = 0; j < RPI_BUF_SIZE; j++)
+      fm_play_sample ((buffer[j]+0.5));
+  }
+  return NULL;
+}
+
+int
+lyd_audio_init_rpifm (Lyd *lyd)
+{
+  pthread_t tid;
+
+  fm_setup ();
+
+  lyd_set_sample_rate (lyd, rpi_sample_rate);
+  lyd_set_format (lyd, LYD_f32);
+  //pthread_create(&tid, NULL, rpifm_audio_render, lyd);
+  pthread_create(&tid, NULL, rpifm_audio_consume, lyd);
+  return 1;
+}
+
+#endif
+
 int
 lyd_audio_init (Lyd       *lyd,
                 const char *driver)
@@ -219,6 +265,10 @@ lyd_audio_init (Lyd       *lyd,
     return 1;
   else if (strstr (driver, "auto"))
     {
+#ifdef HAVE_RPIFM
+       if (lyd_audio_init_rpifm (lyd))
+         return 1;
+#endif
 #ifdef HAVE_JACK
        if (lyd_audio_init_jack (lyd))
          return 1;
