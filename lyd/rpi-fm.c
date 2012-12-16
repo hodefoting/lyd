@@ -86,11 +86,11 @@ struct GPCTL {
     char PASSWD      : 8;
 };
 
-void fm_setup()
+void fm_setup(float frequency)
 {
     setup_io();
 
-    float temp = 500.0 / 108.0;//atof(argv[2]);
+    float temp = 500.0 / frequency;
     temp *= (16*16*16);
     freq_const = (int)temp;
 
@@ -273,10 +273,10 @@ void setup_io()
 } // setup_io
 
 
-#ifndef HAVE_RPIFM
+#ifndef HAVE_PIFM
 int main(int argc, char **argv)
 {
-    fm_setup();
+    fm_setup(108);
     fm_modulate(0);
 
    //if statement modified by rgrasell@gmail.com to check for new argument, and to set freq_const

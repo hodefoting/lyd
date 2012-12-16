@@ -25,8 +25,8 @@
 #endif
 extern int lyd_dead;
 
-/* XXX: uncomment the following to enable rpi gpip FM output */
-#define HAVE_RPIFM
+/* it also compiles for x86 but is unusable there */
+#define HAVE_PIFM
 #include "rpi-fm.c"
 
 #ifdef HAVE_ALSA
@@ -218,11 +218,11 @@ lyd_audio_init_jack (Lyd *lyd)
 }
 #endif
 
-#ifdef HAVE_RPIFM
+#ifdef HAVE_PIFM
 
 #include <pthread.h>
 
-static void *rpifm_audio_consume(void *aux)
+static void *pifm_audio_consume(void *aux)
 {
   Lyd *lyd = aux;
   float buffer[RPI_BUF_SIZE];
@@ -239,15 +239,20 @@ static void *rpifm_audio_consume(void *aux)
 }
 
 int
-lyd_audio_init_rpifm (Lyd *lyd)
+lyd_audio_init_pifm (Lyd *lyd)
 {
   pthread_t tid;
-
-  fm_setup ();
+  {
+    const char *freq = getenv ("LYD_FM_HZ");
+    if (freq)
+      fm_setup (atof(freq));
+    else
+      fm_setup (108);
+  }
 
   lyd_set_sample_rate (lyd, rpi_sample_rate);
   lyd_set_format (lyd, LYD_f32);
-  pthread_create(&tid, NULL, rpifm_audio_consume, lyd);
+  pthread_create(&tid, NULL, pifm_audio_consume, lyd);
   return 1;
 }
 
@@ -257,15 +262,14 @@ int
 lyd_audio_init (Lyd       *lyd,
                 const char *driver)
 {
+  if (getenv ("LYD_DRIVER") && driver && strstr (driver, "auto"))
+    driver = getenv ("LYD_DRIVER");
+
   if (driver == NULL
    || strstr (driver, "none"))
     return 1;
   else if (strstr (driver, "auto"))
     {
-#ifdef HAVE_RPIFM
-       if (lyd_audio_init_rpifm (lyd))
-         return 1;
-#endif
 #ifdef HAVE_JACK
        if (lyd_audio_init_jack (lyd))
          return 1;
@@ -274,7 +278,15 @@ lyd_audio_init (Lyd       *lyd,
        if (lyd_audio_init_alsa (lyd))
          return 1;
 #endif
+#ifdef HAVE_PIFM
+       if (lyd_audio_init_pifm (lyd))
+         return 1;
+#endif
     }
+#ifdef HAVE_PIFM
+  else if (strstr (driver, "pifm"))
+    return lyd_audio_init_pifm (lyd);
+#endif
 #ifdef HAVE_ALSA
   else if (strstr (driver, "alsa"))
     return lyd_audio_init_alsa (lyd);
