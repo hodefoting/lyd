@@ -25,16 +25,7 @@ static float stochastic_iters = 450;  /* this is auto-tuned on the fly */
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <fcntl.h>
-#if 0
-#include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
-#include <dirent.h>
-#include <math.h>
-#include <assert.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#endif
 
 #include <unistd.h>
 #include <sys/time.h>
@@ -114,7 +105,7 @@ void fm_setup(float frequency)
 }
 
 //function slightly modified by rgrasell@gmail.com to allow for changing frequencies
-static void fm_modulate(int m)
+static inline void fm_modulate(int m)
 {
     ACCESS(CM_GP0DIV) = (0x5a << 24) + freq_const  + m;
 }
@@ -136,20 +127,13 @@ init_ticks (void)
   gettimeofday (&start_time, NULL);
 }
 
-long
+static inline long
 get_ticks (void)
 {
   struct timeval measure_time;
-  init_ticks ();
   gettimeofday (&measure_time, NULL);
   return usecs (measure_time) - usecs (start_time);
 }
-
-
-//static int stochastic_iters = 6000;
-
-#include <stdio.h>
-
 
 static void sample_adjust (void)
 {
@@ -172,20 +156,21 @@ static void sample_adjust (void)
 
 
       if (play_rate > target_rate)
-        stochastic_iters *= 1.02;
+        stochastic_iters *= 1.002;
       else
-        stochastic_iters *= 0.98;
-          
+        stochastic_iters *= 0.995;
+
       prev_ticks = ticks;
     }
 }
 
 static inline void fm_play_sample (float sample)
 {
-  int intval = (int)(floor(sample*15.0));
-  float frac = sample - (float)intval;
+  float dval = sample*25.0;
+  int intval = (int)((dval));
+  float frac = dval - (float)intval;
   unsigned int fracval = (unsigned int)(frac*((float)(1<<16))*((float)(1<<16)));
-  unsigned int rnd=1;
+  static unsigned int rnd=1;
   int i;
 
   for (i=0; i<stochastic_iters; i++)
@@ -207,7 +192,6 @@ void playWav(char* filename)
     lseek(fp, 0L, SEEK_SET);
     short* data = (short*)malloc(sz);
     read(fp, data, sz);
-    close (fp);
     for (j=22; j<sz/2; j++)
       fm_play_sample((float)(data[j])/65536.0);
 }
@@ -278,6 +262,8 @@ int main(int argc, char **argv)
 {
     fm_setup(108);
     fm_modulate(0);
+    rpi_sample_rate = 22050;
+    stochastic_iters = 270;
 
    //if statement modified by rgrasell@gmail.com to check for new argument, and to set freq_const
     if (argc==3){
