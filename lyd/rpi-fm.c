@@ -15,7 +15,7 @@ int rpi_sample_rate = 9000; /* we don't need to obey any standard, just
 static float stochastic_iters = 450;  /* this is auto-tuned on the fly */
 
 
-#define RPI_N_ADJUST            256   /* auto adjust every N samples proceesed*/
+#define RPI_N_ADJUST            128   /* auto adjust every N samples proceesed*/
 
 
 #define BCM2708_PERI_BASE        0x20000000
@@ -26,7 +26,7 @@ static float stochastic_iters = 450;  /* this is auto-tuned on the fly */
 #include <sys/types.h>
 #include <fcntl.h>
 #include <stdlib.h>
-
+#include <stdio.h>
 #include <unistd.h>
 #include <sys/time.h>
 
@@ -137,6 +137,7 @@ get_ticks (void)
 
 static void sample_adjust (void)
 {
+  static int corrective = 1;
   static int first = 1;
   static int prev_ticks = 0;
   long elapsed;
@@ -150,15 +151,34 @@ static void sample_adjust (void)
       long ticks = get_ticks ();
       elapsed = ticks - prev_ticks;
      
-
       float play_rate = (RPI_N_ADJUST * 1.0) / (elapsed / 1000000.0);
       float target_rate = rpi_sample_rate;
+      float diff, adiff;
 
+      diff = target_rate - play_rate;
+      adiff = diff > 0?diff:-diff;
 
-      if (play_rate > target_rate)
-        stochastic_iters *= 1.002;
-      else
-        stochastic_iters *= 0.995;
+      /* if difference between actual sample rate and desired sample rate
+         is larger than 5% start correcting
+       */
+
+      if (adiff / target_rate > 0.05)
+        corrective = 1;
+      if (corrective)
+        {
+          if (adiff / target_rate < 0.001)
+            {
+              corrective = 0;
+            }
+          else
+            {
+              corrective++;
+              if (diff < 0)
+                stochastic_iters *= 1.005;
+              else
+                stochastic_iters *= 0.995;
+            }
+        }
 
       prev_ticks = ticks;
     }
