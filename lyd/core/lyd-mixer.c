@@ -40,6 +40,15 @@ static void   lyd_kill_excessive_voices (Lyd *lyd, SList *active);
 static void   lyd_post_cb (Lyd *lyd, int samples, void *stream, void *stream2);
 void lyd_worker_threads_init (Lyd *lyd);
 
+/**
+ 
+  todo:
+    provide a snapshot dump of the rendering state
+    with pointers to relevant objects
+
+    this should not be relied upon as stable API
+ **/
+
 long
 lyd_synthesize (Lyd  *lyd,
                 int   samples,

@@ -364,7 +364,6 @@ static inline void op_pluck (OP_ARGS)
           data->size = size;
           data->old = after_ptr (data, PluckData);
 
-
           data->decay_ratio = ARG0(1);
           if (data->decay_ratio != 0.0)
             data->decay_ratio = 1.0/data->decay_ratio;

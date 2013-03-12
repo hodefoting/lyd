@@ -243,6 +243,8 @@ struct _Lyd
                           double      default_value,
                           void       *user_data);
   void     *var_handler_data;
+  void    (*var_handler_destroy) (void *data);
+  void     *var_handler_destroy_data;
 
 
   LydSample level;
@@ -273,6 +275,7 @@ struct _Lyd
   int             buf_len;
 
 
+  /* XXX: nees destroy_notifys */
   void (*pre_cb[LYD_MAX_CBS])(Lyd *lyd, float elapsed, void *data);
   void *pre_cb_data[LYD_MAX_CBS];
   void (*post_cb[LYD_MAX_CBS])(Lyd *lyd, int len, void *stream, void *stream2, void *data);
@@ -282,6 +285,7 @@ struct _Lyd
 
   //LydMic   *mic[LYD_MAX_MIC];
 
+  /* XXX: nees destroy_notify */
   LydWave  *wave[LYD_MAX_WAVE];
   int     (*wave_handler) (Lyd *lyd, const char *name,
                            void *user_data);

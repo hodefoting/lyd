@@ -258,6 +258,69 @@ lyd_audio_init_pifm (Lyd *lyd)
 
 #endif
 
+
+#ifdef HAVE_MMM
+#include <jack/jack.h>
+#include <jack/transport.h>
+
+static jack_client_t *client = NULL;
+static jack_port_t *output_port = NULL;
+static Lyd *jack_lyd = NULL;
+
+int mmm_process (jack_nframes_t nframes,
+                 void          *arg)
+{
+  unsigned char *buf;
+  int samples = nframes;
+  buf = jack_port_get_buffer (output_port, nframes);
+  lyd_synthesize (jack_lyd, samples, buf, NULL);
+  return 0;
+}
+
+int
+lyd_audio_init_mmm (Lyd *lyd)
+{
+  const char **ports;
+  int i;
+
+  jack_lyd = lyd;
+  if ((client = jack_client_open ("picolyd",
+                                  JackNoStartServer, NULL)) == 0)
+    {
+      return 0;
+    }
+  jack_set_process_callback (client, jack_process, 0);
+  output_port = jack_port_register (client, "lyd",
+                                    JACK_DEFAULT_AUDIO_TYPE,
+                                    JackPortIsOutput, 0);
+
+  if (jack_activate (client))
+    {
+      fprintf (stderr, "cannot activate jack client\n");
+      return 0;
+    }
+
+  if ((ports = jack_get_ports (client, NULL, NULL,
+                               JackPortIsPhysical|JackPortIsInput)) == NULL)
+    {
+      fprintf (stderr, "cannot find a physical capture port\n");
+      return 0;
+    }
+
+  for (i = 0; ports[i]; i++)
+    {
+      /* brute force connect */
+      jack_connect (client, jack_port_name (output_port), ports[i]);
+    }
+  free (ports);
+
+  lyd_set_sample_rate (lyd, jack_get_sample_rate (client));
+  lyd_set_format (lyd, LYD_f32);
+
+  return 1;
+}
+#endif
+
 int
 lyd_audio_init (Lyd       *lyd,
                 const char *driver)
@@ -270,6 +333,10 @@ lyd_audio_init (Lyd       *lyd,
     return 1;
   else if (strstr (driver, "auto"))
     {
+#ifdef HAVE_MMM
+      if (lyd_audio_init_mmm (lyd))
+        return 1;
+#endif
 #ifdef HAVE_JACK
        if (lyd_audio_init_jack (lyd))
          return 1;

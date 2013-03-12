@@ -396,9 +396,27 @@ lyd_set_var_handler (Lyd *lyd,
                                           void *user_data),
                      void *user_data)
 {
+  lyd_set_var_handler_full (lyd, var_handler, user_data, NULL, NULL);
+}
+
+void
+lyd_set_var_handler_full (Lyd *lyd,
+                          void (*var_handler) (Lyd *lyd,
+                                               const char *var,
+                                               double default_value,
+                                               void *user_data),
+                          void *user_data,
+                          void (*destroy_notify)(void *destory_data),
+                          void *destroy_data)
+{
   LOCK ();
+  if (lyd->var_handler_destroy)
+      lyd->var_handler_destroy (lyd->var_handler_destroy_data);
+
   lyd->var_handler = var_handler;
   lyd->var_handler_data = user_data;
+  lyd->var_handler_destroy = destroy_notify;
+  lyd->var_handler_destroy_data = destroy_data;
   UNLOCK ();
 }
 
