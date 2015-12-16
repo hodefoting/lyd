@@ -283,7 +283,7 @@ void lyd_init_lookup_tables (void)
     step = M_PI * 2.0f / (float)LOOKUP_SIZE;
     lookup_inv_step = 1.0f / step;
 
-    for (i = 0; i <= LOOKUP_SIZE_REAL; i++, f += step)
+    for (i = 0; i < LOOKUP_SIZE_REAL; i++, f += step)
       sin_lookup[i] = sinf(f);
   }
 }
