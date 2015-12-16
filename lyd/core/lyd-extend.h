@@ -132,7 +132,7 @@ void         lyd_add_op         (Lyd *lyd, const char *name, int argc,
    * the 16 byte alignment of the memory addresses.
    */
   #define ALIGNED_ARGS \
-    LydChunk * __restrict__ arg0 = (void*)(state->arg[0]);\
+    LydChunk * __restrict__ __attribute__((unused))  arg0 = (void*)(state->arg[0]);\
     LydChunk * __restrict__ arg1 = (void*)(state->arg[1]);\
     LydChunk * __restrict__ arg2 = (void*)(state->arg[2]);\
     LydChunk * __restrict__ arg3 = (void*)(state->arg[3]);\
