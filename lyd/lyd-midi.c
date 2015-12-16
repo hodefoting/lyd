@@ -366,9 +366,9 @@ static void process_meta_event(LydMidi *midi, const unsigned char **pos, long *t
       return;
    }
    if (metatype == 0x51) { /* tempo change */
-      int bpm;
+      //int bpm;
       tempo = (*pos)[0] * 0x10000L + (*pos)[1] * 0x100 + (*pos)[2];
-      bpm = midi->ticks_per_quarter_note * 1000000/tempo;
+      //bpm = midi->ticks_per_quarter_note * 1000000/tempo;
       midi->new_speed =    ((tempo/1000) * (TIMERS_PER_SECOND/1000.0))
                          / midi->ticks_per_quarter_note;
    }
@@ -641,10 +641,10 @@ static void pause_midi (LydMidi *midi)
 static int midi_seek(LydMidi *midi, int target)
 {
    int old_loop;
-   int old_patch[MIDI_CHANNELS];
-   int old_volume[MIDI_CHANNELS];
-   int old_pan[MIDI_CHANNELS];
-   int old_pitch_bend[MIDI_CHANNELS];
+   //int old_patch[MIDI_CHANNELS];
+   //int old_volume[MIDI_CHANNELS];
+   //int old_pan[MIDI_CHANNELS];
+   //int old_pitch_bend[MIDI_CHANNELS];
    int c;
 
    if (!midi->loaded)
@@ -655,10 +655,10 @@ static int midi_seek(LydMidi *midi, int target)
 
    /* store current settings */
    for (c=0; c<MIDI_CHANNELS; c++) {
-      old_patch[c] =      midi->channel[c].patch;
-      old_volume[c] =     midi->channel[c].volume;
-      old_pan[c] =        midi->channel[c].pan;
-      old_pitch_bend[c] = midi->channel[c].pitch_bend;
+      //old_patch[c] =      midi->channel[c].patch;
+      //old_volume[c] =     midi->channel[c].volume;
+      //old_pan[c] =        midi->channel[c].pan;
+      //old_pitch_bend[c] = midi->channel[c].pitch_bend;
    }
 
    /* save some variables and give temporary values */
@@ -745,7 +745,8 @@ void lyd_midi_note_on (LydMidi *midi, int channel, int note, int vol)
 {
   int hashkey = gen_hash (channel, note);
   LydVM *voice;
-  int inst, bend, corrected_note;
+  // int inst;
+  int bend, corrected_note;
 
   if (vol == 0 && midi->channel[channel].note_volume[note] >=0)
     {
@@ -757,11 +758,11 @@ void lyd_midi_note_on (LydMidi *midi, int channel, int note, int vol)
     lyd_midi_note_off (midi, channel, note);
 
   if (channel == 9) { /* Adjust values used to create voice if it is a drum sound */
-     inst = 128+note;
+     //inst = 128+note;
      corrected_note = 60;
      bend = 0;
   } else {
-     inst = midi->channel[channel].patch;
+     //inst = midi->channel[channel].patch;
      corrected_note = note;
      bend = midi->channel[channel].pitch_bend;
   }
@@ -990,7 +991,7 @@ void lyd_midi_init (Lyd *lyd)
   int err;
   static struct pollfd pfd;
   int npfd;
-  int port_no;
+  //int port_no;
   pthread_t tid;
 
   midi_init (lyd);
@@ -998,7 +999,8 @@ void lyd_midi_init (Lyd *lyd)
   if (err < 0)
     return;
   snd_seq_set_client_name(handle, "lyd");
-  port_no = snd_seq_create_simple_port(handle, "in_1",
+  //port_no =
+  snd_seq_create_simple_port(handle, "in_1",
                         SND_SEQ_PORT_CAP_WRITE|SND_SEQ_PORT_CAP_SUBS_WRITE,
                         SND_SEQ_PORT_TYPE_MIDI_GENERIC);
 
