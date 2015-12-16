@@ -25,10 +25,6 @@
 #endif
 extern int lyd_dead;
 
-/* it also compiles for x86 but is unusable there */
-#define HAVE_PIFM
-#include "rpi-fm.c"
-
 #ifdef HAVE_ALSA
 #include <pthread.h>
 #include <alsa/asoundlib.h>
