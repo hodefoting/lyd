@@ -80,7 +80,7 @@ int main (int    argc,
     int scale_walker = 0;
     const char *source[MAX_INSTRUMENTS] = {NULL,};
     const char *score[MAX_INSTRUMENTS] = {NULL,};
-    const char *key = NULL;
+    //const char *key = NULL;
     float duration = 0.3;
     float delay = 0.0;
     argv++;
@@ -121,7 +121,7 @@ int main (int    argc,
                 fprintf (stderr, "expected argument to -k\n");
                 return -1;
               }
-            key = *argv;
+            //key = *argv;
           }
         else if (!strcmp (*argv, "-s"))
           {
