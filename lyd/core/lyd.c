@@ -464,7 +464,7 @@ LydSample *lyd_chunk_new (Lyd *lyd)
           lyd->chunk_pools = slist_prepend (lyd->chunk_pools, pool);
           pool->alloc = g_malloc0 (sizeof (LydSample) * LYD_CHUNK * POOL_SIZE + LYD_ALIGN * 2);
           /* align memory */
-          pool->mem = (void*) (pool->alloc) + (LYD_ALIGN-((int)((char *)pool->alloc)) % LYD_ALIGN);
+          pool->mem = (void*) (pool->alloc) + (LYD_ALIGN-((long int)((char *)pool->alloc)) % LYD_ALIGN);
         }
     }
   for (no = 0; no < POOL_SIZE; no++)
