@@ -263,9 +263,9 @@ lyd_vm_free (LydVM *vm)
                             * with slower oscillations there would be repeated
                             * values.
                             */
-#define LOOKUP_SIZE   (1<<LOOKUP_BITS)
+#define LOOKUP_SIZE        (1<<LOOKUP_BITS)
 #define LOOKUP_SIZE_REAL   (1<<(LOOKUP_BITS-2))
-#define LOOKUP_MASK   (LOOKUP_SIZE-1)
+#define LOOKUP_MASK        (LOOKUP_SIZE-1)
 
 static float lookup_inv_step;
 static float sin_lookup[LOOKUP_SIZE_REAL];
@@ -291,6 +291,9 @@ void lyd_init_lookup_tables (void)
 /* inline lookuptable based sine function  */
 static inline float sine (float a)
 {
+#if 1
+  return sinf (a);
+#else
   int index = (((int)(a * lookup_inv_step)) & LOOKUP_MASK);
   /* reduce index down to first quarter */
   if (index >= LOOKUP_SIZE/2)
@@ -303,6 +306,7 @@ static inline float sine (float a)
   if (index >= LOOKUP_SIZE/4)
     index = LOOKUP_SIZE/2-index;
   return sin_lookup [index];
+#endif
 }
 
 static inline float phase (LydVM *vm, LydOpState *state, float hz)
