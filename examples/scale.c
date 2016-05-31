@@ -27,8 +27,8 @@ int main (int    argc, char **argv)
   for (i = 0; i<14;i++)
     {
       voice = lyd_voice_new (lyd, instrument, 0.3 * i, 0);
-      lyd_voice_set_param (lyd, voice, "hz", scale[i]);
-      lyd_voice_set_duration (lyd, voice, 0.2);
+      lyd_voice_set_param (voice, "hz", scale[i]);
+      lyd_voice_set_duration (voice, 0.2);
     }
   lyd_program_free (instrument);
 

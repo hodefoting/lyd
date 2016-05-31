@@ -55,7 +55,7 @@ void lyd_voice_kill (LydVM *voice)
   UNLOCK ();
 }
 
-void
+LydVoice *
 lyd_voice_release (LydVM *voice)
 {
   Lyd *lyd = voice->lyd;
@@ -67,6 +67,7 @@ lyd_voice_release (LydVM *voice)
       voice->silence_max = 100;
     }
   UNLOCK ();
+  return voice;
 }
 
 /* should only be called after the sample rate has been set
@@ -133,22 +134,24 @@ LydVoice *lyd_voice_new (Lyd        *lyd,
   return voice;
 }
 
-void lyd_voice_set_duration (LydVoice *voice, double seconds)
+LydVoice *lyd_voice_set_duration (LydVoice *voice, double seconds)
 {
   Lyd *lyd = voice->lyd;
   LOCK ();
   if (slist_find (lyd->voices, voice))
     voice->duration = seconds * lyd->sample_rate;
   UNLOCK ();
+  return voice;
 }
 
-void lyd_voice_set_delay (LydVoice *voice, double seconds)
+LydVoice *lyd_voice_set_delay (LydVoice *voice, double seconds)
 {
   Lyd *lyd = voice->lyd;
   LOCK ();
   if (slist_find (lyd->voices, voice))
     voice->sample = - (seconds * lyd->sample_rate);
   UNLOCK ();
+  return voice;
 }
 
 void lyd_init_lookup_tables (void);
@@ -243,18 +246,19 @@ void lyd_free (Lyd *lyd)
   g_free (lyd);
 }
 
-void lyd_voice_set_position (LydVoice *voice,
-                             double    position)
+LydVoice *lyd_voice_set_position (LydVoice *voice,
+                                  double    position)
 {
   Lyd *lyd = voice->lyd;
   LOCK ();
   if (slist_find (lyd->voices, voice))
     voice->position = position;
   UNLOCK ();
+  return voice;
 }
 
 
-void
+LydVoice *
 lyd_voice_set_param (LydVoice   *voice,
                      const char *param,
                      double      value)
@@ -266,12 +270,14 @@ lyd_voice_set_param (LydVoice   *voice,
       lyd_vm_set_param (voice, param, value);
     }
   UNLOCK ();
+  return voice;
 }
 
-void lyd_voice_set_param_delayed (LydVoice    *voice,
-                                  const char *param_name, double       time,
-                                  LydInterpolation interpolation,
-                                  double      value)
+LydVoice *
+lyd_voice_set_param_delayed (LydVoice    *voice,
+                             const char *param_name, double       time,
+                             LydInterpolation interpolation,
+                             double      value)
 {
   Lyd *lyd = voice->lyd;
   LOCK ();
@@ -280,6 +286,7 @@ void lyd_voice_set_param_delayed (LydVoice    *voice,
       lyd_vm_set_param_delayed (voice, param_name, time, interpolation, value);
     }
   UNLOCK ();
+  return voice;
 }
 
 

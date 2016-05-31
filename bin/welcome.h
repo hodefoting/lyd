@@ -22,10 +22,10 @@ void welcome (Lyd *lyd)
 
 #define Q(delay, duration, frequency, pos) \
   voice = lyd_voice_new (lyd, program, delay, 0);\
-  lyd_voice_set_param (lyd, voice, "volume", 1.0);\
-  lyd_voice_set_param (lyd, voice, "hz",     frequency);\
-  lyd_voice_set_duration (lyd, voice, duration);\
-  lyd_voice_set_position (lyd, voice, pos);
+  lyd_voice_set_param (voice, "volume", 1.0);\
+  lyd_voice_set_param (voice, "hz",     frequency);\
+  lyd_voice_set_duration (voice, duration);\
+  lyd_voice_set_position (voice, pos);
   Q(0.0, 0.3, 440.0, 0.0);
   Q(0.1, 0.2, 660.0, -1.0);
   Q(0.2, 0.2, 880.0, 1.0);

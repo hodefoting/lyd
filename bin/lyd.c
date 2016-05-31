@@ -389,11 +389,11 @@ static void abc_flush (Lyd *lyd, LydProgram *program,
       res += 60 - 12;
 
       voice = lyd_voice_new (lyd, program, *position, 0);
-      lyd_voice_set_param (lyd, voice, "volume", 1.0);
-      lyd_voice_set_param (lyd, voice, "hz", midi2hz(res));
+      lyd_voice_set_param (voice, "volume", 1.0);
+      lyd_voice_set_param (voice, "hz", midi2hz(res));
 
-      lyd_voice_set_duration (lyd, voice, (duration * *nominator) / *denominator);
-      lyd_voice_set_position (lyd, voice, 0.0);
+      lyd_voice_set_duration (voice, (duration * *nominator) / *denominator);
+      lyd_voice_set_position (voice, 0.0);
 
       *position += (duration * *nominator) / *denominator;
 
@@ -519,10 +519,10 @@ for (i=0; i < 122; i++)
       {
         LydVoice *voice;
         voice = lyd_voice_new (lyd, program, i * delay, 0);
-        lyd_voice_set_param (lyd, voice, "volume", 1.0);
-        lyd_voice_set_param (lyd, voice, "hz", scale[spos]);
-        lyd_voice_set_duration (lyd, voice, duration);
-        lyd_voice_set_position (lyd, voice, 0.0);
+        lyd_voice_set_param (voice, "volume", 1.0);
+        lyd_voice_set_param (voice, "hz", scale[spos]);
+        lyd_voice_set_duration (voice, duration);
+        lyd_voice_set_position (voice, 0.0);
       }
 
     if (rand()%256 > 128)

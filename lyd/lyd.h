@@ -174,7 +174,7 @@ LydVoice   *lyd_voice_new       (Lyd *lyd, LydProgram *program, double delay, in
  * Release a voice, this causes all ADSRs to decay, likely fading out the
  * signal. A released voice that goes quiet does not need to be killed.
  */
-void        lyd_voice_release   (LydVoice *voice);
+LydVoice   *lyd_voice_release   (LydVoice *voice);
 /**
  * lyd_kill:
  * @lyd: lyd engine
@@ -201,7 +201,7 @@ void        lyd_voice_kill      (LydVoice *voice);
  * Specify the delay of the voice, overrides delay specified at creation.
  */
 
-void        lyd_voice_set_delay (LydVoice *voice, double seconds);
+LydVoice   *lyd_voice_set_delay (LydVoice *voice, double seconds);
 /**
  * lyd_voice_set_duration:
  * @lyd: lyd engine
@@ -211,7 +211,7 @@ void        lyd_voice_set_delay (LydVoice *voice, double seconds);
  * Specifies that the voice should auto-release after the specified duration
  * has been elapsed (the duration is counter from after any potential delay.)
  */
-void        lyd_voice_set_duration (LydVoice *voice, double duration);
+LydVoice   *lyd_voice_set_duration (LydVoice *voice, double duration);
 /**
  * lyd_voice_set_position:
  * @lyd: lyd engine
@@ -220,7 +220,7 @@ void        lyd_voice_set_duration (LydVoice *voice, double duration);
  *
  * Sets the stereo position of a voice, 0.0 is center.
  */
-void        lyd_voice_set_position (LydVoice *voice,
+LydVoice   *lyd_voice_set_position (LydVoice *voice,
                                     double    position);
 
 /**
@@ -234,7 +234,7 @@ void        lyd_voice_set_position (LydVoice *voice,
  * non keyword string that appears in the lyd program source is accesible
  * as such a string.
  */
-void        lyd_voice_set_param (LydVoice *voice,
+LydVoice   *lyd_voice_set_param (LydVoice *voice,
                                  const char *param, double value);
 /**
  * LydInterpolation:
@@ -261,7 +261,7 @@ typedef enum {
  * a specific time in the future, any non keyword string that appears in the
  * lyd program source is accesible as such a string.
  */
-void        lyd_voice_set_param_delayed (LydVoice *voice,
+LydVoice   *lyd_voice_set_param_delayed (LydVoice *voice,
                                          const char *param, double    time,
                                          LydInterpolation interpolation,
                                          double      value);
