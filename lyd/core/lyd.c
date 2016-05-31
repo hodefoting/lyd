@@ -43,9 +43,9 @@ again:
   UNLOCK ();
 }
 
-void lyd_voice_kill (Lyd *lyd,
-                     LydVM *voice)
+void lyd_voice_kill (LydVM *voice)
 {
+  Lyd *lyd = voice->lyd;
   LOCK ();
   if (slist_find (lyd->voices, voice))
     {
@@ -56,9 +56,9 @@ void lyd_voice_kill (Lyd *lyd,
 }
 
 void
-lyd_voice_release (Lyd   *lyd,
-                   LydVM *voice)
+lyd_voice_release (LydVM *voice)
 {
+  Lyd *lyd = voice->lyd;
   LOCK ();
   if (slist_find (lyd->voices, voice))
     {
@@ -109,7 +109,7 @@ void lyd_set_global_filter (Lyd *lyd, LydProgram *program)
 static LydVoice *lyd_voice_new_unlocked (Lyd       *lyd,
                                          LydProgram *program,
                                          int        tag)
-{
+{ 
   LydVoice *voice;
   voice = lyd_vm_create (lyd, program);
   voice->sample_rate = lyd->sample_rate;
@@ -127,21 +127,24 @@ LydVoice *lyd_voice_new (Lyd        *lyd,
   LydVoice *voice;
   LOCK ();
   voice = lyd_voice_new_unlocked (lyd, program, tag);
+  voice->lyd = lyd;
   voice->sample = - (delay * lyd->sample_rate);
   UNLOCK ();
   return voice;
 }
 
-void lyd_voice_set_duration (Lyd *lyd, LydVoice *voice, double seconds)
+void lyd_voice_set_duration (LydVoice *voice, double seconds)
 {
+  Lyd *lyd = voice->lyd;
   LOCK ();
   if (slist_find (lyd->voices, voice))
     voice->duration = seconds * lyd->sample_rate;
   UNLOCK ();
 }
 
-void lyd_voice_set_delay (Lyd *lyd, LydVoice *voice, double seconds)
+void lyd_voice_set_delay (LydVoice *voice, double seconds)
 {
+  Lyd *lyd = voice->lyd;
   LOCK ();
   if (slist_find (lyd->voices, voice))
     voice->sample = - (seconds * lyd->sample_rate);
@@ -240,10 +243,10 @@ void lyd_free (Lyd *lyd)
   g_free (lyd);
 }
 
-void lyd_voice_set_position (Lyd      *lyd,
-                             LydVoice *voice,
+void lyd_voice_set_position (LydVoice *voice,
                              double    position)
 {
+  Lyd *lyd = voice->lyd;
   LOCK ();
   if (slist_find (lyd->voices, voice))
     voice->position = position;
@@ -252,11 +255,11 @@ void lyd_voice_set_position (Lyd      *lyd,
 
 
 void
-lyd_voice_set_param (Lyd        *lyd,
-                     LydVoice   *voice,
+lyd_voice_set_param (LydVoice   *voice,
                      const char *param,
                      double      value)
 {
+  Lyd *lyd = voice->lyd;
   LOCK ();
   if (slist_find (lyd->voices, voice))
     {
@@ -265,11 +268,12 @@ lyd_voice_set_param (Lyd        *lyd,
   UNLOCK ();
 }
 
-void lyd_voice_set_param_delayed (Lyd        *lyd,        LydVoice    *voice,
+void lyd_voice_set_param_delayed (LydVoice    *voice,
                                   const char *param_name, double       time,
                                   LydInterpolation interpolation,
                                   double      value)
 {
+  Lyd *lyd = voice->lyd;
   LOCK ();
   if (slist_find (lyd->voices, voice))
     {

@@ -53,10 +53,10 @@ LydVM *lyd_note_full (Lyd  *lyd,
     return NULL;
   voice = lyd_voice_new (lyd, midi_programs[patch], 0.0, hashkey);
 
-  lyd_voice_set_param (lyd, voice, "volume", volume);
-  lyd_voice_set_param (lyd, voice, "hz", hz);
-  lyd_voice_set_duration (lyd, voice, duration);
-  lyd_voice_set_position (lyd, voice, pan);
+  lyd_voice_set_param (voice, "volume", volume);
+  lyd_voice_set_param (voice, "hz", hz);
+  lyd_voice_set_duration (voice, duration);
+  lyd_voice_set_position (voice, pan);
   return voice;
 }
 

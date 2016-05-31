@@ -707,13 +707,13 @@ static int midi_seek(LydMidi *midi, int target)
 
 static void lyd_midi_set_volume (LydMidi *midi, int channel, int note, int volume)
 {
-  lyd_voice_set_param (midi->lyd, midi->channel[channel].note_voice[note], "volume",
+  lyd_voice_set_param (midi->channel[channel].note_voice[note], "volume",
                        volume / 127.0);
 }
 static void lyd_midi_set_pitch (LydMidi *midi, int channel, int note, int bend)
 {
   printf ("set pitch %i %i %i\n", channel, note, bend);
-  lyd_voice_set_param (midi->lyd, midi->channel[channel].note_voice[note], "volume",
+  lyd_voice_set_param (midi->channel[channel].note_voice[note], "volume",
                        midi2hz (note) + ((bend-8192) /16384.0) * 2);
 }
 
@@ -733,7 +733,7 @@ void lyd_midi_note_off (LydMidi *midi, int channel, int note)
 
   if ((voice = midi->channel[channel].note_voice[note]))
     {
-      lyd_voice_release (midi->lyd, voice);
+      lyd_voice_release (voice);
       midi->channel[channel].note_voice[note] = NULL;
     }
 }
