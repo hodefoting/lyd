@@ -116,6 +116,7 @@ static LydVoice *lyd_voice_new_unlocked (Lyd       *lyd,
   voice->sample_rate = lyd->sample_rate;
   voice->i_sample_rate = 1.0/lyd->sample_rate;
   voice->tag = tag;
+  voice->lyd = lyd;
   lyd->voices = slist_prepend (lyd->voices, voice);
   return voice;
 }
@@ -128,7 +129,6 @@ LydVoice *lyd_voice_new (Lyd        *lyd,
   LydVoice *voice;
   LOCK ();
   voice = lyd_voice_new_unlocked (lyd, program, tag);
-  voice->lyd = lyd;
   voice->sample = - (delay * lyd->sample_rate);
   UNLOCK ();
   return voice;
