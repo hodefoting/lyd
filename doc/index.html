@@ -38,7 +38,7 @@
       <a class='jump' href='#top' title='jump to top'>⇡</a><a name='does' href='#does'>What lyd does</a></h3>
     <ul>
          <li>32bit float, SIMD multi core processing</li>
-         <li>language binding friendly <a href='http://pippin.gimp.org/git/lyd/tree/lyd/lyd.h'>C API</a></li>
+         <li>language binding friendly <a href='https://github.com/hodefoting/lyd/blob/master/lyd/lyd.h'>C API</a></li>
          <li><a href='reference.html'>audio synthesis language</a> providing
          <em>audio-shaders</em> or "GLSL for audio", lyd uses a language but
          the vm could just as easily support nodes.</li>
@@ -54,7 +54,7 @@
            href='http://jackaudio.org/'>jack</a></li>
          <li>Raspberry PI FM transmission</li>
          <li>MIDI sequencer - for playback of midi tracks (timing is broken)</li>
-         <li>patch databank (preloaded with <a href='http://pippin.gimp.org/git/lyd/tree/lyd/general-midi.txt'>FM-synthesis based GM set</a>)</li>
+         <li>patch databank (preloaded with <a href='https://github.com/hodefoting/lyd/blob/master/lyd/general-midi.txt'>FM-synthesis based GM set</a>)</li>
          <li>ALSA midi/OSC daemon</li>
     </ul>
 
@@ -83,11 +83,13 @@
 
     <h3><a name='get' href='#get'>Sources</a>
         <a class='jump' href='#top' title='jump to top'>⇡</a></h3>
-    <ul><li>lyd lives in git: <a href='http://pippin.gimp.org/git/lyd/'>git repo summary</a>, <a href='http://pippin.gimp.org/git/lyd/tree'>browse code</a>.</li>
-        <li><code>git clone <a href='git://pippin.gimp.org/lyd'>git://pippin.gimp.org/lyd</code></a></li>
+    <ul><li>lyd lives in git: <a href='https://github.com/hodefoting/lyd.git/'>git repo summary</a>, <a href='https://github.com/hodefoting/lyd'>browse code</a>.</li>
+        <li><code>git clone <a href='https://github.com/hodefoting/lyd.git'>https://github.com/hodefoting/lyd.git</code></a></li>
+        <!--
       <li>Tarballs of repository:
          <a href='http://pippin.gimp.org/git/lyd/snapshot/lyd-master.tar.bz2'>lyd-master.tar.bz2</a> , 
          <a href='http://pippin.gimp.org/git/lyd/snapshot/lyd-master.zip'>lyd-master.zip</a></li>
+        -->
     </ul>
 
     <h3><a class='jump' href='#top' title='jump to top'>⇡</a>
@@ -162,7 +164,7 @@
 
     <p>See the examples for illustrations of the above concepts.
 
-    <a href='http://pippin.gimp.org/git/lyd/tree/examples'>examples in the source tree.</a>.
+    <a href='https://github.com/hodefoting/lyd/tree/master/examples'>examples in the source tree.</a>.
     <!--(note to self: would be good to allowing interpolation of real-time specified variables
     to avoid artifacts)-->.
 
@@ -220,7 +222,7 @@
     <p>Lyd uses a <a href='http://javascript.crockford.com/tdop/tdop.html'>Top
       Down Operator Precedence</a> parser to generate an AST for the lyd
     expression. This parser form part of the <a
-      href='http://pippin.gimp.org/git/lyd/tree/lyd/lyd-compiler.c'>lyd-compiler.c</a>,
+      href='https://github.com/hodefoting/lyd/blob/master/lyd/core/lyd-compiler.c'>lyd-compiler.c</a>,
       which generates op-codes for the <em>lyd vm</em>. The compiler builds a
       <em>LydProgram which</em> is a struct defining op-codes and the values of 
       their dependencies.
@@ -231,7 +233,7 @@
     integer back-pointers to the outputs of preceding opcodes.</p>
 
     <p>When a compiled program is instantiated to an active LydVoice it
-    becomes an array of <a href='http://pippin.gimp.org/git/lyd/tree/lyd/lyd-private.h#n65'>LydOpState</a>
+    becomes an array of <a href='https://github.com/hodefoting/lyd/blob/master/lyd/core/lyd-private.h#L82'>LydOpState</a>
     entires, a struct containing the
     opcode and a processing context with local argument and output storage.
     </p>
@@ -257,7 +259,7 @@
 
     <p>The op-codes of lyds virtual machine, and the functions and operators of
     the lyd language are all defined in
-    <a href='http://pippin.gimp.org/git/lyd/tree/lyd/lyd-ops.inc'>lyd-ops.inc</a>
+    <a href='https://github.com/hodefoting/lyd/blob/master/lyd/core/lyd-ops.inc'>lyd-ops.inc</a>
     Op-codes added following the pattern in this file are expanded as different
     macros when included in various parts of the source, providing both
     en enum, cases for the dispatch switch, integration with the compiler
