@@ -91,14 +91,14 @@ int main (int    argc,
           /* any variable (that is non-reserved keyword) in the source can be manipulated
            * in realtime like this: 
            */
-          lyd_voice_set_param (lyd, voice, "volume", 1.5 * (rand()%511)/511.0);
+          lyd_voice_set_param (voice, "volume", 1.5 * (rand()%511)/511.0);
 
-          lyd_voice_set_delay (lyd, voice, 20.3 * (rand()%511)/511.0);
+          lyd_voice_set_delay (voice, 20.3 * (rand()%511)/511.0);
 
           /* for fire and forget voices, it is nice to set a time to live before release*/
-          lyd_voice_set_duration (lyd, voice, 3.0);
+          lyd_voice_set_duration (voice, 3.0);
 
-          lyd_voice_set_position (lyd, voice, 2 * (rand()%511)/511.0 - 1);
+          lyd_voice_set_position (voice, 2 * (rand()%511)/511.0 - 1);
 
           lyd_program_free (instrument);
         }

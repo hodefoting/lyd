@@ -191,6 +191,8 @@ static void lyd_prepare_buffer (Lyd *lyd, int samples)
     memset (lyd->buf[i], 0, sizeof (LydSample) * samples * 2);
 }
 
+static double elapsed_time = 0.0;
+
 static void lyd_pre_cb (Lyd *lyd, int samples)
 {
   float elapsed = lyd->previous_samples/(1.0 * lyd->sample_rate);
@@ -199,6 +201,17 @@ static void lyd_pre_cb (Lyd *lyd, int samples)
     if (lyd->pre_cb[i])
       lyd->pre_cb[i](lyd, elapsed, lyd->pre_cb_data[i]);
   lyd->previous_samples = samples;
+  elapsed_time += elapsed;
+}
+
+void lyd_reset_time (Lyd *lyd)
+{
+  elapsed_time = 0.0;
+}
+
+double lyd_get_time (Lyd *lyd)
+{
+  return elapsed_time;
 }
 
 static void lyd_voice_release_handling (Lyd   *lyd,

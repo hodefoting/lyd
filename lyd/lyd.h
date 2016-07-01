@@ -592,4 +592,7 @@ void         lyd_vm_set_complete_cb (LydVM *vm,
                                      void  (*complete_cb)(void *data),
                                      void *data);
 
+void lyd_reset_time (Lyd *lyd);
+double lyd_get_time (Lyd *lyd);
+
 #endif

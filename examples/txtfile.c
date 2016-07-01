@@ -81,10 +81,10 @@ int main (int    argc,
           duration = 1.5;
           time = 0.0;
           voice = lyd_voice_new (lyd, instrument, 0, 0);
-          lyd_voice_set_param (lyd, voice, "hz", midi2hz (halfnote + 69));
-          lyd_voice_set_param (lyd, voice, "half", halfnote);
-          lyd_voice_set_duration (lyd, voice, duration);
-          lyd_voice_set_delay (lyd, voice, time);
+          lyd_voice_set_param (voice, "hz", midi2hz (halfnote + 69));
+          lyd_voice_set_param (voice, "half", halfnote);
+          lyd_voice_set_duration (voice, duration);
+          lyd_voice_set_delay (voice, time);
 
           if (outfile)
             {
