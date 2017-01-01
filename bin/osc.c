@@ -92,7 +92,7 @@ static int osc_release (OSC_ARGS)
   int slot = argv[0]->i;
   if (voices[slot])
     {
-      lyd_voice_release (lyd, voices[slot]);
+      lyd_voice_release (voices[slot]);
     }
   return 0;
 }
