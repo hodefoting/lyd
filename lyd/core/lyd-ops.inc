@@ -123,7 +123,7 @@ LYD_OP("wave_loop", WAVELOOP, 2,
        " to be silenced.","('test.wav', hz)")
 
 LYD_OP("abssin", ABSSIN, 1,
-       OP_LOOP(OUT = fabs (sine (PHASE * M_PI * 2));),;,;,
+       OP_LOOP(OUT = fabsf (sine (PHASE * M_PI * 2));),;,;,
        "OPL2 oscillator","(hz)")
 
 LYD_OP("possin", POSSIN, 1,
@@ -131,8 +131,8 @@ LYD_OP("possin", POSSIN, 1,
        "OPL2 oscillator","(hz)")
 
 LYD_OP("pulssin", PULSSIN, 1,
-       OP_LOOP(OUT = fmod (PHASE, 0.5) < 0.25 ?
-                  fabs (sine (PHASE_PEEK * M_PI * 2)) :
+       OP_LOOP(OUT = fmodf (PHASE, 0.5) < 0.25 ?
+                  fabsf (sine (PHASE_PEEK * M_PI * 2)) :
                   0.0;),;,;,
        "OPL2 oscillator","(hz)")
 

@@ -360,7 +360,7 @@ lyd_vm_compute (LydVM  *vm,
   return last_state->out;
 }
 
-#define STREQUAL(str1,str2) (fabs((str1)-(str2))<0.0000001)
+#define STREQUAL(str1,str2) (fabsf((str1)-(str2))<0.0000001)
 
 void
 lyd_vm_set_param (LydVM      *vm,

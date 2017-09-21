@@ -627,7 +627,7 @@ static inline void op_cycle (OP_ARGS)
 
   for (i = 0; i < samples; i++)
     {
-      pos = fmod (freq * count * SAMPLE / vm->sample_rate, count);
+      pos = fmodf (freq * count * SAMPLE / vm->sample_rate, count);
 
       switch (1 + (pos+count) % count)
         {

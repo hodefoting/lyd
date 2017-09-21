@@ -401,10 +401,10 @@ static void lyd_scale_volume (Lyd *lyd, int samples)
       value[1] = lyd->buf[0][i+samples];
 
       {
-        LydSample level = fabs(value[0]);
+        LydSample level = fabsf(value[0]);
         if (level > lyd->level)
           lyd->level = level;
-        level = fabs(value[1]);
+        level = fabsf(value[1]);
         if (level > lyd->level)
           lyd->level = level;
       }
