@@ -36,7 +36,7 @@ int main (int    argc,
     }
 
   printf ("initing sound\n");
-  if (!lyd_audio_init (lyd, "auto"))
+  if (!lyd_audio_init (lyd, "auto", NULL))
     {
       lyd_free (lyd);
       printf ("failed to initialize lyd (audio output)\n");

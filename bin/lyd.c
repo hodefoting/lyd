@@ -47,7 +47,8 @@ static float scale[]=
 
 
 int lyd_audio_init   (Lyd        *lyd,
-                      const char *driver);
+                      const char *driver,
+                      void       *data);
 
 #ifdef HAVE_OSC
 void lyd_osc_init   (Lyd *lyd);
@@ -206,7 +207,7 @@ int main (int    argc,
     }
   else
     {
-      if (!lyd_audio_init (lyd, "auto"))
+      if (!lyd_audio_init (lyd, "auto", NULL))
         {
           lyd_free (lyd);
           printf ("failed to initialize lyd (audio output)\n");

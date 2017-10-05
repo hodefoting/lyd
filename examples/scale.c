@@ -16,7 +16,7 @@ int main (int    argc, char **argv)
                  392.0,  349.23, 329.63, 293.66, 261.0};
 
   lyd = lyd_new ();
-  if (!lyd_audio_init (lyd, "auto"))
+  if (!lyd_audio_init (lyd, "auto", NULL))
     {
       lyd_free (lyd);
       printf ("failed to initialize lyd (audio output)\n");

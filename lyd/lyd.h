@@ -455,7 +455,9 @@ void         lyd_remove_cb (Lyd *lyd, int id);
  * Initialize audio output subsystem, this is a global initialization that binds
  * to a lyd core, leaving driving of lyd_synthesize to the output driver.
  */
-int          lyd_audio_init (Lyd *lyd, const char *driver); 
+int lyd_audio_init   (Lyd        *lyd,
+                      const char *driver,
+                      void       *data);
 
 
 /**

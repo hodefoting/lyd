@@ -318,8 +318,9 @@ lyd_audio_init_mmm (Lyd *lyd)
 #endif
 
 int
-lyd_audio_init (Lyd       *lyd,
-                const char *driver)
+lyd_audio_init (Lyd        *lyd,
+                const char *driver,
+                void       *data)
 {
   if (getenv ("LYD_DRIVER") && driver && strstr (driver, "auto"))
     driver = getenv ("LYD_DRIVER");
