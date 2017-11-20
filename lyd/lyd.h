@@ -81,6 +81,7 @@ int         lyd_get_sample_rate (Lyd *lyd);
 typedef enum {
   LYD_f32,  /* 32bit floating point mono */
   LYD_f32S, /* 32bit floating point stereo, stream2 is used */
+  LYD_s16,  /* 16bit signed integer mono on stream1 */
   LYD_s16S  /* 16bit signed integer stereo, interleaved on stream1*/
 } LydFormat;
 /**

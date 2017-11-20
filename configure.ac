@@ -148,6 +148,22 @@ AM_CONDITIONAL(HAVE_OSC, test "$have_osc" = "yes")
 
 dnl ========================================================================
 
+AC_ARG_WITH(MMM, [  --without-mmm           build without mmm audio output support])
+have_mmm="no"
+if test "x$with_mmm" != "xno"; then
+  PKG_CHECK_MODULES(MMM, mmm,
+    have_mmm="yes"
+    AC_DEFINE(HAVE_MMM, 1, [Define to 1 if mmm library is available])
+    ,
+    have_mmm="no  (libmmm not found)")
+fi
+AC_SUBST(MMM_CFLAGS)
+AC_SUBST(MMM_LIBS)
+AM_CONDITIONAL(HAVE_MMM, test "$have_mmm" = "yes")
+
+dnl ========================================================================
+
+
 AC_CHECK_HEADERS(dl.h)
 AC_SEARCH_LIBS([dlopen], [dl])
 AC_SEARCH_LIBS([sin],    [m])
@@ -174,6 +190,7 @@ AC_MSG_RESULT([
  
   alsa:     $have_alsa
   jack:     $have_jack
+  mmm:      $have_mmm
   sndfile:  $have_sndfile
   osc:      $have_osc
 ]);

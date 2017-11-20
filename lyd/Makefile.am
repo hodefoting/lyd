@@ -10,7 +10,7 @@ AM_CPPFLAGS = \
 	-I$(top_builddir)/lyd $(SSE_FLAGS)
         $(NULL)
 
-AM_CFLAGS = $(MAINTAINER_CFLAGS) $(JACK_CFLAGS) -DNIH
+AM_CFLAGS = $(MAINTAINER_CFLAGS) $(JACK_CFLAGS) $(MMM_CFLAGS) -DNIH
 
 lib_LTLIBRARIES = liblyd-@LYD_API_VERSION@.la
 
@@ -28,8 +28,8 @@ liblyd_@LYD_API_VERSION@_la_SOURCES = \
 EXTRA_DIST = core/lyd-private.h core/lyd-ops.inc core/lyd-ops.c general-midi.txt
 
 liblyd_@LYD_API_VERSION@_la_LIBADD = liblyd-core-@LYD_API_VERSION@.la \
-                                     $(ALSA_LIBS) $(JACK_LIBS) -lpthread
-liblyd_@LYD_API_VERSION@_la_LDFLAGS = $(ALSA_LT_LDFLAGS)  $(JACK_LT_LDFLAGS)
+                                     $(MMM_LIBS) $(ALSA_LIBS) $(JACK_LIBS) -lpthread
+liblyd_@LYD_API_VERSION@_la_LDFLAGS = $(MMM_LT_LDFLAGS) $(ALSA_LT_LDFLAGS)  $(JACK_LT_LDFLAGS)
 
 lydheadersdir = $(includedir)/lyd-@LYD_API_VERSION@/lyd
 

@@ -448,6 +448,11 @@ static void lyd_write_to_output (Lyd *lyd, int samples,
           buf16[i*2]  = (lyd->buf[0][i] * 32767);
         for (i=0;i<samples;i++)
           buf16[i*2+1] = (lyd->buf[0][i+samples] * 32767);
+        break;
+      case LYD_s16:
+        for (i=0;i<samples;i++)
+          buf16[i] = ((lyd->buf[0][i] + lyd->buf[0][i + samples])/2) * 32767;
+        break;
     }
 }
 
