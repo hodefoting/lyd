@@ -281,7 +281,7 @@ void *mmm_audio_thread (void *data)
     {
       lyd_synthesize (mmm_lyd, count, renderbuf, NULL);
       //fprintf (stderr, "%i\n", count);
-      mmm_pcm_write (mmm, (void*)renderbuf, count);
+      mmm_pcm_queue (mmm, (void*)renderbuf, count);
     }
     else
     {
