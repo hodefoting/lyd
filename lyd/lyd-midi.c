@@ -950,6 +950,16 @@ lyd_handle_midi (LydMidi         *midi,
       midi->channel[ev->data.control.channel].new_pitch_bend = ev->data.control.value;
           break;
 
+    /* silence some annoying unhandled events */
+    case SND_SEQ_EVENT_CHANPRESS:
+
+    /* sequencer events */
+    case SND_SEQ_EVENT_START:
+    case SND_SEQ_EVENT_CONTINUE:
+    case SND_SEQ_EVENT_STOP:
+    case SND_SEQ_EVENT_CLOCK:
+      break;
+
     default: printf ("unhandled alsa midi event type %i\n", ev->type);break;
   }
 }
