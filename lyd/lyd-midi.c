@@ -712,8 +712,7 @@ static void lyd_midi_set_volume (LydMidi *midi, int channel, int note, int volum
 }
 static void lyd_midi_set_pitch (LydMidi *midi, int channel, int note, int bend)
 {
-  printf ("set pitch %i %i %i\n", channel, note, bend);
-  lyd_voice_set_param (midi->channel[channel].note_voice[note], "volume",
+  lyd_voice_set_param (midi->channel[channel].note_voice[note], "hz",
                        midi2hz (note + (bend / 8192.0) * 2));
 }
 
