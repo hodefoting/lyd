@@ -37,7 +37,7 @@
 #include <stdlib.h>
 #include <math.h>
 
-static float midi2hz (int midinote)
+static float midi2hz (float midinote)
 {
   return (440.0 * pow (2,(midinote-69.0)/12.0));
 }
@@ -294,7 +294,7 @@ static void all_sound_off(LydMidi *midi, int channel)
 static void reset_controllers(LydMidi *midi, int channel)
 {
    midi->channel[channel].new_volume = 128;
-   midi->channel[channel].new_pitch_bend = 0x2000;
+   midi->channel[channel].new_pitch_bend = 0x0;
 
    switch (channel % 3) {
       case 0:  midi->channel[channel].pan = ((channel/3) & 1) ? 60 : 68; break;
@@ -409,7 +409,7 @@ static void process_midi_event(LydMidi *midi,
     case 0x0C: lyd_midi_program (midi, channel, byte1); (*pos) += 1;break;
     case 0x0D: /* lyd_midi->channel_aftertouch () */ (*pos) += 1;break;
     case 0x0E: /* lyd_midi->channel_pitchbend */
-         midi->channel[channel].new_pitch_bend = byte1 + (byte2<<7);(*pos) +=2;
+         midi->channel[channel].new_pitch_bend = (byte1 + (byte2<<7) - 0x2000);(*pos) +=2;
          break;
     case 0x0F:  /* special event */
     switch (event) {
@@ -714,7 +714,7 @@ static void lyd_midi_set_pitch (LydMidi *midi, int channel, int note, int bend)
 {
   printf ("set pitch %i %i %i\n", channel, note, bend);
   lyd_voice_set_param (midi->channel[channel].note_voice[note], "volume",
-                       midi2hz (note) + ((bend-8192) /16384.0) * 2);
+                       midi2hz (note + (bend / 8192.0) * 2));
 }
 
 void lyd_midi_program    (LydMidi *midi, int channel, int preset)
@@ -770,7 +770,7 @@ void lyd_midi_note_on (LydMidi *midi, int channel, int note, int vol)
   midi->channel[channel].note_volume[note] = vol; 
   if (!midi->seeking){
     voice = lyd_note_full (midi->lyd, midi->channel[channel].patch,
-                           midi2hz (corrected_note) + ((bend-8192) /16384.0) * 2,
+                           midi2hz (corrected_note + (bend / 8192.0) * 2),
                            sort_out_volume (midi, channel, vol) / 127.0,
                            4.0, /* max duration of 4s to avoid stuck notes */
                            (midi->channel[channel].pan-64)/127.0,
@@ -792,7 +792,7 @@ static void midi_init (Lyd *lyd)
 
    for (c=0; c<MIDI_CHANNELS; c++) {
       midi->channel[c].volume = midi->channel[c].new_volume = 128;
-      midi->channel[c].pitch_bend = midi->channel[c].new_pitch_bend = 0x2000;
+      midi->channel[c].pitch_bend = midi->channel[c].new_pitch_bend = 0;
       for (c2=0; c2<MIDI_NOTES; c2++) {
         midi->channel[c].note_volume[c2] = -1;
       }
@@ -978,6 +978,7 @@ static int midi_consume ()
       snd_seq_free_event(ev);
     } 
   while (snd_seq_event_input_pending (handle, 0) > 0);
+  update_controllers (midi);
   return 0;
 }
 
