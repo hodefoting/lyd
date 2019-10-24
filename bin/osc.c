@@ -53,7 +53,6 @@ static int osc_log (OSC_ARGS)
 
 static int osc_compile (OSC_ARGS)
 {
-  LydProgram *program;
   int codeslot = argv[0]->i;
   const char *code = &argv[1]->s;
   printf ("compile %d %s\n", codeslot, code);
@@ -102,7 +101,7 @@ static int osc_kill (OSC_ARGS)
   int slot = argv[0]->i;
   if (voices[slot])
     {
-      lyd_voice_kill (lyd, voices[slot]);
+      lyd_voice_kill (voices[slot]);
       voices[slot]=NULL; 
     }
   return 0;
@@ -124,7 +123,7 @@ static int osc_voice_set (OSC_ARGS)
   const char *param = &argv[1]->s;
   float value = argv[2]->f;
   if (voices[slot])
-    lyd_voice_set_param (lyd, voices[slot], param, value);
+    lyd_voice_set_param (voices[slot], param, value);
   return 0;
 }
 
